@@ -43,22 +43,31 @@ def ensure_app_registered() -> dict:
 
     bench_sites = os.path.join(frappe.utils.get_bench_path(), "sites")
     apps_txt = os.path.join(bench_sites, "apps.txt")
+    # Truth = union of every source (DB installed apps, apps/ directory listing,
+    # current apps.txt). An app present on disk or in the DB but missing from
+    # apps.txt is exactly the failure mode this repairs (ISSUE-02).
+    installed = frappe.get_installed_apps()
+    apps_dir = os.path.join(frappe.utils.get_bench_path(), "apps")
+    on_disk = os.listdir(apps_dir) if os.path.isdir(apps_dir) else []
     apps: list[str] = []
     if os.path.exists(apps_txt):
         with open(apps_txt) as f:
             apps = [line.strip() for line in f if line.strip()]
-    if "departmental_store" not in apps:
-        apps.append("departmental_store")
+    merged: list[str] = []
+    for a in installed + on_disk + apps:
+        if a and a not in merged:
+            merged.append(a)
+    changed_apps_txt = merged != apps
+    if changed_apps_txt:
         with open(apps_txt, "w") as f:
-            f.write("\n".join(apps) + "\n")
-        changed_apps_txt = True
-    else:
-        changed_apps_txt = False
+            f.write("\n".join(merged) + "\n")
 
     frappe.cache.delete_value("app_modules")
     frappe.cache.delete_value("installed_app_modules")
     frappe.setup_module_map(include_all_apps=True)
-    registered = "departmental_store" in frappe.local.module_app
+    registered = all(
+        app in frappe.local.module_app for app in merged
+    )
     frappe.db.commit()
     return {"apps_txt_updated": changed_apps_txt, "module_map_ok": registered}
 

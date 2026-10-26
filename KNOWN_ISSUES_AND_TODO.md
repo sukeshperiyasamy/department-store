@@ -11,13 +11,16 @@ Last updated: 2026-10-27. Full defect register: `docs/testing/BUG_REPORT.md`.
 - Next: instrument `erpnext/stock/get_stock_availability` on the test site; check
   `Sales Taxes and Charges Template`-independent stock settings and Batch expiry reservations.
 
-### ISSUE-02 — regional catalog seeding blocked by apps.txt/module-map churn (Medium)
-- `sites/apps.txt` and redis `app_modules`/`installed_app_modules` repeatedly lose installed
-  apps after interrupted bench operations → "Module … not found" everywhere.
-- Workaround implemented: `bench --site frontend execute departmental_store.install.ensure_app_registered`
-  (+ `clear-cache` + backend restart). Root cause of the rewriter still unknown.
-- Consequence: `regional_catalog.seed` (160 products) is written but not yet executed on the
-  test site. Run self-heal → seed → verify counts + Tamil alias search.
+### ISSUE-02 — RESOLVED 2026-10-27 (regional catalog seeded: 160 products)
+- Root causes found: (a) `sites/apps.txt` rewritten by external factors (configurator `ls -1 apps`,
+  bench operations) losing installed apps; (b) redis module-map caches going stale; (c) two seed
+  bugs — 4-digit HSN codes (india_compliance requires 6/8) and missing `item_group_name` field.
+- Permanent fix: `ensure_app_registered` now rebuilds apps.txt from the UNION of DB installed
+  apps + `apps/` directory listing + current file (self-heals any subset), plus the two seed
+  fixes in `regional_catalog.py`. Verified: seed created all 160 products; second run
+  idempotent (0 created, 160 skipped). Guard: `tests/integration/apps_txt_guard.mjs` (G-01 PASS).
+- Remaining: transient `tabSeries` deadlock on concurrent invoice posting (single retry handles
+  it; G-04 in the guard hit it during a burst — intermittent, retry succeeds).
 
 ### ISSUE-03 — server error messages contain raw HTML (Low, cosmetic)
 - ERPNext validation messages (e.g. stock shortfall) include `<strong>/<a>` markup which the

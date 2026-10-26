@@ -144,8 +144,7 @@ read only those files. Grep only for strings the graph misses (SQL literals, con
 
 ## 8. Next steps, priority order
 
-1. **Run `regional_catalog.seed`** (code done, 160 products) — blocked only by the apps.txt churn; self-heal
-   first, then seed; verify counts + Tamil alias search. Doc: `docs/catalog/REGIONAL_DEMO_CATALOG.md` (to write).
+1. ~~Regional catalog seed~~ DONE — 160 products seeded, idempotency verified. Remaining: write `docs/catalog/REGIONAL_DEMO_CATALOG.md` and wire the catalog into POS defaults.
 2. **Fix STOCK-01** availability mismatch (india_compliance + POS stock check) — BUG_REPORT addendum has repro.
 3. **Voice**: deterministic Tamil/Tanglish parser + transcript-fixture tests (spec §4 of the TN master prompt);
    wire `voice_assistant_enabled` flag; speech engine selection (Vosk vs Whisper) is a separate decision.
@@ -200,8 +199,7 @@ mobile-native app (responsive PWA covers v1); Tamil voice speech engine integrat
 
 ## Exact next steps (priority)
 
-1. Fix ISSUE-01 apps.txt churn root cause (bench rewriter) → then run
-   `regional_catalog.seed` and verify 160 products + Tamil alias search.
+1. ISSUE-02 apps.txt churn: PERMANENT FIX DEPLOYED (union-of-sources self-heal in install.py); ISSUE-02 CLOSED. Verify stability across future bench operations via tests/integration/apps_txt_guard.mjs.
 2. Fix STOCK-01 (instrument get_stock_availability under india_compliance).
 3. Build Tamil voice parser + transcript fixtures (spec: TN master prompt §4);
    gate on `voice_assistant_enabled`.

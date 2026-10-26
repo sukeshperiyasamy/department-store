@@ -1,0 +1,25 @@
+{
+  "date": "2026-10-26T21:52:29.095Z",
+  "results": [
+    {
+      "id": "G-01",
+      "status": "PASS",
+      "detail": "all 4 apps listed"
+    },
+    {
+      "id": "G-02",
+      "status": "FAIL",
+      "detail": "SyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 2)"
+    },
+    {
+      "id": "G-03",
+      "status": "FAIL",
+      "detail": "SyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 2)"
+    },
+    {
+      "id": "G-04",
+      "status": "FAIL",
+      "detail": "status=REQUIRES_REVIEW invoice=INVOICE_POSTING_FAILED"
+    }
+  ]
+}
