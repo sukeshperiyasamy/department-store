@@ -1,6 +1,6 @@
 # Project Status
 
-Updated: 2026-10-27 (Windows release, GST, returns, hardware & multi-counter phase)
+Updated: 2026-10-27 (evening — feature flags, regional catalog, docs consolidation)
 Previous: 2026-10-26 (first implementation session)
 
 ## Completed and verified (executed, observed)
@@ -16,18 +16,25 @@ Previous: 2026-10-26 (first implementation session)
 | Counter SQLite durability | Verified | real-SQLite tests: atomic sale+outbox, rollback, restart durability, duplicate delivery guard, crash recovery (stale SYNCING), guarded transitions |
 | POS transport | Verified | zod contract validation, timeout→recovery mapping, auth errors |
 | POS UI + build | Built | billing (barcode-first, F2/F4/F8), payment (split/change), sync/review screen; tsc strict clean; vite build clean |
-| Tauri shell | Scaffolded | Cargo project, sqlite plugin, print_raw spool command, icons, capabilities (not compiled — no Rust toolchain on this machine) |
+| Tauri shell + Windows exe | **Built & launched** | `windows-pos.exe` 8.2 MB; login/catalog/cart/payment/sync E2E via OS automation; see docs/release/ |
 | Owner dashboard | Verified live | rendered ₹1,029 gross / 3 bills / avg ₹343 / Counter 1 Enabled / review queue clear from live ERP via least-privilege token |
-| Demo dataset | Seeded | 5 items w/ valid EAN-13 barcodes, batch item, stock receipt, POS profile + opening entry, 3 sales posted SERVER_COMMITTED through the API |
+| Demo dataset | Seeded | 5 items w/ valid EAN-13 barcodes, batch item, stock receipt, POS profile + opening entry, sales posted SERVER_COMMITTED through the API |
+| Returns/refunds workflow | **Verified** | 10 bench tests + HTTP MC-08 (concurrent refunds ≤1 commit); POS Returns screen implemented |
+| GST (india_compliance v16) | **Verified (software)** | templates + POS-path tax case (₹100 → CGST 9 + SGST 9 = ₹118); synthetic GSTIN; accountant sign-off pending |
+| Feature flags (10 modules) | **Verified** | settings doctype + get_settings/set_flag/require_flag deployed on test site |
+| Multi-counter/offline suite | **Verified** | 9/9 scenarios (2 independent SQLite counters, race/offline/restart/duplicates/refunds) |
+| Windows exe E2E | **Verified** | login → catalog → cart → payment → local save → sync → honest verdict, via real exe (screenshots) |
+| Backup + DR restore | **Verified** | run_backup.sh (gzip -t + SHA256) + scratch-site restore rehearsals 10-26 & 10-27 |
+| Regional TN catalog (160 products, Tamil/Tanglish) | **Implemented, seeding blocked** | regional_catalog.py complete; site seeding blocked by apps.txt/module-map churn (ISSUE-02) |
 
 ## Implemented but not hardware/production-verified
 
 - Receipt printing: ESC/POS byte generation is unit-tested; `print_raw` queues
   bytes to a spool directory. Real thermal printers require vendor model
   confirmation (ESC/POS vs ZPL/TSPL) — not possible without hardware.
-- GST: tax templates flow through ERPNext's standard engine and are included in
-  the catalog snapshot; India Compliance app is NOT installed yet; no CGST/SGST
-  scenario tests yet (requires accountant-approved expected values).
+- GST: india_compliance v16 installed and templates verified (see
+  docs/compliance/GST_IMPLEMENTATION_AND_VALIDATION.md); accountant sign-off and
+  real GSTIN still required before production.
 - Purchasing/supplier flows: reuse standard ERPNext documents (no customization
   was needed); not exercised end-to-end in this session.
 - Voice assistant: design only (see known-limitations.md), not started.
@@ -36,8 +43,8 @@ Previous: 2026-10-26 (first implementation session)
 
 1. **Offline invoice numbering** — offline bills print "(pending sync)"; a
    legally validated numbering strategy is required before production.
-2. **No Rust/MSVC toolchain on this machine** — Tauri desktop binary can't be
-   compiled here; CI or a dev box with VS Build Tools + rustup needed.
+2. **Windows exe built via GNU toolchain** (no MSVC needed); NSIS installer still
+   requires an MSVC CI runner. See docs/release/WINDOWS_BUILD_AND_INSTALLATION.md.
 3. **Printing hardware integration** — spool-watcher/printer binding pending
    actual printer models.
 4. **India Compliance app** — install + configure + test GST scenarios with an
@@ -62,3 +69,13 @@ Previous: 2026-10-26 (first implementation session)
    ERPNext report APIs; add notification preferences.
 6. Schedule bench backups + offsite copy; rehearse restore.
 7. Two-counter concurrency soak test.
+
+
+## 2026-10-27 (evening) additions
+
+- Feature-flag settings doctype + API deployed (10 modules; System Manager writes, audit-logged).
+- Regional TN catalog seed written (160 products, Tamil/Tanglish aliases, synthetic in-store
+  barcodes) — execution blocked by apps.txt churn (ISSUE-02); self-heal first.
+- Known open defect: STOCK-01 availability mismatch under india_compliance (BUG_REPORT).
+- Docs consolidated: HANDOFF.md, README refresh, DATABASE_AND_API.md, PROJECT_OVERVIEW.md,
+  FEATURE_STATUS.md, IMPLEMENTATION_HISTORY.md, KNOWN_ISSUES_AND_TODO.md, TESTING_AND_DEPLOYMENT.md.

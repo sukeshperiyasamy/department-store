@@ -31,10 +31,11 @@ system touches real money or real tax authorities.
 
 ## Environment gaps on this workstation
 
-- **Rust + MSVC Build Tools missing** → the Tauri desktop binary was not
-  compiled. All frontend logic is nevertheless built and tested; the shell is
-  standard Tauri 2 scaffolding.
-- **India Compliance app not installed** in the dev container.
+- RESOLVED 2026-10-27: Windows exe built via rustup-gnu + MSYS2 binutils (no admin
+  needed) — see docs/release/WINDOWS_BUILD_AND_INSTALLATION.md. NSIS installer still
+  needs an MSVC CI runner.
+- India Compliance v16 installed 2026-10-27 with synthetic GSTIN; accountant
+  configuration review still outstanding.
 - **Multi-counter concurrency** with the real desktop app unexercised (server
   idempotency itself is bench-tested).
 
