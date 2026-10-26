@@ -4,7 +4,15 @@ import frappe
 def after_install() -> None:
     ensure_roles()
     ensure_item_aliases_field()
+    ensure_site_language()
     frappe.db.commit()
+
+
+def ensure_site_language() -> None:
+    """Fresh sites with an empty language trip a Frappe v16 locale bug
+    (frappe/locale.py get_locale_value UnboundLocalError) once notifications run."""
+    if not frappe.db.get_single_value("System Settings", "language"):
+        frappe.db.set_single_value("System Settings", "language", "en")
 
 
 ROLE_DEFINITIONS = [

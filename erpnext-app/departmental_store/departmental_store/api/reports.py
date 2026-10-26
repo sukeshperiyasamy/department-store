@@ -23,7 +23,9 @@ def owner_summary(business_date: str | None = None) -> dict:
     - taxes: sum of base total_taxes_and_charges.
     - returns: sum of base grand_total of is_return invoices (negative values).
     - bills: count of non-return invoices.
-    - payment split: sum of Sales Invoice Payment.base_amount per mode of payment.
+    - payment split: sum of Sales Invoice Payment.base_amount per mode of payment,
+      with cash rows reduced by the invoice's change_amount so the split reflects
+      allocated (kept) amounts, not tendered amounts.
     """
     frappe.only_for(SUMMARY_ROLES)
 
@@ -39,13 +41,26 @@ def owner_summary(business_date: str | None = None) -> dict:
 
     names = [inv.name for inv in invoices]
     payment_split: dict[str, float] = {}
+    change_by_invoice: dict[str, float] = {}
     if names:
         rows = frappe.get_all("Sales Invoice Payment",
                               filters={"parent": ("in", names)},
-                              fields=["mode_of_payment", "base_amount"], limit=0)
+                              fields=["parent", "mode_of_payment", "base_amount"], limit=0)
+        changes = frappe.get_all("Sales Invoice",
+                                 filters={"name": ("in", names), "change_amount": (">", 0)},
+                                 fields=["name", "change_amount"], limit=0)
+        change_by_invoice = {c.name: flt(c.change_amount) for c in changes}
         for row in rows:
+            # Cash rows carry tendered amounts; reports show allocated amounts
+            # (bill total), so excess cash tendered is excluded from the split.
+            amount = flt(row.base_amount)
+            if (frappe.db.get_value("Mode of Payment", row.mode_of_payment, "type") == "Cash"
+                    and change_by_invoice.get(row.parent)):
+                amount -= change_by_invoice[row.parent]
+                if amount < 0:
+                    amount = 0.0
             payment_split[row.mode_of_payment] = flt(
-                payment_split.get(row.mode_of_payment, 0.0) + flt(row.base_amount))
+                payment_split.get(row.mode_of_payment, 0.0) + amount)
 
     sales = [i for i in invoices if not i.is_return]
     returns = [i for i in invoices if i.is_return]
