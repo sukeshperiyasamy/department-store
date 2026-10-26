@@ -154,3 +154,58 @@ read only those files. Grep only for strings the graph misses (SQL literals, con
 6. Accountant GST review → real GSTIN; then enable e-invoicing per legal advice.
 7. Physical printer/camera validation when hardware arrives.
 8. Register the backup scheduler on the store server (script + runbook ready).
+
+---
+
+# FINAL HANDOFF AUDIT — 2026-10-27 (post Graphify integration)
+
+Commit at audit: `4b937de` · Branch `main`, clean, pushed. Graphify refreshed to HEAD
+(1325 nodes / 2394 links; SyncEngine consumers: `ui/services.ts` + `tests/integration/multi_counter.ts`).
+
+## Feature classification (final)
+
+**COMPLETE**: ERP stack deployment; idempotent sales + returns APIs (30 bench tests);
+offline SQLite queue + sync engine; POS billing UI; Manager Console (5 pages); GST
+software layer (templates + POS-path case ₹100→CGST9+SGST9=₹118); multi-counter suite
+9/9; backup script + 2 DR rehearsals; ESC/POS + ZPL/TSPL builders; feature flags API;
+Graphify code map; documentation set (25+ docs).
+
+**PARTIAL**: regional catalog seeding (code done, blocked by apps.txt churn — ISSUE-02);
+returns screen in packaged exe (API verified, GUI pending); shift UI (repo layer only);
+settings UI page (API only); voice assistant (parser spec only); MCP adapter (boundary only).
+
+**BLOCKED**: physical printer tests; camera/OCR hardware tests; NSIS installer (MSVC CI);
+STOCK-01 fix (india_compliance availability mismatch — BUG_REPORT); speech-engine accuracy.
+
+**NOT STARTED**: e-invoicing/e-waybill; GSTR tooling validation; k6 load tests;
+mobile-native app (responsive PWA covers v1); Tamil voice speech engine integration.
+
+## Verified commands (run at audit)
+
+- `npm run typecheck` → 0 errors · `npm run test` → 91 tests PASS (81 POS + 10 contracts)
+- ERP live: ping 200; feature flags returned correctly via API
+- Git: clean tree; `git ls-files` contains NO credential files (tok.*, .env.local,
+  local-demo-credentials.md, graphify-out/) — all gitignored and verified
+
+## Known bugs / technical debt / security risks
+
+| Item | Severity | Where |
+| --- | --- | --- |
+| STOCK-01: full-qty race sale rejected (1.0 short, bin=2.0) under india_compliance | Medium | BUG_REPORT; api_suite STOCK-01 |
+| apps.txt/module-map churn after interrupted bench ops | Medium (self-heal exists) | install.ensure_app_registered |
+| Raw HTML in server error messages shown in POS dialog | Low | returns.py/sales.py messages |
+| Server messages echoed raw into review dialog (HTML) | Low | PaymentScreen/ReturnsScreen |
+| Dev passwords (`admin`) in pwd.yml | Info | demo-only stack; rotate for production |
+| No k6/load tests; single-warehouse GST cases | Debt | PERFORMANCE_REPORT |
+
+## Exact next steps (priority)
+
+1. Fix ISSUE-01 apps.txt churn root cause (bench rewriter) → then run
+   `regional_catalog.seed` and verify 160 products + Tamil alias search.
+2. Fix STOCK-01 (instrument get_stock_availability under india_compliance).
+3. Build Tamil voice parser + transcript fixtures (spec: TN master prompt §4);
+   gate on `voice_assistant_enabled`.
+4. Settings UI page (flags) on Manager Console.
+5. NSIS installer via MSVC CI; narrow HTTP capability scope to store server URL.
+6. Accountant GST review → real GSTIN; k6 load test.
+7. Physical printer/camera validation on hardware.
