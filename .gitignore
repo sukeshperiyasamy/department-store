@@ -16,3 +16,8 @@ __pycache__/
 *.py[cod]
 .coverage
 htmlcov/
+
+# Build artifacts
+.next/
+vite dist already covered; node artifacts
+*.tsbuildinfo
