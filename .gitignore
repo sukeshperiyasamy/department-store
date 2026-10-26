@@ -21,3 +21,6 @@ htmlcov/
 .next/
 vite dist already covered; node artifacts
 *.tsbuildinfo
+
+# coverage output (keep docs/testing/artifacts summary only)
+coverage/
