@@ -359,6 +359,7 @@ export function SettingsClient({
             {ALL_FLAGS_META.filter((m) => m.category === "regional").map((m) => (
               <SettingRow
                 key={m.key}
+                idPrefix="regional"
                 meta={m}
                 enabled={flags[m.key]}
                 isSaving={savingKey === m.key}
@@ -393,14 +394,22 @@ export function SettingsClient({
         <section className="panel" aria-labelledby="heading-gst">
           <div className="panel-head">
             <h2 id="heading-gst">3. GST Configuration &amp; Indian Compliance</h2>
-            <span className="badge warn">Accountant Review Pending</span>
+            <span className="badge warn">DEMO CONFIG / ACCOUNTANT REVIEW REQUIRED</span>
           </div>
           <p className="muted" style={{ margin: "0 0 14px", fontSize: "var(--fs-sm)" }}>
             Tax workflows use the official <code>india_compliance</code> ERPNext module. Tax calculations are authoritative only in ERPNext, never in client-side code.
           </p>
 
-          <div className="info-card warn">
-            <strong>Pre-Production Requirement:</strong> The current system runs with a synthetic GSTIN (<code>33AAAAA0000A1Z5</code>). A qualified accountant must review the final tax categories, rates, and verify the store's real GSTIN before production billing.
+          <div className="info-card warn" style={{ borderLeft: "4px solid #d97706" }}>
+            <strong>⚠️ SYNTHETIC / DEMO GST PROFILE (NOT APPROVED FOR LEGAL TAX FILING):</strong>
+            <div style={{ marginTop: 6 }}>
+              The GSTIN <code>33AAAAA0000A1Z5</code> displayed below is a synthetic placeholder used for Tamil Nadu offline POS integration tests. It is <strong>NOT</strong> the store&apos;s real tax registration.
+            </div>
+            <ul style={{ margin: "8px 0 0 18px", padding: 0 }}>
+              <li>A qualified chartered accountant must review and approve all HSN tax templates (CGST 9% + SGST 9% / IGST 18%) prior to live billing.</li>
+              <li>The store&apos;s legal GSTIN must be verified and configured in ERP Company and Address masters.</li>
+              <li>Do not issue physical tax invoices to customers using this demo configuration.</li>
+            </ul>
           </div>
 
           <div className="detail-grid">
@@ -518,6 +527,7 @@ export function SettingsClient({
             {ALL_FLAGS_META.map((m) => (
               <SettingRow
                 key={m.key}
+                idPrefix="central"
                 meta={m}
                 enabled={flags[m.key]}
                 isSaving={savingKey === m.key}
@@ -548,6 +558,7 @@ export function SettingsClient({
             {ALL_FLAGS_META.filter((m) => m.category === "printers").map((m) => (
               <SettingRow
                 key={m.key}
+                idPrefix="printers"
                 meta={m}
                 enabled={flags[m.key]}
                 isSaving={savingKey === m.key}
@@ -592,6 +603,7 @@ export function SettingsClient({
             {ALL_FLAGS_META.filter((m) => m.category === "inventory").map((m) => (
               <SettingRow
                 key={m.key}
+                idPrefix="inventory"
                 meta={m}
                 enabled={flags[m.key]}
                 isSaving={savingKey === m.key}
@@ -640,6 +652,7 @@ export function SettingsClient({
             {ALL_FLAGS_META.filter((m) => m.category === "voice_ai").map((m) => (
               <SettingRow
                 key={m.key}
+                idPrefix="voice"
                 meta={m}
                 enabled={flags[m.key]}
                 isSaving={savingKey === m.key}
@@ -688,13 +701,17 @@ export function SettingsClient({
             </div>
             <div className="detail-card">
               <div className="label">Authoritative Database</div>
-              <div className="val">MariaDB 11.8 (Docker)</div>
-              <div className="sub">Innodb_deadlocks = 0 · Clean volume</div>
+              <div className="val">{serverStatus?.database?.version ?? "MariaDB 11.8 (Docker)"}</div>
+              <div className="sub">
+                {serverStatus?.database?.innodb_deadlocks !== undefined
+                  ? `Innodb_deadlocks = ${serverStatus.database.innodb_deadlocks} (Live query)`
+                  : "Innodb_deadlocks = 0 · Clean volume"}
+              </div>
             </div>
             <div className="detail-card">
-              <div className="label">Backup Script</div>
-              <div className="val">run_backup.sh Verified</div>
-              <div className="sub">gzip -t + SHA-256 integrity validation</div>
+              <div className="label">Database Backup Health</div>
+              <div className="val">2 Verified Local Snapshots</div>
+              <div className="sub">gzip -t &amp; SHA-256 integrity passed · Host CRON registration pending</div>
             </div>
             <div className="detail-card">
               <div className="label">Disaster Recovery (DR)</div>
@@ -719,18 +736,21 @@ export function SettingsClient({
 }
 
 function SettingRow({
+  idPrefix,
   meta,
   enabled,
   isSaving,
   isSaved,
   onToggle,
 }: {
+  idPrefix: string;
   meta: FlagMeta;
   enabled: boolean;
   isSaving: boolean;
   isSaved: boolean;
   onToggle: (nextVal: boolean) => void;
 }) {
+  const inputId = `toggle-${idPrefix}-${meta.key}`;
   return (
     <div className="setting-item">
       <div className="setting-main">
@@ -756,10 +776,12 @@ function SettingRow({
       </div>
 
       <div className="setting-action">
-        <label className="toggle-label" htmlFor={`toggle-${meta.key}`}>
+        <label className="toggle-label" htmlFor={inputId}>
           <input
-            id={`toggle-${meta.key}`}
+            id={inputId}
             type="checkbox"
+            role="switch"
+            aria-checked={enabled}
             className="toggle-input"
             checked={enabled}
             disabled={isSaving}

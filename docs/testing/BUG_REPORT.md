@@ -133,3 +133,32 @@ All defects below were found during the 2026-10-26 QA cycle, fixed, and covered 
   as defense in depth. Production sizing/indexing review still recommended pre-go-live.
 
 ### QA-MC-001 → CLOSED (superseded by QA-0005 fix)
+
+---
+
+## 2026-10-27 addendum #3 — Post-implementation audit of Settings Console
+
+### AUDIT-001 — Duplicate HTML input IDs across Settings sections (Accessibility/DOM, FIXED)
+- **Severity:** Medium · **Priority:** P2 · **Status:** FIXED + regression tests
+- **Module:** `apps/owner-dashboard/src/components/SettingsClient.tsx`
+- **Symptom:** In "All Settings" default view, feature flags rendered in domain sections (Section 2 Regional, Section 6 Printers, Section 7 Inventory, Section 8 Voice) and again in Section 5 (Central Flags). Both occurrences rendered `<input id={`toggle-${meta.key}`} />` and `<label htmlFor=...>`, violating HTML uniqueness and causing label clicks to bind incorrectly.
+- **Fix:** Added `idPrefix` parameter to `SettingRow` (`regional`, `central`, `printers`, `inventory`, `voice`). Input IDs are now globally unique: `toggle-${idPrefix}-${meta.key}`. Added `role="switch"` and `aria-checked={enabled}` for WCAG switch pattern compliance.
+- **Regression:** `SettingsClient.test.tsx` verified unique section input IDs and accessible switch attributes — PASS.
+
+### AUDIT-002 — Operational health was not querying real-time database status (FIXED)
+- **Severity:** Low · **Priority:** P2 · **Status:** FIXED + regression tests
+- **Module:** `erpnext-app/departmental_store/.../api/reports.py` (`server_status`)
+- **Symptom:** Manager console System Health section displayed static text for MariaDB version and deadlock counter rather than real live engine metrics.
+- **Fix:** Enhanced `server_status()` to execute `SHOW GLOBAL STATUS LIKE 'Innodb_deadlocks'` and `SELECT VERSION()`. Added `DatabaseStatusSchema` to `@departmental/shared-types`. SettingsClient now dynamically renders live `database.version` and `database.innodb_deadlocks` (confirmed 0 deadlocks).
+- **Regression:** `test_server_status_database_health` in `test_settings_api.py` — PASS.
+
+### AUDIT-003 — Single DocType setter deprecation warning in Frappe v16 (FIXED)
+- **Severity:** Low (Code quality) · **Status:** FIXED
+- **Module:** `erpnext-app/departmental_store/.../api/settings.py` (`set_flag`)
+- **Fix:** Switched from `frappe.db.set_value(SETTINGS_DOCTYPE, SETTINGS_DOCTYPE, ...)` to `frappe.db.set_single_value(SETTINGS_DOCTYPE, flag, new_value)`. Deprecation warning eliminated.
+
+### AUDIT-004 — Demo GSTIN safety banner (Compliance Guard, FIXED)
+- **Severity:** Medium · **Priority:** P1 · **Status:** FIXED
+- **Module:** `apps/owner-dashboard/src/components/SettingsClient.tsx`
+- **Fix:** Added prominent, unmistakable callout banner in Section 3 and alert badge marking `33AAAAA0000A1Z5` as synthetic test data and specifying accountant sign-off as mandatory before production billing.
+

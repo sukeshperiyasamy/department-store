@@ -222,14 +222,28 @@ def server_status() -> dict:
     devices = frappe.get_all("POS Device",
                              fields=["device_id", "counter_name", "status",
                                      "last_sync_at"], limit=0)
+
+    db_info = {"engine": "MariaDB"}
+    try:
+        deadlocks = frappe.db.sql("SHOW GLOBAL STATUS LIKE 'Innodb_deadlocks'")
+        if deadlocks:
+            db_info["innodb_deadlocks"] = cint(deadlocks[0][1])
+        version = frappe.db.sql("SELECT VERSION()")
+        if version:
+            db_info["version"] = str(version[0][0])
+    except Exception:
+        pass
+
     return {
         "api_version": API_VERSION,
         "generated_at": now_datetime().isoformat(),
         "frappe_version": frappe.__version__,
         "apps": frappe.get_installed_apps(),
+        "database": db_info,
         "devices": devices,
         "processing_transactions": [p.transaction_id for p in processing],
         "review_queue": [{"transaction_id": r.transaction_id, "error_code": r.error_code,
                           "error_message": r.error_message, "updated_at": str(r.modified)}
                          for r in review],
     }
+

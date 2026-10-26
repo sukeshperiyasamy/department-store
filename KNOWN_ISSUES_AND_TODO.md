@@ -75,12 +75,18 @@ Last updated: 2026-10-27 (fresh-stack validation pass). Full defect register: `d
 - Mitigation in place: no-arg seed wrappers (`demo_run`, `seed_run`, `setup_run`, …); prefer
   `bench execute` return values.
 
-### Manager Console Settings Page — RESOLVED 2026-10-27
+### Manager Console Settings Page & Audit — RESOLVED 2026-10-27
 - Responsive Settings interface at `/settings` on Manager Console matching light theme (white cards, soft grey background, teal accents).
 - 9 categorized sections: Store Profile, Regional Preferences (Tamil Nadu), GST Configuration, POS Counters & Devices, Feature Flags, Printers, Inventory & Expiry, Voice & AI Integration, and System Health.
-- Live persistence via Next.js Server Action invoking `set_flag(flag, value)`; server authorization enforced (System Manager required; 403 surfaced with clear error feedback and state rollback).
-- Honest status indicators for unavailable/pending hardware features (e-invoicing exempt, speech engine unconfigured, physical printer validation pending, GST accountant sign-off pending).
-- Test suites: 5 bench tests (`TestSettingsApi`), 8 unit/component tests in owner-dashboard, 4 shared-types contract tests, Next.js production build PASS.
+- Live persistence via Next.js Server Action invoking `set_flag(flag, value)`; server authorization enforced (System Manager required; Store Manager, Cashier, and unauthenticated sessions rejected with clear error feedback and state rollback).
+- Honest status indicators for unavailable/pending hardware features (e-invoicing exempt, speech engine unconfigured, physical printer validation pending).
+- Post-implementation audit fixes:
+  - Fixed duplicate HTML IDs across domain and central sections via `idPrefix` (`toggle-${idPrefix}-${meta.key}`).
+  - WCAG switch accessibility: added `role="switch"` and `aria-checked={enabled}`.
+  - Live operational metrics: wired `SHOW GLOBAL STATUS LIKE 'Innodb_deadlocks'` and `SELECT VERSION()` to `server_status()`, rendering genuine engine stats (0 deadlocks verified).
+  - GST safety: added prominent demo warning callout highlighting mock GSTIN `33AAAAA0000A1Z5` and requiring certified accountant sign-off before production.
+  - Replaced single doctype setter with `frappe.db.set_single_value` to eliminate deprecation warning.
+- Test suites: 8 bench tests (`TestSettingsApi`, 40 bench tests total), 9 vitest tests in owner-dashboard, 14 shared-types contract tests, Next.js production build PASS.
 
 ## Open issues
 - ISSUE-03 (HTML in error messages) and ISSUE-04 (bench quirks) above.

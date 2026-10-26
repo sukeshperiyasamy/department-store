@@ -71,8 +71,11 @@ def set_flag(flag: str | None = None, value: str | int | None = None) -> dict:
     if not frappe.db.exists("DocType", SETTINGS_DOCTYPE):
         frappe.get_doc({"doctype": SETTINGS_DOCTYPE}).insert(ignore_permissions=True)
 
-    old_value = frappe.db.get_value(SETTINGS_DOCTYPE, SETTINGS_DOCTYPE, flag)
-    frappe.db.set_value(SETTINGS_DOCTYPE, SETTINGS_DOCTYPE, flag, new_value)
+    old_value = frappe.db.get_single_value(SETTINGS_DOCTYPE, flag) if hasattr(frappe.db, "get_single_value") else frappe.db.get_value(SETTINGS_DOCTYPE, SETTINGS_DOCTYPE, flag)
+    if hasattr(frappe.db, "set_single_value"):
+        frappe.db.set_single_value(SETTINGS_DOCTYPE, flag, new_value)
+    else:
+        frappe.db.set_value(SETTINGS_DOCTYPE, SETTINGS_DOCTYPE, flag, new_value)
     frappe.logger("departmental_store").info({
         "event": "feature_flag_changed", "flag": flag,
         "old": bool(old_value) if old_value is not None else None,

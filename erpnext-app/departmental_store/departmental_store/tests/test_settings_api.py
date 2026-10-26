@@ -51,7 +51,7 @@ class TestSettingsApi(FrappeTestCase):
         self.assertFalse(cfg2["flags"]["voice_assistant_enabled"])
 
     def test_set_flag_rejects_unauthorized_user(self):
-        # Create or use a non-System-Manager user
+        # Create or use a non-System-Manager user (Cashier)
         cashier_email = "test_cashier_settings@demo.store"
         if not frappe.db.exists("User", cashier_email):
             frappe.get_doc({
@@ -64,6 +64,42 @@ class TestSettingsApi(FrappeTestCase):
         frappe.set_user(cashier_email)
         with self.assertRaises(frappe.PermissionError):
             settings.set_flag("regional_catalog_enabled", 0)
+
+    def test_set_flag_rejects_store_manager_without_system_manager(self):
+        # Store Manager role is authorized to read settings but NOT mutate configuration
+        mgr_email = "test_store_mgr_settings@demo.store"
+        if not frappe.db.exists("User", mgr_email):
+            frappe.get_doc({
+                "doctype": "User",
+                "email": mgr_email,
+                "first_name": "Test Store Manager",
+                "roles": [{"role": "Store Manager"}],
+            }).insert(ignore_permissions=True)
+
+        frappe.set_user(mgr_email)
+        with self.assertRaises(frappe.PermissionError):
+            settings.set_flag("regional_catalog_enabled", 0)
+
+    def test_get_settings_no_secret_leakage(self):
+        frappe.set_user("Administrator")
+        cfg = settings.get_settings()
+        # Verify no sensitive keywords or credentials leak in public settings response
+        for k in cfg.keys():
+            self.assertNotIn("password", k.lower())
+            self.assertNotIn("secret", k.lower())
+            self.assertNotIn("token", k.lower())
+            self.assertNotIn("key", k.lower())
+
+    def test_server_status_database_health(self):
+        from departmental_store.api import reports
+        frappe.set_user("Administrator")
+        status = reports.server_status()
+        self.assertIn("database", status)
+        db = status["database"]
+        self.assertEqual(db.get("engine"), "MariaDB")
+        self.assertIn("version", db)
+        self.assertIn("innodb_deadlocks", db)
+        self.assertIsInstance(db["innodb_deadlocks"], int)
 
     def test_set_flag_rejects_unknown_flag(self):
         frappe.set_user("Administrator")

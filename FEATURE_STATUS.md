@@ -48,7 +48,7 @@ Evidence pointers: docs/testing/, docs/artifacts/. Date of last verification: 20
 | Dashboard (KPIs, charts, recent bills, counters) | ✅ | live-ERP screenshots |
 | Catalog / Sales / Inventory alerts / Sync & Health pages | ✅ | live-ERP screenshots |
 | Login (session) + service-token auth | ✅ | SEC matrix |
-| Settings page (feature flags UI, 9 sections) | ✅ | /settings live, 10 flags persisted via set_flag, 9 vitest tests, 5 bench tests |
+| Settings page (feature flags UI, 9 sections, live DB health, GST guard) | ✅ | /settings live, 10 flags persisted via set_flag, live MariaDB status, 9 vitest tests, 8 bench tests, WCAG switch accessible |
 | Mobile responsive light theme | ✅ | 390/768/1366/1920 screenshots, settings layout tested |
 
 ## Backend platform

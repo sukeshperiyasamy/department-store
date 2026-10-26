@@ -75,7 +75,7 @@ A departmental-store ERP for a single store with 2–3 Windows POS counters:
   - **`bench pip` is bench-level, NOT site-level**: `bench pip install -e ./apps/departmental_store`
     (no `--site`). After installing/updating apps, restart backend + queue workers + scheduler
     (long-lived processes don't re-read `.pth`), then restart frontend (nginx re-resolves backend IP).
-- Tests: `bench --site frontend run-tests --app departmental_store` (37 PASS: sales 18 / returns 10 / catalog 4 / settings 5);
+- Tests: `bench --site frontend run-tests --app departmental_store` (40 PASS: sales 18 / returns 10 / catalog 4 / settings 8);
   `npm run typecheck` (0 errors); `npm run test` (103 TS tests: 80 POS + 14 shared-types + 9 dashboard); `npm run build` both frontends;
   `node tests/integration/apps_txt_guard.mjs` (4 checks); `node tests/integration/api_suite.mjs` (24 checks);
   `npx tsx tests/integration/multi_counter.ts` (11 checks);
@@ -84,14 +84,15 @@ A departmental-store ERP for a single store with 2–3 Windows POS counters:
   `docs/release/WINDOWS_BUILD_AND_INSTALLATION.md`); build `npx tauri build --no-bundle` from `apps/windows-pos`
   with both toolchain dirs on PATH; artifact `src-tauri/target/release/windows-pos.exe`.
 
-## 6. Verified test status (as of 2026-10-27, after settings page + fresh-stack revalidation)
+## 6. Verified test status (as of 2026-10-27, after Settings Console audit + fresh-stack revalidation)
 
 - Environment reset (ISSUE-05): backup `20261027_035610` verified → `docker compose down -v` →
   fresh stack → apps reinstalled → reseeded (160 catalog idempotent, GST templates, 300 PERF items).
-- **PASS on the fresh stack**: 37 bench tests (sales 18 / returns 10 / catalog 4 / settings 5); 80 POS vitest +
+- **PASS on the fresh stack**: 40 bench tests (sales 18 / returns 10 / catalog 4 / settings 8); 80 POS vitest +
   14 shared-types + 9 dashboard (103 total TS tests); typecheck 0 errors; apps_txt_guard 4/4; **api_suite 24/24
   (including STOCK-01)**; multi-counter 11/11; reliability 4/4; **zero deadlocks**
-  (`Innodb_deadlocks = 0`, no deadlock matches in backend/queue logs).
+  (`Innodb_deadlocks = 0` via live MariaDB query, no deadlock matches in backend/queue logs).
+- Settings Console audit verified: unique section input IDs (`toggle-${idPrefix}-${meta.key}`), WCAG switch accessibility (`role="switch"`, `aria-checked`), live database version & deadlock telemetry, server role enforcement (System Manager only; Store Manager & Cashier rejected), and prominent GST demo warning callout.
 - STOCK-01 was closed as **QA-0005, a real product bug** (timezone conversion), not environmental —
   see §7 pitfall 8. ISSUE-05 (DB contention) did not reproduce on the fresh volumes.
 - **BLOCKED**: physical printer + camera hardware tests (no devices); NSIS installer (MSVC CI runner);

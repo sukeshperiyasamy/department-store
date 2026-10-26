@@ -1,15 +1,15 @@
 {
-  "startedAt": "2026-10-26T23:33:53.849Z",
+  "startedAt": "2026-10-26T23:50:16.351Z",
   "base": "http://localhost:8080",
   "counters": {
     "A": {
-      "db": "C:\\Users\\COMPUTER\\AppData\\Local\\Temp\\multicounter-1FuWTe\\counter-a.db",
+      "db": "C:\\Users\\COMPUTER\\AppData\\Local\\Temp\\multicounter-ullFyC\\counter-a.db",
       "reopenedCounts": {
         "SERVER_COMMITTED": 2
       }
     },
     "B": {
-      "db": "C:\\Users\\COMPUTER\\AppData\\Local\\Temp\\multicounter-1FuWTe\\counter-b.db",
+      "db": "C:\\Users\\COMPUTER\\AppData\\Local\\Temp\\multicounter-ullFyC\\counter-b.db",
       "reopenedCounts": {
         "SERVER_COMMITTED": 2
       }
@@ -19,50 +19,50 @@
     {
       "id": "MC-02",
       "txns": [
-        "counter-a-1793057637657-cqin8q",
-        "counter-b-1793057637657-nvu7kw"
+        "counter-a-1793058620030-rg9gi3",
+        "counter-b-1793058620030-w1vwzg"
       ],
       "invoices": [
-        "SINV-26-00066",
-        "SINV-26-00067"
+        "SINV-26-00088",
+        "SINV-26-00089"
       ]
     },
     {
       "id": "MC-03",
       "txnIds": [
-        "counter-a-1793057637946-cvqbdp",
-        "counter-b-1793057637946-vxc617"
+        "counter-a-1793058620288-6x85bc",
+        "counter-b-1793058620288-bxf2eb"
       ],
       "statuses": [
-        "SERVER_COMMITTED",
-        "REQUIRES_REVIEW"
+        "REQUIRES_REVIEW",
+        "SERVER_COMMITTED"
       ]
     },
     {
       "id": "MC-04",
-      "txn": "counter-b-1793057638755-8efnza",
+      "txn": "counter-b-1793058621085-cafxkj",
       "stateWhileOffline": "SYNC_FAILED"
     },
     {
       "id": "MC-05",
-      "txn": "counter-b-1793057638755-8efnza",
-      "invoice": "SINV-26-00069"
+      "txn": "counter-b-1793058621085-cafxkj",
+      "invoice": "SINV-26-00091"
     },
     {
       "id": "MC-06",
-      "txn": "counter-a-1793057689508-0b33m7",
-      "invoice": "SINV-26-00070"
+      "txn": "counter-a-1793058679723-65mur7",
+      "invoice": "SINV-26-00092"
     },
     {
       "id": "MC-08",
-      "original": "SINV-26-00071",
+      "original": "SINV-26-00093",
       "statuses": [
         "REQUIRES_REVIEW",
         "SERVER_COMMITTED"
       ]
     }
   ],
-  "finishedAt": "2026-10-26T23:34:50.231Z",
+  "finishedAt": "2026-10-26T23:51:20.422Z",
   "summary": {
     "pass": 11,
     "fail": 0,

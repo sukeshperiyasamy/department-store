@@ -230,11 +230,19 @@ export const OwnerSummarySchema = z.object({
 });
 export type OwnerSummary = z.infer<typeof OwnerSummarySchema>;
 
+export const DatabaseStatusSchema = z.object({
+  engine: z.string().optional(),
+  version: z.string().optional(),
+  innodb_deadlocks: z.number().int().optional(),
+});
+export type DatabaseStatus = z.infer<typeof DatabaseStatusSchema>;
+
 export const ServerStatusSchema = z.object({
   api_version: API_VERSION_SCHEMA,
   generated_at: z.string(),
   frappe_version: z.string().optional(),
   apps: z.array(z.string()).optional(),
+  database: DatabaseStatusSchema.optional(),
   devices: z
     .array(
       z.object({

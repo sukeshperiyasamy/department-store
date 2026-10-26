@@ -21,18 +21,25 @@ Commit: see §"this phase" below · Supersedes the pre-reset verdict (kept in gi
 | 13 | Secrets/customer data protected | **PASS** | secret scan; synthetic data only |
 | 14 | Critical test evidence reproducible | **PASS** | TEST_ENVIRONMENT.md; dated logs + fresh-stack addendum; provisioning steps in KNOWN_ISSUES_AND_TODO |
 
-## Fresh-stack revalidation (2026-10-27, this phase)
+## Fresh-stack revalidation & Settings Console Audit (2026-10-27)
 
 Environment fully reset after ISSUE-05: verified backup → `down -v` → fresh stack → apps
 reinstalled → reseeded (160-item regional catalog idempotent, GST templates, 300 PERF items).
-Results: apps_txt_guard **4/4**, api_suite **24/24** (STOCK-01 now PASS), multi_counter **11/11**,
-reliability **4/4**, bench **32/32**, typecheck 0 errors, 91 TS unit tests, **zero deadlocks**.
-Full evidence: `docs/testing/TEST_EXECUTION_LOG_2026-10-27.md` addendum.
+Post-implementation Settings audit completed: Settings page in Manager Console verified with
+10 persisted feature flags, live database metrics, unique WCAG switch IDs, and GST demo guards.
 
-Defects resolved by this pass: **QA-0005** (timezone conversion — the true STOCK-01 root cause;
-2 regression tests), **ISSUE-02 infrastructure root cause** (configurator re-run overwrote
-apps.txt on backend restart; now merges; proven by restart test), multi_counter verdict-counting
-bug, module-map diagnostic assertions, HSN compliance on all seed/test items.
+Results:
+- Apps/Guard: apps_txt_guard **4/4**
+- API Suite: api_suite **24/24** (STOCK-01 PASS)
+- Multi-counter: multi_counter **11/11**
+- Reliability: reliability **4/4**
+- Bench Tests: **40/40** PASS (28 sales/returns + 4 catalog + 8 settings & security)
+- TypeScript Strict Mode: **103/103** unit tests PASS (80 POS + 14 shared-types + 9 dashboard)
+- Typecheck: 0 errors across all workspaces
+- Builds: Next.js dashboard production build PASS, POS Vite build PASS
+- Deadlocks: **zero deadlocks** (`Innodb_deadlocks = 0` via live MariaDB query)
+
+Full evidence: `docs/testing/TEST_EXECUTION_LOG_2026-10-27.md` addendum and `docs/testing/BUG_REPORT.md` addendum #3.
 
 ## Capability status
 
@@ -46,12 +53,13 @@ bug, module-map diagnostic assertions, HSN compliance on all seed/test items.
 | Backup script + integrity + DR restore rehearsal | **IMPLEMENTED_AND_VERIFIED** (scheduler registration: operational task) |
 | Multi-counter/offline suite (11 checks, 2 real SQLite counters) | **IMPLEMENTED_AND_VERIFIED** (11/11 PASS; verdict counting fixed) |
 | STOCK-01 full-qty race sale with india_compliance | **RESOLVED — QA-0005 fixed, regression-tested** (api_suite 24/24) |
+| Manager Console Settings Page (9 sections, 10 feature flags, live health, GST guard) | **IMPLEMENTED_AND_VERIFIED** (live ERP persistence, System Manager role check, 0 deadlocks) |
 
 ## Recommendation
 
 **CONDITIONAL GO** for a supervised single-counter pilot with the packaged exe
-(login, catalog, billing, local persistence, GST templates, returns, backups all
-evidenced on a freshly rebuilt stack). Production revenue use still requires:
+(login, catalog, billing, local persistence, GST templates, returns, settings console,
+and backups all evidenced on a freshly rebuilt stack). Production revenue use still requires:
 accountant-approved GST configuration with the store's real GSTIN/HSN data,
 physical printer validation, NSIS installer via an MSVC CI runner, and backup
 scheduling registration on the store server.

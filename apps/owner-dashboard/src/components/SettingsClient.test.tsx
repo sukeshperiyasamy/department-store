@@ -31,6 +31,11 @@ const mockServerStatus: ServerStatus = {
   generated_at: "2026-10-27T04:00:00Z",
   frappe_version: "Frappe v16.53.0 / ERPNext v16.52.1",
   apps: ["erpnext", "frappe", "departmental_store", "india_compliance"],
+  database: {
+    engine: "MariaDB",
+    version: "11.8.9-MariaDB-ubu2404",
+    innodb_deadlocks: 0,
+  },
   devices: [
     {
       device_id: "pos-counter-01",
@@ -74,7 +79,8 @@ describe("SettingsClient component", () => {
     expect(html).toContain("3. GST Configuration &amp; Indian Compliance");
     expect(html).toContain("33AAAAA0000A1Z5");
     expect(html).toContain("CGST 9% + SGST 9%");
-    expect(html).toContain("Accountant Review Pending");
+    expect(html).toContain("DEMO CONFIG / ACCOUNTANT REVIEW REQUIRED");
+    expect(html).toContain("SYNTHETIC / DEMO GST PROFILE (NOT APPROVED FOR LEGAL TAX FILING)");
 
     // Section 4: POS Counters and Devices
     expect(html).toContain("4. POS Counters &amp; Registered Terminals");
@@ -101,8 +107,9 @@ describe("SettingsClient component", () => {
 
     // Section 9: System Health & Diagnostics
     expect(html).toContain("9. System Health &amp; Infrastructure");
-    expect(html).toContain("MariaDB 11.8 (Docker)");
-    expect(html).toContain("run_backup.sh Verified");
+    expect(html).toContain("11.8.9-MariaDB-ubu2404");
+    expect(html).toContain("Innodb_deadlocks = 0 (Live query)");
+    expect(html).toContain("2 Verified Local Snapshots");
   });
 
   it("renders honest labels for unavailable and pending hardware features", () => {
@@ -129,7 +136,7 @@ describe("SettingsClient component", () => {
     expect(html).toContain("CONDITIONAL GO (Supervised Pilot)");
   });
 
-  it("renders all 10 feature flags with correct initial checked states", () => {
+  it("renders all 10 feature flags with unique section IDs and accessible switch attributes", () => {
     const html = renderToString(
       <SettingsClient
         initialSettings={mockSettings}
@@ -138,20 +145,40 @@ describe("SettingsClient component", () => {
       />,
     );
 
-    // Enabled flags have checked attribute
-    const regionalInput = html.match(/<input[^>]+toggle-regional_catalog_enabled[^>]*>/)?.[0];
-    const expiryInput = html.match(/<input[^>]+toggle-batch_expiry_enabled[^>]*>/)?.[0];
-    const receiptInput = html.match(/<input[^>]+toggle-receipt_printing_enabled[^>]*>/)?.[0];
+    // Enabled flags have checked attribute and role="switch"
+    const regionalInput = html.match(/<input[^>]+toggle-regional-regional_catalog_enabled[^>]*>/)?.[0];
+    const expiryInput = html.match(/<input[^>]+toggle-inventory-batch_expiry_enabled[^>]*>/)?.[0];
+    const receiptInput = html.match(/<input[^>]+toggle-printers-receipt_printing_enabled[^>]*>/)?.[0];
+    const centralInput = html.match(/<input[^>]+toggle-central-regional_catalog_enabled[^>]*>/)?.[0];
+
+    expect(regionalInput).toBeDefined();
+    expect(regionalInput).toContain('role="switch"');
+    expect(regionalInput).toContain('aria-checked="true"');
     expect(regionalInput).toContain('checked=""');
+
+    expect(centralInput).toBeDefined();
+    expect(centralInput).toContain('role="switch"');
+    expect(centralInput).toContain('aria-checked="true"');
+
+    expect(expiryInput).toBeDefined();
+    expect(expiryInput).toContain('role="switch"');
     expect(expiryInput).toContain('checked=""');
+
+    expect(receiptInput).toBeDefined();
+    expect(receiptInput).toContain('role="switch"');
     expect(receiptInput).toContain('checked=""');
 
-    // Disabled flags do not have checked attribute
-    const voiceInput = html.match(/<input[^>]+toggle-voice_assistant_enabled[^>]*>/)?.[0];
-    const aiInput = html.match(/<input[^>]+toggle-ai_provider_enabled[^>]*>/)?.[0];
+    // Disabled flags do not have checked attribute and aria-checked="false"
+    const voiceInput = html.match(/<input[^>]+toggle-voice-voice_assistant_enabled[^>]*>/)?.[0];
+    const aiInput = html.match(/<input[^>]+toggle-voice-ai_provider_enabled[^>]*>/)?.[0];
     expect(voiceInput).toBeDefined();
+    expect(voiceInput).toContain('role="switch"');
+    expect(voiceInput).toContain('aria-checked="false"');
     expect(voiceInput).not.toContain('checked=""');
+
     expect(aiInput).toBeDefined();
+    expect(aiInput).toContain('role="switch"');
+    expect(aiInput).toContain('aria-checked="false"');
     expect(aiInput).not.toContain('checked=""');
   });
 
