@@ -395,3 +395,47 @@ export const DeviceStatusSchema = z.object({
   counter_name: z.string().nullable().optional(),
 });
 export type DeviceStatus = z.infer<typeof DeviceStatusSchema>;
+
+export const FLAG_FIELDS = [
+  "voice_assistant_enabled",
+  "voice_hold_shortcut_enabled",
+  "ai_provider_enabled",
+  "mcp_adapter_enabled",
+  "camera_product_capture_enabled",
+  "batch_expiry_enabled",
+  "expiry_notifications_enabled",
+  "regional_catalog_enabled",
+  "receipt_printing_enabled",
+  "barcode_label_printing_enabled",
+] as const;
+
+export type FeatureFlagName = (typeof FLAG_FIELDS)[number];
+
+export const SettingsFlagsSchema = z.object({
+  voice_assistant_enabled: z.boolean(),
+  voice_hold_shortcut_enabled: z.boolean(),
+  ai_provider_enabled: z.boolean(),
+  mcp_adapter_enabled: z.boolean(),
+  camera_product_capture_enabled: z.boolean(),
+  batch_expiry_enabled: z.boolean(),
+  expiry_notifications_enabled: z.boolean(),
+  regional_catalog_enabled: z.boolean(),
+  receipt_printing_enabled: z.boolean(),
+  barcode_label_printing_enabled: z.boolean(),
+});
+export type SettingsFlags = z.infer<typeof SettingsFlagsSchema>;
+
+export const StoreSettingsSchema = z.object({
+  api_version: API_VERSION_SCHEMA,
+  flags: SettingsFlagsSchema,
+  expiry_warning_days: z.string().default("7,30,60"),
+});
+export type StoreSettings = z.infer<typeof StoreSettingsSchema>;
+
+export const SetFlagResultSchema = z.object({
+  api_version: API_VERSION_SCHEMA,
+  flag: z.string(),
+  value: z.boolean(),
+});
+export type SetFlagResult = z.infer<typeof SetFlagResultSchema>;
+

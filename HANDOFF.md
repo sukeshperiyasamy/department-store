@@ -75,8 +75,8 @@ A departmental-store ERP for a single store with 2–3 Windows POS counters:
   - **`bench pip` is bench-level, NOT site-level**: `bench pip install -e ./apps/departmental_store`
     (no `--site`). After installing/updating apps, restart backend + queue workers + scheduler
     (long-lived processes don't re-read `.pth`), then restart frontend (nginx re-resolves backend IP).
-- Tests: `bench --site frontend run-tests --app departmental_store` (32 PASS);
-  `npm run typecheck` (0 errors); `npm run test` (91 TS tests); `npm run build` both frontends;
+- Tests: `bench --site frontend run-tests --app departmental_store` (37 PASS: sales 18 / returns 10 / catalog 4 / settings 5);
+  `npm run typecheck` (0 errors); `npm run test` (103 TS tests: 80 POS + 14 shared-types + 9 dashboard); `npm run build` both frontends;
   `node tests/integration/apps_txt_guard.mjs` (4 checks); `node tests/integration/api_suite.mjs` (24 checks);
   `npx tsx tests/integration/multi_counter.ts` (11 checks);
   `node tests/integration/reliability_check.mjs` (stops/starts the backend container!).
@@ -84,12 +84,12 @@ A departmental-store ERP for a single store with 2–3 Windows POS counters:
   `docs/release/WINDOWS_BUILD_AND_INSTALLATION.md`); build `npx tauri build --no-bundle` from `apps/windows-pos`
   with both toolchain dirs on PATH; artifact `src-tauri/target/release/windows-pos.exe`.
 
-## 6. Verified test status (as of 2026-10-27, after full environment reset + revalidation)
+## 6. Verified test status (as of 2026-10-27, after settings page + fresh-stack revalidation)
 
 - Environment reset (ISSUE-05): backup `20261027_035610` verified → `docker compose down -v` →
   fresh stack → apps reinstalled → reseeded (160 catalog idempotent, GST templates, 300 PERF items).
-- **PASS on the fresh stack**: 32 bench tests (sales 18 / returns 10 / catalog 4); 80 POS vitest +
-  10 shared-types + 1 dashboard; typecheck 0 errors; apps_txt_guard 4/4; **api_suite 24/24
+- **PASS on the fresh stack**: 37 bench tests (sales 18 / returns 10 / catalog 4 / settings 5); 80 POS vitest +
+  14 shared-types + 9 dashboard (103 total TS tests); typecheck 0 errors; apps_txt_guard 4/4; **api_suite 24/24
   (including STOCK-01)**; multi-counter 11/11; reliability 4/4; **zero deadlocks**
   (`Innodb_deadlocks = 0`, no deadlock matches in backend/queue logs).
 - STOCK-01 was closed as **QA-0005, a real product bug** (timezone conversion), not environmental —
@@ -169,10 +169,10 @@ read only those files. Grep only for strings the graph misses (SQL literals, con
 ## 8. Next steps, priority order
 
 1. ~~Regional catalog seed~~ DONE — 160 products seeded, idempotency verified. Remaining: write `docs/catalog/REGIONAL_DEMO_CATALOG.md` and wire the catalog into POS defaults.
-2. **Fix STOCK-01** availability mismatch (india_compliance + POS stock check) — BUG_REPORT addendum has repro.
-3. **Voice**: deterministic Tamil/Tanglish parser + transcript-fixture tests (spec §4 of the TN master prompt);
+2. ~~Fix STOCK-01~~ RESOLVED as QA-0005 (timezone split in posting_date).
+3. ~~Settings UI page~~ DONE — `/settings` on Manager Console reading `get_settings` and mutating via `set_flag`.
+4. **Voice**: deterministic Tamil/Tanglish parser + transcript-fixture tests (spec §4 of the TN master prompt);
    wire `voice_assistant_enabled` flag; speech engine selection (Vosk vs Whisper) is a separate decision.
-4. **Settings UI page** on the Manager Console reflecting `get_settings`/`set_flag` (API exists).
 5. **NSIS installer** on an MSVC CI runner; replace demo capabilities scope with the store's URL pattern.
 6. Accountant GST review → real GSTIN; then enable e-invoicing per legal advice.
 7. Physical printer/camera validation when hardware arrives.
@@ -180,22 +180,23 @@ read only those files. Grep only for strings the graph misses (SQL literals, con
 
 ---
 
-# FINAL HANDOFF AUDIT — 2026-10-27 (post Graphify integration)
+# FINAL HANDOFF AUDIT — 2026-10-27 (post Settings Page & Graphify refresh)
 
-Commit at audit: `4b937de` · Branch `main`, clean, pushed. Graphify refreshed to HEAD
-(1325 nodes / 2394 links; SyncEngine consumers: `ui/services.ts` + `tests/integration/multi_counter.ts`).
+Commit at audit: HEAD · Branch `main`, clean. Graphify refreshed to HEAD
+(1416 nodes / 2600 links / 114 communities).
 
 ## Feature classification (final)
 
-**COMPLETE**: ERP stack deployment; idempotent sales + returns APIs (30 bench tests);
-offline SQLite queue + sync engine; POS billing UI; Manager Console (5 pages); GST
-software layer (templates + POS-path case ₹100→CGST9+SGST9=₹118); multi-counter suite
-9/9; backup script + 2 DR rehearsals; ESC/POS + ZPL/TSPL builders; feature flags API;
+**COMPLETE**: ERP stack deployment; idempotent sales + returns APIs (37 bench tests);
+offline SQLite queue + sync engine; POS billing UI; Manager Console (6 pages: Dashboard,
+Catalog, Sales, Inventory, Sync & Health, Settings); GST software layer (templates +
+POS-path case ₹100→CGST9+SGST9=₹118); multi-counter suite 11/11; reliability 4/4;
+backup script + 2 DR rehearsals; ESC/POS + ZPL/TSPL builders; feature flags API + settings UI;
 Graphify code map; documentation set (25+ docs).
 
-**PARTIAL**: regional catalog seeding (code done, blocked by apps.txt churn — ISSUE-02);
-returns screen in packaged exe (API verified, GUI pending); shift UI (repo layer only);
-settings UI page (API only); voice assistant (parser spec only); MCP adapter (boundary only).
+**PARTIAL**: regional catalog seeding (code done, 160 items seeded);
+returns screen in packaged exe (API verified, GUI pending device test); shift UI (repo layer only);
+voice assistant (parser spec only); MCP adapter (boundary only).
 
 **BLOCKED**: physical printer tests; camera/OCR hardware tests; NSIS installer (MSVC CI);
 STOCK-01 fix (india_compliance availability mismatch — BUG_REPORT); speech-engine accuracy.

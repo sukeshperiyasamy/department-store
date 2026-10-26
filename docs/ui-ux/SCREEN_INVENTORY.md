@@ -10,6 +10,7 @@
 | `/sales` | Submitted bills: KPIs, status badges, returns, pagination | **New** | `recent_invoices` |
 | `/inventory` | Alerts: out-of-stock, below-reorder, expiring batches, expiry-window filter | **New** | `stock_alerts` |
 | `/sync` | Counters, review queue, processing backlog, ERP version | **Redesigned** | `server_status` |
+| `/settings` | Store Profile, Regional (TN), GST, Counters, Feature Flags (10), Printers, Inventory, Voice/AI, Health | **New + live-verified** | `get_settings`, `set_flag`, `server_status` |
 | Shell | Light sidebar + header + mobile drawer + sign-out | **New** | — |
 
 ## Windows POS (apps/windows-pos, Tauri + React)

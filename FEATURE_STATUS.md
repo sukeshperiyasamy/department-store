@@ -48,8 +48,8 @@ Evidence pointers: docs/testing/, docs/artifacts/. Date of last verification: 20
 | Dashboard (KPIs, charts, recent bills, counters) | ✅ | live-ERP screenshots |
 | Catalog / Sales / Inventory alerts / Sync & Health pages | ✅ | live-ERP screenshots |
 | Login (session) + service-token auth | ✅ | SEC matrix |
-| Settings page (feature flags UI) | ⬜ | API exists, UI not built |
-| Mobile responsive light theme | ✅ | 390/768/1366/1920 screenshots |
+| Settings page (feature flags UI, 9 sections) | ✅ | /settings live, 10 flags persisted via set_flag, 9 vitest tests, 5 bench tests |
+| Mobile responsive light theme | ✅ | 390/768/1366/1920 screenshots, settings layout tested |
 
 ## Backend platform
 

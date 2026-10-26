@@ -3,6 +3,8 @@ import {
   CatalogSnapshotSchema,
   SalePayloadSchema,
   SaleResponseSchema,
+  SetFlagResultSchema,
+  StoreSettingsSchema,
   SyncRecordSchema,
   TransactionState,
 } from "./index";
@@ -133,3 +135,82 @@ describe("SyncRecordSchema", () => {
     expect(record.receipt_printed).toBe(false);
   });
 });
+
+describe("StoreSettingsSchema", () => {
+  it("accepts a valid store settings payload", () => {
+    const raw = {
+      api_version: 1,
+      flags: {
+        voice_assistant_enabled: false,
+        voice_hold_shortcut_enabled: false,
+        ai_provider_enabled: false,
+        mcp_adapter_enabled: false,
+        camera_product_capture_enabled: false,
+        batch_expiry_enabled: true,
+        expiry_notifications_enabled: true,
+        regional_catalog_enabled: true,
+        receipt_printing_enabled: true,
+        barcode_label_printing_enabled: true,
+      },
+      expiry_warning_days: "7,30,60",
+    };
+    const parsed = StoreSettingsSchema.parse(raw);
+    expect(parsed.api_version).toBe(1);
+    expect(parsed.flags.regional_catalog_enabled).toBe(true);
+    expect(parsed.expiry_warning_days).toBe("7,30,60");
+  });
+
+  it("defaults expiry_warning_days when omitted", () => {
+    const raw = {
+      api_version: 1,
+      flags: {
+        voice_assistant_enabled: false,
+        voice_hold_shortcut_enabled: false,
+        ai_provider_enabled: false,
+        mcp_adapter_enabled: false,
+        camera_product_capture_enabled: false,
+        batch_expiry_enabled: true,
+        expiry_notifications_enabled: true,
+        regional_catalog_enabled: true,
+        receipt_printing_enabled: true,
+        barcode_label_printing_enabled: true,
+      },
+    };
+    const parsed = StoreSettingsSchema.parse(raw);
+    expect(parsed.expiry_warning_days).toBe("7,30,60");
+  });
+
+  it("rejects wrong api_version", () => {
+    expect(() =>
+      StoreSettingsSchema.parse({
+        api_version: 2,
+        flags: {
+          voice_assistant_enabled: false,
+          voice_hold_shortcut_enabled: false,
+          ai_provider_enabled: false,
+          mcp_adapter_enabled: false,
+          camera_product_capture_enabled: false,
+          batch_expiry_enabled: true,
+          expiry_notifications_enabled: true,
+          regional_catalog_enabled: true,
+          receipt_printing_enabled: true,
+          barcode_label_printing_enabled: true,
+        },
+      }),
+    ).toThrow();
+  });
+});
+
+describe("SetFlagResultSchema", () => {
+  it("validates a set flag response", () => {
+    const raw = {
+      api_version: 1,
+      flag: "voice_assistant_enabled",
+      value: true,
+    };
+    const parsed = SetFlagResultSchema.parse(raw);
+    expect(parsed.flag).toBe("voice_assistant_enabled");
+    expect(parsed.value).toBe(true);
+  });
+});
+

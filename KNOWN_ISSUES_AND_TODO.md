@@ -75,22 +75,29 @@ Last updated: 2026-10-27 (fresh-stack validation pass). Full defect register: `d
 - Mitigation in place: no-arg seed wrappers (`demo_run`, `seed_run`, `setup_run`, …); prefer
   `bench execute` return values.
 
+### Manager Console Settings Page — RESOLVED 2026-10-27
+- Responsive Settings interface at `/settings` on Manager Console matching light theme (white cards, soft grey background, teal accents).
+- 9 categorized sections: Store Profile, Regional Preferences (Tamil Nadu), GST Configuration, POS Counters & Devices, Feature Flags, Printers, Inventory & Expiry, Voice & AI Integration, and System Health.
+- Live persistence via Next.js Server Action invoking `set_flag(flag, value)`; server authorization enforced (System Manager required; 403 surfaced with clear error feedback and state rollback).
+- Honest status indicators for unavailable/pending hardware features (e-invoicing exempt, speech engine unconfigured, physical printer validation pending, GST accountant sign-off pending).
+- Test suites: 5 bench tests (`TestSettingsApi`), 8 unit/component tests in owner-dashboard, 4 shared-types contract tests, Next.js production build PASS.
+
 ## Open issues
 - ISSUE-03 (HTML in error messages) and ISSUE-04 (bench quirks) above.
 
 ## TODO — prioritized
 
-1. **Settings UI page** on Manager Console reading `get_settings` / writing `set_flag`.
-2. **Tamil voice assistant**: deterministic parser + transcript fixtures → Ctrl+Space +
+1. **Tamil voice assistant**: deterministic parser + transcript fixtures → Ctrl+Space +
    speech provider (Vosk/Whisper decision) → flag `voice_assistant_enabled` gating.
-3. **Camera/OCR batch capture** per spec (flags `camera_product_capture_enabled`).
-4. **NSIS installer** on MSVC CI runner; narrow HTTP capability scope to the store's server.
-5. **Accountant GST sign-off** → real GSTIN/HSN data; then evaluate e-invoicing/e-waybill.
-6. **Physical printer + camera validation** when hardware arrives.
-7. **Backup scheduler registration** on the store server (script + runbook ready).
-8. **k6 load test** + 20k-item catalog performance pass.
-9. **Returns screen** exercise in the packaged exe (API verified; UI pending device test).
-10. **Production DB sizing/indexing review** (deferred from ISSUE-05; dev stack is clean).
+2. **Camera/OCR batch capture** per spec (flags `camera_product_capture_enabled`).
+3. **NSIS installer** on MSVC CI runner; narrow HTTP capability scope to the store's server.
+4. **Accountant GST sign-off** → real GSTIN/HSN data; then evaluate e-invoicing/e-waybill.
+5. **Physical printer + camera validation** when hardware arrives.
+6. **Backup scheduler registration** on the store server (script + runbook ready).
+7. **k6 load test** + 20k-item catalog performance pass.
+8. **Returns screen** exercise in the packaged exe (API verified; UI pending device test).
+9. **Production DB sizing/indexing review** (deferred from ISSUE-05; dev stack is clean).
+
 
 ## Fresh-stack provisioning notes (for reproducibility)
 

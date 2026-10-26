@@ -14,11 +14,16 @@ import {
   CatalogSnapshotSchema,
   OwnerSummarySchema,
   ServerStatusSchema,
+  SetFlagResultSchema,
   StockAlertsSchema,
+  StoreSettingsSchema,
   type CatalogSnapshot,
+  type FeatureFlagName,
   type OwnerSummary,
   type ServerStatus,
+  type SetFlagResult,
   type StockAlerts,
+  type StoreSettings,
 } from "@departmental/shared-types";
 import { z, type ZodType, type ZodTypeDef } from "zod";
 
@@ -37,12 +42,13 @@ async function callFrappe<T>(
     "Content-Type": "application/json",
     Accept: "application/json",
   };
-  if (token) {
+  const sid = (await cookies()).get(SESSION_COOKIE)?.value;
+  if (sid) {
+    headers.Cookie = `sid=${sid}`;
+  } else if (token) {
     headers.Authorization = `token ${token.key}:${token.secret}`;
   } else {
-    const sid = (await cookies()).get(SESSION_COOKIE)?.value;
-    if (!sid) throw new DashboardAuthError("not signed in");
-    headers.Cookie = `sid=${sid}`;
+    throw new DashboardAuthError("not signed in");
   }
 
   const response = await fetch(`${ERP_BASE_URL}/api/method/${method}`, {
@@ -52,7 +58,14 @@ async function callFrappe<T>(
     cache: "no-store",
   });
   if (response.status === 401 || response.status === 403) {
-    throw new DashboardAuthError(`ERP authorization failed (${response.status})`);
+    let detail = "";
+    try {
+      const errJson = (await response.json()) as { _server_messages?: string; exc_type?: string; exception?: string };
+      detail = errJson.exc_type || errJson.exception || "";
+    } catch {
+      // ignore JSON parse failure
+    }
+    throw new DashboardAuthError(`ERP authorization failed (${response.status})${detail ? `: ${detail}` : ""}`);
   }
   if (!response.ok) {
     throw new Error(`ERP call ${method} failed: ${response.status}`);
@@ -173,4 +186,21 @@ export async function fetchRecentInvoices(limit = 25): Promise<InvoiceRow[]> {
   return result.invoices;
 }
 
+export async function fetchStoreSettings(): Promise<StoreSettings> {
+  return callFrappe(
+    "departmental_store.api.settings.get_settings",
+    {},
+    StoreSettingsSchema,
+  );
+}
+
+export async function setFeatureFlag(flag: FeatureFlagName, value: boolean): Promise<SetFlagResult> {
+  return callFrappe(
+    "departmental_store.api.settings.set_flag",
+    { flag, value: value ? 1 : 0 },
+    SetFlagResultSchema,
+  );
+}
+
 export const zod = z;
+
