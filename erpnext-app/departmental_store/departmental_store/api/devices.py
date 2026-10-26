@@ -64,3 +64,19 @@ def record_sync(device_id: str | None = None, checkpoint: str | None = None) -> 
     }, update_modified=False)
     frappe.db.commit()
     return {"api_version": API_VERSION, "device_id": device_id, "ok": True}
+
+@frappe.whitelist()
+def get_device(device_id: str | None = None) -> dict:
+    """Any authenticated user may check whether a counter is registered/enabled
+    (needed by the POS login flow); registration stays manager-only."""
+    if not device_id or not isinstance(device_id, str):
+        raise frappe.ValidationError("device_id is required")
+    row = frappe.db.get_value("POS Device", device_id,
+                              ["name", "status", "counter_name"], as_dict=True)
+    return {
+        "api_version": API_VERSION,
+        "device_id": device_id,
+        "registered": bool(row),
+        "status": row.status if row else None,
+        "counter_name": row.counter_name if row else None,
+    }

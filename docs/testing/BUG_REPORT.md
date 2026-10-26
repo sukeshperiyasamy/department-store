@@ -65,3 +65,24 @@ All defects below were found during the 2026-10-26 QA cycle, fixed, and covered 
 
 - Payment split showing tendered vs allocated cash — corrected in the previous cycle (reports.py reduces cash rows by invoice change_amount); verified again this cycle via owner_summary output.
 - `UNBOUNDLOCAL` crash on fresh sites (frappe/locale.py v16.53) — upstream Frappe bug; platform works around it by setting the site language in `install.py` and seeds.
+
+
+---
+
+## 2026-10-27 addendum (Windows/GST/multi-counter phase)
+
+### WIN-001..005 — Windows bring-up defects (all FIXED, see docs/release/WINDOWS_BUILD_AND_INSTALLATION.md)
+- WIN-001 sql ACL missing execute (FIXED); WIN-002 CORS blocked webview (FIXED via tauri-plugin-http);
+  WIN-003 SQLite lock contention sync-loop vs checkout (FIXED via WAL + serialization);
+  WIN-004 silent checkout failures (FIXED, errors surfaced); WIN-005 stale apps.txt/module map
+  (FIXED via ensure_app_registered self-heal).
+
+### MC-D1 — naming-series deadlock under two-counter concurrency (FIXED)
+- Severity: Medium · Repro: two counters POST sales in the same instant →
+  QueryDeadlockError on tabSeries · Fix: single safe retry in submit_pos_sale ·
+  Regression: multi_counter MC-02 (PASS).
+
+### QA-MC-001 (OPEN, under investigation) — STOCK-01 availability mismatch with india_compliance enabled
+- Severity: Medium · Symptom: sale of exactly the raced qty (2 seeded, bin=2.0) rejected
+  claiming 1.0 units short, only when india_compliance is installed · Equivalent MC-03 passes ·
+  Next: instrument get_stock_availability path (reservation/UOM) on the test site.

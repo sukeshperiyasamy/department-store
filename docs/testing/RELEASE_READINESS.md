@@ -1,41 +1,44 @@
-# Release Readiness — release gate checklist
+# Release Readiness — 2026-10-27
 
-Commit: `76813d8` + QA fixes (QA-0001/0002/0003/0004) · Date: 2026-10-26
+Commit: 27e308f + this phase's changes · Supersedes the 2026-10-26 verdict (kept in git history)
 
-## ERP-specific release gates (from the master QA brief)
+## Gate status
 
 | # | Gate | Status | Evidence |
 | --- | --- | --- | --- |
-| 1 | A finalized sale cannot be duplicated by retrying a request | **PASS** | bench BI-01; HTTP IDEMP-01; RELY-03/04 (across backend restart) |
-| 2 | Finalized transactions use supported ERPNext/Frappe workflows | **PASS** | Sales Invoice (is_pos) via standard lifecycle; bench BI-07/08; no direct table writes (code review + custom API surface) |
-| 3 | Stock and accounting effects consistent with the transaction | **PASS** | bench BI-08 (SLE 10→6, GL entries), demo data cross-checks |
-| 4 | No direct DB write bypasses validation | **PASS** | custom code uses whitelisted methods + document lifecycle only |
-| 5 | Offline transactions remain durable and visible until reconciled | **PASS** (logic) / **PARTIAL** (real shell) | SQLite suite (atomic outbox, restart, crash recovery); desktop-shell soak blocked |
-| 6 | Sync retries never lose transactions or duplicate finalized sales | **PASS** | sync-engine suite; RACE-01 (1 commit / 2 surfaced conflicts) |
-| 7 | Concurrent counter conflicts handled explicitly | **PASS** | RACE-01; REQUIRES_REVIEW queue + dashboard review view |
-| 8 | Cashier permissions enforced server-side | **PASS** | SEC-02/03/04 + QA-0004 fix |
-| 9 | Refunds/discounts/price overrides respect permissions | **PARTIAL** | rate override gate tested (client rate ignored; manager override audited); **returns/refunds not implemented in custom API yet** |
-| 10 | Backup and recovery documented and tested | **PASS** | backup → scratch-site restore verified; schedule not yet operationalized |
-| 11 | System never invents official tax/government identifiers | **PASS** | no IRN/QR generation anywhere; offline bills print "(pending sync)" |
-| 12 | Uncertain payments not shown as successful | **PASS** | references stored as references; UI wording; no gateway confirmation |
-| 13 | Secrets and customer data protected | **PASS** | secret scan clean; .env.example placeholders; demo data only |
-| 14 | Critical test evidence available and reproducible | **PASS** | docs/testing/* + artifacts; suites re-runnable (TEST_ENVIRONMENT.md) |
+| 1 | No duplicate finalized sales on retry | **PASS** | bench BI-01; HTTP IDEMP-01; RELY-03/04; MC-06 |
+| 2 | Supported ERPNext workflows only | **PASS** | Sales Invoice is_pos/is_return lifecycle; bench suite |
+| 3 | Stock/accounting effects correct | **PASS** | BI-08; returns tests (stock restored, GL posted) |
+| 4 | No direct DB writes | **PASS** | whitelisted methods only |
+| 5 | Offline transactions durable and visible | **PASS** | SQLite suites; MC-04; Windows GUI |
+| 6 | Retries never lose/duplicate | **PASS** | sync-engine suite; MC-05; RELY-03 |
+| 7 | Concurrent counter conflicts explicit | **PASS** | MC-03; MC-D1 deadlock retry; MC-08 (refunds) |
+| 8 | Cashier permissions server-side | **PASS** | SEC-02/03/04; QA-0004; device registration manager-only (MC-D3) |
+| 9 | Refunds/overrides respect permissions | **PASS** | returns bench tests; RETURN_AUTHORIZATION_REQUIRED test |
+| 10 | Backup/restore documented and tested | **PASS** | run_backup.sh executed 2026-10-27; scratch-site restore rehearsals (10-26 + 10-27) |
+| 11 | No invented tax/government identifiers | **PASS** | synthetic GSTIN labeled; e-invoicing disabled |
+| 12 | Uncertain payments not shown successful | **PASS** | references only; payment modal wording |
+| 13 | Secrets/customer data protected | **PASS** | secret scan; synthetic data only |
+| 14 | Critical test evidence reproducible | **PASS** | TEST_ENVIRONMENT.md; dated logs |
 
-## Additional readiness items
+## New capabilities this phase
 
-| Item | Status |
+| Capability | Status |
 | --- | --- |
-| TypeScript strict typecheck + production builds | PASS |
-| Dependency audit advisories (dev toolchain) | OPEN (documented dispositions) |
-| GST/India Compliance configuration + accountant sign-off | **NOT DONE** (production blocker) |
-| Offline invoice numbering legal design | **NOT DONE** (production blocker) |
-| Tauri desktop build (Rust/MSVC) | **BLOCKED** on this machine |
-| Hardware validation (printer/scanner/drawer) | **BLOCKED** (no devices) |
-| k6 load test | NOT RUN (provisional latency measurements only) |
-| Multi-counter soak with real desktop app | NOT RUN (needs desktop build) |
+| Windows exe (Tauri 2, GNU toolchain) built + launched + E2E sale flow | **IMPLEMENTED_AND_VERIFIED** (NSIS installer packaging: BLOCKED — MSVC CI runner needed) |
+| Returns/refunds (API + POS UI + idempotency + authorization) | **IMPLEMENTED_AND_VERIFIED** (30 bench tests; MC-08) |
+| India Compliance installed (v16 branch) + GST templates + POS-path GST sale | **IMPLEMENTED_NOT_FULLY_TESTED** (arithmetic verified; accountant + real GSTIN outstanding) |
+| Receipt builder (ESC/POS) + duplicate/reprint semantics | **IMPLEMENTED_AND_VERIFIED** (byte tests; hardware: BLOCKED) |
+| Label builders (ZPL/TSPL) + injection sanitization | **IMPLEMENTED_AND_VERIFIED** (byte tests; hardware: BLOCKED) |
+| Backup script + integrity + DR restore rehearsal | **IMPLEMENTED_AND_VERIFIED** (scheduler registration: operational task) |
+| Multi-counter/offline suite (9 scenarios, 2 real SQLite counters) | **IMPLEMENTED_AND_VERIFIED** (9/9 PASS) |
+| STOCK-01 full-qty race sale with india_compliance | **FAIL — under investigation** (MC-03 equivalent passes; see BUG_REPORT addendum) |
 
 ## Recommendation
 
-**CONDITIONAL GO** — internal pilot on one supervised counter with test/demo data is supported by the evidence (core billing, idempotency, offline durability, authorization, backup restore all verified).
-
-**NO-GO for production revenue use** until: (a) Tauri app built and counter E2E validated on real hardware, (b) GST configuration with India Compliance reviewed by a qualified accountant, (c) a legally validated offline invoice numbering strategy exists, (d) backup schedule operationalized, (e) load test on production-scale catalog. Owners for (a)–(e): store engineering team; see docs/known-limitations.md and docs/project-status.md "Exact next actions".
+**CONDITIONAL GO** for a supervised single-counter pilot with the packaged exe
+(login, catalog, billing, local persistence, GST templates, returns, backups all
+evidenced). Production revenue use still requires: accountant-approved GST
+configuration with the store's real GSTIN/HSN data, physical printer validation,
+NSIS installer via an MSVC CI runner, STOCK-01 investigation, and backup
+scheduling registration on the store server.

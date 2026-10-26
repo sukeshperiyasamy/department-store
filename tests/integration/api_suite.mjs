@@ -69,7 +69,7 @@ function payload(overrides = {}) {
     counter_name: "Counter 1",
     occurred_at: new Date().toISOString(),
     customer: "Walk In Customer",
-    pos_profile: "Counter 1",
+    pos_profile: "QA Suite Counter",
     lines: [{ line_id: "l1", item_code: "BISCUIT-PARLE", qty: 1 }],
     payments: [{ mode_of_payment: "Cash", amount: 500 }],
     ...overrides,
@@ -273,7 +273,12 @@ if (cashier && manager && raceItemA && raceItemB) {
         payments: [{ mode_of_payment: "Cash", amount: 100000 }],
       })) },
     });
-    const full = await sell(2);
+    // stock ledger settles async across benches; retry the full sale briefly
+    let full = await sell(2);
+    for (let i = 0; i < 5 && full.json?.message?.status !== "SERVER_COMMITTED"; i++) {
+      await new Promise((r) => setTimeout(r, 1500));
+      full = await sell(2);
+    }
     const over = await sell(1);
     const fullOk = full.json?.message?.status === "SERVER_COMMITTED";
     record("STOCK-01", "oversell after stock exhausted is blocked with review",

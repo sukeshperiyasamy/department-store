@@ -386,3 +386,12 @@ export const SyncRecordSchema = z.object({
   receipt_printed: z.boolean().default(false),
 });
 export type SyncRecord = z.infer<typeof SyncRecordSchema>;
+
+export const DeviceStatusSchema = z.object({
+  api_version: API_VERSION_SCHEMA,
+  device_id: z.string(),
+  registered: z.boolean(),
+  status: z.enum(["Enabled", "Disabled"]).nullable().optional(),
+  counter_name: z.string().nullable().optional(),
+});
+export type DeviceStatus = z.infer<typeof DeviceStatusSchema>;

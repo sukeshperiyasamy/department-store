@@ -22,24 +22,35 @@ def touch_one_perf_price() -> str:
     return name
 
 
-def make_cashier_user() -> str:
+def make_cashier_user_a() -> str:
+    return make_cashier_user("_a")
+
+
+def make_cashier_user_b() -> str:
+    return make_cashier_user("_b")
+
+
+def make_cashier_user(suffix: str = "") -> str:
     """Cashier test user with API keys for integration/security testing.
+    `suffix` creates independent counters (e.g. "_a", "_b") so two counters can
+    hold separate valid tokens simultaneously.
     Follows the ERPNext convention that billing users hold Accounts User
     (GL posting requires account access); reporting stays manager-only."""
-    if not frappe.db.exists("User", "cashier@demo.store"):
+    email = f"cashier{suffix}@demo.store"
+    if not frappe.db.exists("User", email):
         frappe.get_doc({
-            "doctype": "User", "email": "cashier@demo.store",
+            "doctype": "User", "email": email,
             "first_name": "Cashier", "send_welcome_email": 0,
             "roles": [{"role": "Cashier"}, {"role": "Accounts User"}],
         }).insert(ignore_permissions=True)
     else:
-        user = frappe.get_doc("User", "cashier@demo.store")
+        user = frappe.get_doc("User", email)
         if not any(r.role == "Accounts User" for r in user.roles):
             user.append("roles", {"role": "Accounts User"})
             user.save(ignore_permissions=True)
     from frappe.core.doctype.user.user import generate_keys
     frappe.local.form_dict.cmd = "x"
-    keys = generate_keys("cashier@demo.store")
+    keys = generate_keys(email)
     frappe.db.commit()
     return json.dumps(keys)
 
@@ -56,7 +67,8 @@ def _make_race_item(qty: int) -> str:
     demo(run=True)
     company = frappe.db.get_value("Company", {"abbr": "DEMO"}, "name")
     # Receive into the warehouse the POS profile bills against.
-    profile_warehouse = frappe.db.get_value("POS Profile", "Counter 1", "warehouse")
+    profile_warehouse = (frappe.db.get_value("POS Profile", "QA Suite Counter", "warehouse")
+                         or frappe.db.get_value("POS Profile", "Counter 1", "warehouse"))
     warehouse = profile_warehouse or frappe.db.get_value(
         "Warehouse", {"company": company, "is_group": 0}, "name")
     code = f"RACE-ITEM-{uuid.uuid4().hex[:6].upper()}"
@@ -66,6 +78,7 @@ def _make_race_item(qty: int) -> str:
         "doctype": "Item", "item_code": code, "item_name": f"Race {code}",
         "item_group": "All Item Groups", "stock_uom": "Nos",
         "is_stock_item": 1, "is_sales_item": 1,
+        "gst_hsn_code": "999999",
     }).insert(ignore_permissions=True)
     frappe.get_doc({
         "doctype": "Item Price", "price_list": "Standard Selling",
@@ -225,8 +238,9 @@ def demo(run: bool = False) -> str:
             "payments": [{"mode_of_payment": mop, "default": 1, "account": cash_account}],
         }).insert(ignore_permissions=True)
 
-    # Opening entry (shift) for Administrator
-    if not frappe.db.exists("POS Opening Entry", {"pos_profile": profile, "user": frappe.session.user, "status": "Open"}):
+    # Opening entry (shift) for Administrator — skip if the user already has ANY
+    # open shift (ERPNext allows one open POS Opening Entry per user).
+    if not frappe.db.exists("POS Opening Entry", {"user": frappe.session.user, "status": "Open"}):
         ope = frappe.get_doc({
             "doctype": "POS Opening Entry", "company": company, "pos_profile": profile,
             "user": frappe.session.user, "period_start_date": frappe.utils.today(),
@@ -334,3 +348,45 @@ def demo(run: bool = False) -> str:
         "company": company, "pos_profile": profile, "warehouse": warehouse,
         "posted": posted,
     }, indent=1)
+
+
+def make_qa_pos_profile() -> str:
+    """Deterministic no-tax POS profile for the API suite: asserts re-pricing and
+    totals without coupling to the demo GST configuration."""
+    demo(run=True)
+    company = frappe.db.get_value("Company", {"abbr": "DEMO"}, "name")
+    warehouse = frappe.db.get_value("Warehouse", {"company": company, "is_group": 0}, "name")
+    cash_account = frappe.db.get_value(
+        "Account", {"company": company, "account_type": "Cash", "is_group": 0})
+    name = "QA Suite Counter"
+    if not frappe.db.exists("POS Profile", name):
+        frappe.get_doc({
+            "doctype": "POS Profile", "__newname": name,
+            "company": company, "customer": "Walk In Customer",
+            "warehouse": warehouse, "selling_price_list": "Standard Selling",
+            "currency": "INR",
+            "write_off_account": frappe.db.get_value(
+                "Account", {"company": company, "account_name": ("like", "Write Off%"),
+                            "is_group": 0}),
+            "write_off_cost_center": frappe.db.get_value(
+                "Cost Center", {"company": company, "is_group": 0}),
+            "payments": [{"mode_of_payment": "Cash", "default": 1,
+                          "account": cash_account}],
+        }).insert(ignore_permissions=True)
+    # opening entry for the QA profile
+    if not frappe.db.exists("POS Opening Entry", {"pos_profile": name,
+                                                  "user": frappe.session.user,
+                                                  "status": "Open"}):
+        for row in frappe.get_all("POS Opening Entry",
+                                  filters={"user": frappe.session.user,
+                                           "status": "Open"}, pluck="name"):
+            frappe.get_doc("POS Opening Entry", row).cancel()
+        ope = frappe.get_doc({
+            "doctype": "POS Opening Entry", "company": company, "pos_profile": name,
+            "user": frappe.session.user, "period_start_date": frappe.utils.today(),
+            "posting_date": frappe.utils.today(), "set_posting_date": 1,
+            "balance_details": [{"mode_of_payment": "Cash", "opening_amount": 1000}],
+        }).insert(ignore_permissions=True)
+        ope.submit()
+    frappe.db.commit()
+    return name

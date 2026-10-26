@@ -10,6 +10,7 @@
 import {
   CatalogSnapshotSchema,
   DeviceRegistrationSchema,
+  DeviceStatusSchema,
   SaleResponseSchema,
   type CatalogSnapshot,
   type ReturnPayload,
@@ -55,6 +56,19 @@ export interface FrappeClientConfig {
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
+/** Inside the Tauri shell, use the native HTTP plugin (no CORS restrictions,
+ * real cookie jar); in plain browsers use the standard fetch. */
+function defaultFetch(): typeof fetch {
+  if (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
+    // Dynamic to keep the browser bundle clean; plugin-http fetch mirrors spec.
+    return ((...args: Parameters<typeof fetch>) =>
+      import("@tauri-apps/plugin-http").then(
+        (m) => m.fetch(...(args as [string, RequestInit?])),
+      )) as unknown as typeof fetch;
+  }
+  return fetch.bind(globalThis);
+}
+
 /** For methods whose result shape is not part of the v1 contract (e.g. logout). */
 const passthroughSchema: ZodType<unknown> = z.unknown();
 
@@ -63,7 +77,7 @@ export class FrappeClient {
   private readonly timeoutMs: number;
 
   constructor(private readonly cfg: FrappeClientConfig) {
-    this.fetchImpl = cfg.fetchImpl ?? fetch.bind(globalThis);
+    this.fetchImpl = cfg.fetchImpl ?? defaultFetch();
     this.timeoutMs = cfg.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   }
 
@@ -110,6 +124,14 @@ export class FrappeClient {
       return this.submitReturn(record.payload as ReturnPayload);
     }
     return this.submitSale(record.payload as SalePayload);
+  }
+
+  async getDevice(deviceId: string) {
+    return this.call(
+      "departmental_store.api.devices.get_device",
+      { device_id: deviceId },
+      DeviceStatusSchema,
+    );
   }
 
   async getOriginalInvoice(invoiceName: string): Promise<OriginalInvoice> {

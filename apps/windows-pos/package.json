@@ -16,6 +16,7 @@
   "dependencies": {
     "@departmental/shared-types": "*",
     "@tauri-apps/api": "^2.1.1",
+    "@tauri-apps/plugin-http": "^2.8.3",
     "@tauri-apps/plugin-sql": "^2.2.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -32,6 +33,7 @@
     "@vitest/coverage-v8": "^2.1.9",
     "better-sqlite3": "^12.2.0",
     "jsdom": "^25.0.1",
+    "tsx": "^4.23.15",
     "typescript": "^5.6.3",
     "vite": "^5.4.11",
     "vitest": "^2.1.5"

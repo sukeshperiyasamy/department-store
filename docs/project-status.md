@@ -1,6 +1,7 @@
 # Project Status
 
-Updated: 2026-10-26 (first implementation session, autonomous run)
+Updated: 2026-10-27 (Windows release, GST, returns, hardware & multi-counter phase)
+Previous: 2026-10-26 (first implementation session)
 
 ## Completed and verified (executed, observed)
 

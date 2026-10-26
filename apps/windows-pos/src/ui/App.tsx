@@ -6,6 +6,7 @@ import { SyncBadge, SyncScreen } from "./SyncScreen";
 import { ReturnsScreen } from "./ReturnsScreen";
 import { AppServices } from "./services";
 import { FrappeClient } from "../transport/frappe";
+import { TransportError } from "../domain/sync-engine";
 import { PosStore } from "../local/repos";
 import { TauriSqliteDriver } from "../local/tauri-driver";
 import { createPrinter } from "../printing/printer";
@@ -96,7 +97,7 @@ export function Shell({ state }: { state: PosState }) {
 
 function LoginScreen({ onReady }: { onReady: (s: AppServices) => void }) {
   const { dispatch } = usePos();
-  const [serverUrl, setServerUrl] = useState("http://localhost:8080");
+  const [serverUrl, setServerUrl] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [deviceName, setDeviceName] = useState("Counter 1");
@@ -117,7 +118,22 @@ function LoginScreen({ onReady }: { onReady: (s: AppServices) => void }) {
 
       const client = new FrappeClient({ baseUrl: serverUrl.trim() });
       await client.login(username.trim(), password);
-      await client.registerDevice(deviceIdFinal, deviceName.trim() || undefined);
+      // Manager tokens can register; a cashier proceeds only if a manager has
+      // already registered and enabled this counter (server-enforced).
+      try {
+        await client.registerDevice(deviceIdFinal, deviceName.trim() || undefined);
+      } catch (e) {
+        if (e instanceof TransportError && e.kind === "auth") {
+          const status = await client.getDevice(deviceIdFinal);
+          if (!status.registered || status.status !== "Enabled") {
+            throw new Error(
+              "This counter is not registered for billing. Ask a store manager " +
+              "to register it (Manager Console or ERPNext Desk), then sign in again.");
+          }
+        } else {
+          throw e;
+        }
+      }
 
       dispatch({
         type: "CATALOG_PROGRESS",

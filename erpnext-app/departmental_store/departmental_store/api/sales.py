@@ -100,7 +100,7 @@ def submit_pos_sale(payload: str | dict | None = None) -> dict:
                               "posted. Retry the submission.")
 
     try:
-        result = _post_sale(data, device)
+        result = _post_sale_with_deadlock_retry(data, device)
         _resolve_log(log, status="Server Committed", response=result, invoice=result["invoice"])
         frappe.db.commit()
         result["duplicate"] = False
@@ -246,6 +246,28 @@ def _resolve_log(log, status: str, response: dict, invoice: dict | None,
         log.original_invoice = original_invoice
     log.last_resolved_at = now_datetime()
     log.save(ignore_permissions=True)
+
+
+def _post_sale_with_deadlock_retry(data: dict, device: dict | None) -> dict:
+    """Two counters submitting at the same instant can deadlock on Frappe's
+    naming series (tabSeries, InnoDB gap lock). The failed transaction rolls back
+    cleanly, so a single immediate retry is safe and standard (QA-MC-001)."""
+    try:
+        return _post_sale(data, device)
+    except Exception as exc:
+        if _is_deadlock(exc):
+            frappe.db.rollback()
+            frappe.logger("departmental_store").info({
+                "event": "pos_deadlock_retried", "user": frappe.session.user,
+            })
+            return _post_sale(data, device)
+        raise
+
+
+def _is_deadlock(exc: Exception) -> bool:
+    text = f"{type(exc).__name__}: {exc}"
+    return ("QueryDeadlockError" in text or "Record has changed since last read" in text
+            or "Deadlock found" in text or "try restarting transaction" in text.lower())
 
 
 def _post_sale(data: dict, device: dict | None) -> dict:

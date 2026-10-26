@@ -28,6 +28,7 @@ export function PaymentScreen({ onClose }: { onClose: () => void }) {
     transactionId: string;
   } | null>(null);
   const [printFailed, setPrintFailed] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const totals = displayTotals(state.cart);
   const totalMajor = totals.estimatedTotalMinor / 100;
@@ -44,6 +45,7 @@ export function PaymentScreen({ onClose }: { onClose: () => void }) {
   const submit = async () => {
     if (busy || shortfall || state.cart.lines.length === 0) return;
     setBusy(true);
+    setSubmitError(null);
     try {
       const res = await services.checkout({
         lines: state.cart.lines.map((l) => ({
@@ -97,6 +99,10 @@ export function PaymentScreen({ onClose }: { onClose: () => void }) {
 
       dispatch({ type: "SET_CART", cart: services.resetCart() });
       void services.refreshCounts();
+    } catch (e) {
+      // Persist/save failures must be visible — the cashier must never assume
+      // a sale went through when it did not.
+      setSubmitError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -204,6 +210,11 @@ export function PaymentScreen({ onClose }: { onClose: () => void }) {
         {shortfall && (
           <p role="alert" className="error-banner">
             Tendered amount is less than the bill total.
+          </p>
+        )}
+        {submitError && (
+          <p role="alert" className="error-banner">
+            Could not save the sale: {submitError}
           </p>
         )}
 
