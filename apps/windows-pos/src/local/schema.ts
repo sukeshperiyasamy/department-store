@@ -15,8 +15,7 @@ export interface Migration {
 export const MIGRATIONS: Migration[] = [
   {
     version: 1,
-    statements: [
-      `CREATE TABLE IF NOT EXISTS schema_meta (
+    statements: [      `CREATE TABLE IF NOT EXISTS schema_meta (
          key TEXT PRIMARY KEY,
          value TEXT NOT NULL
        )`,
@@ -92,6 +91,15 @@ export const MIGRATIONS: Migration[] = [
          reviewed INTEGER NOT NULL DEFAULT 0,
          failed INTEGER NOT NULL DEFAULT 0
        )`,
+    ],
+  },
+  {
+    version: 2,
+    statements: [
+      // v2: returns — kind discriminator + return link on sync records
+      `ALTER TABLE sales ADD COLUMN kind TEXT NOT NULL DEFAULT 'sale'`,
+      `ALTER TABLE sales ADD COLUMN original_invoice TEXT`,
+      `CREATE INDEX IF NOT EXISTS idx_sales_kind ON sales(kind)`,
     ],
   },
 ];

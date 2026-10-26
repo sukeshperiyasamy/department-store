@@ -6,7 +6,42 @@ def after_install() -> None:
     ensure_item_aliases_field()
     ensure_site_language()
     ensure_cashier_permissions()
+    ensure_app_registered()
     frappe.db.commit()
+
+
+def ensure_app_registered() -> dict:
+    """Self-healing runbook helper: guarantees the app is listed in sites/apps.txt
+    and rebuilds Frappe's module maps.
+
+    Background: an interrupted `bench migrate` can leave sites/apps.txt without the
+    custom app, after which every DocType insert fails with
+    "Module Departmental Store not found" (stale app_modules redis cache plus the
+    missing apps.txt line). Run via:
+        bench --site <site> execute departmental_store.install.ensure_app_registered
+    """
+    import os
+
+    bench_sites = os.path.join(frappe.utils.get_bench_path(), "sites")
+    apps_txt = os.path.join(bench_sites, "apps.txt")
+    apps: list[str] = []
+    if os.path.exists(apps_txt):
+        with open(apps_txt) as f:
+            apps = [line.strip() for line in f if line.strip()]
+    if "departmental_store" not in apps:
+        apps.append("departmental_store")
+        with open(apps_txt, "w") as f:
+            f.write("\n".join(apps) + "\n")
+        changed_apps_txt = True
+    else:
+        changed_apps_txt = False
+
+    frappe.cache.delete_value("app_modules")
+    frappe.cache.delete_value("installed_app_modules")
+    frappe.setup_module_map(include_all_apps=True)
+    registered = "departmental_store" in frappe.local.module_app
+    frappe.db.commit()
+    return {"apps_txt_updated": changed_apps_txt, "module_map_ok": registered}
 
 
 def ensure_cashier_permissions() -> None:

@@ -12,11 +12,38 @@ import {
   DeviceRegistrationSchema,
   SaleResponseSchema,
   type CatalogSnapshot,
+  type ReturnPayload,
   type SalePayload,
   type SaleResponse,
+  type SyncRecord,
 } from "@departmental/shared-types";
 import { z, type ZodType, type ZodTypeDef } from "zod";
 import { TransportError } from "../domain/sync-engine";
+
+/** Original-invoice lookup for the returns flow (server-validated shape). */
+const OriginalInvoiceSchema = z.object({
+  api_version: z.literal(1),
+  invoice: z.object({
+    name: z.string(),
+    customer: z.string().nullable().optional(),
+    posting_date: z.string(),
+    status: z.string(),
+  }),
+  lines: z.array(z.object({
+    item_code: z.string(),
+    item_name: z.string(),
+    uom: z.string(),
+    sold_qty: z.number(),
+    rate: z.number(),
+    already_returned_qty: z.number(),
+    returnable_qty: z.number(),
+  })),
+  payments: z.array(z.object({
+    mode_of_payment: z.string(),
+    amount: z.number(),
+  })),
+});
+export type OriginalInvoice = z.infer<typeof OriginalInvoiceSchema>;
 
 export interface FrappeClientConfig {
   baseUrl: string;
@@ -66,6 +93,30 @@ export class FrappeClient {
       "departmental_store.api.sales.submit_pos_sale",
       { payload: JSON.stringify(payload) },
       SaleResponseSchema,
+    );
+  }
+
+  async submitReturn(payload: ReturnPayload): Promise<SaleResponse> {
+    return this.call(
+      "departmental_store.api.returns.submit_pos_return",
+      { payload: JSON.stringify(payload) },
+      SaleResponseSchema,
+    );
+  }
+
+  /** Submits a sync record by kind — the single entry the sync engine uses. */
+  async submit(record: SyncRecord): Promise<SaleResponse> {
+    if (record.kind === "return") {
+      return this.submitReturn(record.payload as ReturnPayload);
+    }
+    return this.submitSale(record.payload as SalePayload);
+  }
+
+  async getOriginalInvoice(invoiceName: string): Promise<OriginalInvoice> {
+    return this.call(
+      "departmental_store.api.returns.get_original_invoice",
+      { invoice_name: invoiceName },
+      OriginalInvoiceSchema,
     );
   }
 

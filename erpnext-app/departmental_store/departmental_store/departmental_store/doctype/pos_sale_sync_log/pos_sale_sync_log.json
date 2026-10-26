@@ -7,6 +7,8 @@
  "field_order": [
   "transaction_id",
   "status",
+  "is_return",
+  "original_invoice",
   "section_break_source",
   "device_id",
   "device",
@@ -46,6 +48,20 @@
    "options": "Processing\nServer Committed\nRequires Review\nCancelled",
    "read_only": 1,
    "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_return",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Is Return"
+  },
+  {
+   "fieldname": "original_invoice",
+   "fieldtype": "Data",
+   "label": "Original Invoice",
+   "read_only": 1
   },
   {
    "fieldname": "section_break_source",

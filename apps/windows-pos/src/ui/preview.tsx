@@ -65,6 +65,27 @@ function makePreviewServices(): PosServices {
     retryTransaction: async () => undefined,
     printReceipt: async () => true,
     resetCart: () => ({ lines: [], totalsAreEstimates: false }),
+    lookupInvoice: async (invoiceName: string) => ({
+      api_version: 1,
+      invoice: { name: invoiceName || "PREVIEW-SINV-0001", customer: "Walk In Customer",
+                 posting_date: "2026-10-26", status: "Paid" },
+      lines: fixtureItems.map((i) => ({
+        item_code: i.item_code, item_name: i.item_name, uom: i.stock_uom,
+        sold_qty: 2, rate: i.price?.price_list_rate ?? 10,
+        already_returned_qty: 0, returnable_qty: 2,
+      })),
+      payments: [{ mode_of_payment: "Cash", amount: 500 }],
+    }),
+    submitReturn: async (input) => {
+      void input;
+      await wait(700);
+      return {
+        transactionId: `preview-ret-${Date.now()}`,
+        committed: true,
+        creditNoteName: `PREVIEW-CN-${String(1 + Math.floor(Math.random() * 900)).padStart(4, "0")}`,
+        error: null,
+      };
+    },
   };
 }
 

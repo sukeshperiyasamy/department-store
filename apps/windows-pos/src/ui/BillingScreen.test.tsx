@@ -36,6 +36,15 @@ function fakeServices(overrides: Partial<PosServices> = {}): PosServices {
     retryTransaction: vi.fn(async () => undefined),
     printReceipt: vi.fn(async () => true),
     resetCart: () => ({ lines: [], totalsAreEstimates: false }),
+    lookupInvoice: vi.fn(async () => ({
+      api_version: 1 as const,
+      invoice: { name: "SINV-0001", customer: "Walk In", posting_date: "2026-10-26", status: "Paid" },
+      lines: [{ item_code: "SKU-1", item_name: "Colgate Toothpaste 200g", uom: "Nos",
+                sold_qty: 2, rate: 99, already_returned_qty: 0, returnable_qty: 2 }],
+      payments: [{ mode_of_payment: "Cash", amount: 198 }],
+    })),
+    submitReturn: vi.fn(async () => ({ transactionId: "t1", committed: true,
+                                       creditNoteName: "SINV-0002", error: null })),
     ...overrides,
   };
 }

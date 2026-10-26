@@ -3,6 +3,7 @@ import { initialPosState, posReducer, PosContext, usePos, type PosState } from "
 import { BillingScreen } from "./BillingScreen";
 import { PaymentScreen } from "./PaymentScreen";
 import { SyncBadge, SyncScreen } from "./SyncScreen";
+import { ReturnsScreen } from "./ReturnsScreen";
 import { AppServices } from "./services";
 import { FrappeClient } from "../transport/frappe";
 import { PosStore } from "../local/repos";
@@ -73,6 +74,9 @@ export function Shell({ state }: { state: PosState }) {
     <div className="shell">
       <header className="topbar">
         <span className="brand">Department Store POS</span>
+        <button type="button" onClick={() => dispatch({ type: "SHOW_SCREEN", screen: "returns" })}>
+          Returns (F7)
+        </button>
         <span>{state.counterName}</span>
         <span>{state.user}</span>
         <SyncBadge />
@@ -81,6 +85,9 @@ export function Shell({ state }: { state: PosState }) {
         </button>
       </header>
       {state.screen === "billing" && <BillingScreen onCheckout={() => setPayOpen(true)} />}
+      {state.screen === "returns" && (
+        <ReturnsScreen onBack={() => dispatch({ type: "SHOW_SCREEN", screen: "billing" })} />
+      )}
       {state.screen === "sync" && <SyncScreen />}
       {payOpen && <PaymentScreen onClose={() => setPayOpen(false)} />}
     </div>

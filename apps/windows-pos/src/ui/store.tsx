@@ -9,8 +9,9 @@ import { createContext, useContext } from "react";
 import type { CatalogItem, SyncRecord } from "@departmental/shared-types";
 import type { Cart } from "../domain/cart";
 import type { ReceiptData } from "../domain/receipt";
+import type { OriginalInvoice } from "../transport/frappe";
 
-export type Screen = "login" | "billing" | "sync";
+export type Screen = "login" | "billing" | "returns" | "sync";
 
 export interface PosState {
   screen: Screen;
@@ -99,6 +100,14 @@ export interface PosServices {
     totalsEstimate: number;
   }): Promise<{ transactionId: string; committed: boolean; invoiceName: string | null; changeAmount: number; error: string | null }>;
   syncNow(): Promise<void>;
+  lookupInvoice(invoiceName: string): Promise<OriginalInvoice>;
+  submitReturn(input: {
+    originalInvoice: string;
+    lines: { item_code: string; qty: number }[];
+    payments?: { mode_of_payment: string; amount: number }[];
+    reason?: string;
+  }): Promise<{ transactionId: string; committed: boolean; creditNoteName: string | null;
+                error: string | null }>;
   refreshCounts(): Promise<Record<string, number>>;
   listPending(): Promise<SyncRecord[]>;
   retryTransaction(transactionId: string): Promise<void>;

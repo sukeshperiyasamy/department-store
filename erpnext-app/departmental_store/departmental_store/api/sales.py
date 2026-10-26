@@ -197,7 +197,8 @@ def _existing_result(transaction_id: str) -> dict | None:
     return result
 
 
-def _claim_transaction(transaction_id: str, data: dict, device: dict | None):
+def _claim_transaction(transaction_id: str, data: dict, device: dict | None,
+                       is_return: int = 0, original_invoice: str | None = None):
     """Insert the idempotency claim atomically. Returns None if another request
     won the race OR the claim could not be recorded (logged, reported for retry)."""
     try:
@@ -211,6 +212,8 @@ def _claim_transaction(transaction_id: str, data: dict, device: dict | None):
             "submitted_by": frappe.session.user,
             "first_received_at": now_datetime(),
             "attempt_count": 1,
+            "is_return": is_return,
+            "original_invoice": original_invoice,
             "request_payload": json.dumps(data, default=str)[:500000],
         })
         log.insert(ignore_permissions=True)
@@ -229,13 +232,18 @@ def _claim_transaction(transaction_id: str, data: dict, device: dict | None):
 
 
 def _resolve_log(log, status: str, response: dict, invoice: dict | None,
-                 error_code: str | None = None, error_message: str | None = None) -> None:
+                 error_code: str | None = None, error_message: str | None = None,
+                 is_return: int = 0, original_invoice: str | None = None) -> None:
     log.status = status
     log.response_payload = json.dumps(response, default=str)
     log.invoice_doctype = invoice.get("doctype") if invoice else None
     log.invoice_name = invoice.get("name") if invoice else None
     log.error_code = error_code
     log.error_message = error_message
+    if is_return:
+        log.is_return = 1
+    if original_invoice:
+        log.original_invoice = original_invoice
     log.last_resolved_at = now_datetime()
     log.save(ignore_permissions=True)
 

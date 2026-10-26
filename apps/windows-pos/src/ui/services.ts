@@ -5,6 +5,7 @@
 import {
   TransactionState,
   type CatalogItem,
+  type ReturnPayload,
   type SalePayload,
   type SyncRecord,
 } from "@departmental/shared-types";
@@ -39,7 +40,7 @@ export class AppServices implements PosServices {
   ) {
     this.engine = new SyncEngine({
       transport: {
-        submitSale: (payload) => client.submitSale(payload),
+        submit: (record) => client.submit(record),
         checkTransaction: (id) => client.checkTransaction(id),
       },
       repo: store as SyncRepo,
@@ -132,6 +133,51 @@ export class AppServices implements PosServices {
       await this.store.markRetryableFailure(transactionId, "manual retry", Date.now());
       await this.syncNow();
     }
+  }
+
+  async lookupInvoice(invoiceName: string) {
+    return this.client.getOriginalInvoice(invoiceName);
+  }
+
+  /** Persists a return and its outbox event atomically, then syncs immediately. */
+  async submitReturn(input: {
+    originalInvoice: string;
+    lines: { item_code: string; qty: number }[];
+    payments?: { mode_of_payment: string; amount: number }[];
+    reason?: string;
+  }): Promise<{
+    transactionId: string;
+    committed: boolean;
+    creditNoteName: string | null;
+    error: string | null;
+  }> {
+    const transactionId = uuid();
+    const payload: ReturnPayload = {
+      api_version: 1,
+      transaction_id: transactionId,
+      device_id: this.opts.deviceId,
+      counter_name: this.opts.counterName,
+      occurred_at: new Date().toISOString(),
+      original_invoice: input.originalInvoice,
+      lines: input.lines.map((line, index) => ({
+        line_id: `${transactionId}-r${index}`,
+        item_code: line.item_code,
+        qty: line.qty,
+      })),
+      ...(input.payments && input.payments.length > 0
+        ? { payments: input.payments }
+        : {}),
+      ...(input.reason ? { reason: input.reason } : {}),
+    };
+    await this.store.saveReturnWithOutbox(payload, this.opts.deviceId, Date.now());
+    await this.syncNow();
+    const record = await this.store.getRecord(transactionId);
+    return {
+      transactionId,
+      committed: record?.state === TransactionState.ServerCommitted,
+      creditNoteName: record?.response?.invoice?.name ?? null,
+      error: record?.last_error_message ?? null,
+    };
   }
 
   /** Print attempt is independent from sync state; returns success. */

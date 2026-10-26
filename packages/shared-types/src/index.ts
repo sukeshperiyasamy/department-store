@@ -326,8 +326,43 @@ export const OutboxEventSchema = z.object({
 });
 export type OutboxEvent = z.infer<typeof OutboxEventSchema>;
 
+export const ReturnLineSchema = z
+  .object({
+    line_id: z.string().min(1).max(100),
+    item_code: z.string().min(1).max(140),
+    /** Positive quantity to return; the server validates it against the original. */
+    qty: z.number().positive(),
+  })
+  .strict();
+export type ReturnLine = z.infer<typeof ReturnLineSchema>;
+
+export const ReturnPayloadSchema = z
+  .object({
+    api_version: z.literal(API_VERSION),
+    transaction_id: z.string().min(1).max(100),
+    device_id: z.string().min(1).max(100),
+    counter_name: z.string().max(140).optional(),
+    occurred_at: z.string().optional(),
+    original_invoice: z.string().min(1).max(140),
+    lines: z.array(ReturnLineSchema).min(1).max(500),
+    /** Refund rows; when omitted the server refunds the original payments
+     * proportionally. Amounts are positive "refund this much via this mode". */
+    payments: z
+      .array(SalePaymentSchema)
+      .max(10)
+      .optional(),
+    reason: z.string().max(500).optional(),
+  })
+  .strict();
+export type ReturnPayload = z.infer<typeof ReturnPayloadSchema>;
+
+/** A return response reuses SaleResponse; invoice.return_against carries the
+ * original invoice and status is SERVER_COMMITTED with is_return true. */
+export const RETURN_EVENT_TYPE = "return.submitted.v1" as const;
+
 export const SyncRecordSchema = z.object({
   transaction_id: z.string().min(1),
+  kind: z.enum(["sale", "return"]).default("sale"),
   state: z.nativeEnum({
     Draft: "DRAFT",
     LocalSaved: "LOCAL_SAVED",
@@ -338,7 +373,7 @@ export const SyncRecordSchema = z.object({
     RequiresReview: "REQUIRES_REVIEW",
     Cancelled: "CANCELLED",
   }),
-  payload: SalePayloadSchema,
+  payload: z.union([SalePayloadSchema, ReturnPayloadSchema]),
   response: SaleResponseSchema.nullable().optional(),
   attempts: z.number().int().nonnegative().default(0),
   /** Epoch millis (local store convention); ISO strings are only for display. */

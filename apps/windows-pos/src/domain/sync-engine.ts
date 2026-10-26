@@ -14,7 +14,6 @@
 import {
   SaleResponseSchema,
   TransactionState,
-  type SalePayload,
   type SaleResponse,
   type SyncRecord,
 } from "@departmental/shared-types";
@@ -32,9 +31,10 @@ export class TransportError extends Error {
   }
 }
 
-/** Transport interface validated by the caller; responses are zod-checked there. */
+/** Transport interface validated by the caller; responses are zod-checked there.
+ * submit() dispatches by record kind (sale vs return). */
 export interface PosTransport {
-  submitSale(payload: SalePayload): Promise<SaleResponse>;
+  submit(record: SyncRecord): Promise<SaleResponse>;
   checkTransaction(transactionId: string): Promise<SaleResponse>;
 }
 
@@ -109,7 +109,7 @@ export class SyncEngine {
     if (!claimed) return "deferred";
 
     try {
-      const response = await this.opts.transport.submitSale(record.payload);
+      const response = await this.opts.transport.submit(record);
       if (response.status === "SERVER_COMMITTED") {
         await this.opts.repo.markServerCommitted(record.transaction_id, response);
         return "committed";

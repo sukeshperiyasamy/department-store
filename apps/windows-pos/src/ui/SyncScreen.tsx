@@ -84,30 +84,40 @@ export function SyncScreen() {
 
   async function reprint(record: SyncRecord) {
     const invoice = record.response?.invoice;
+    const payload = record.payload;
+    const isReturn = record.kind === "return";
+    // Reprint values: sale lines carry display rates; return lines are re-priced
+    // server-side, so the receipt falls back to the server invoice totals.
+    const lines = payload.lines.map((line) => ({
+      itemName: line.item_code,
+      qty: line.qty,
+      uom: ("uom" in line ? line.uom : undefined) ?? "Nos",
+      rateMinor: Math.round((("rate" in line ? line.rate : undefined) ?? 0) * 100),
+      amountMinor: Math.round((("rate" in line ? line.rate : undefined) ?? 0) * line.qty * 100),
+    }));
+    const totals =
+      "totals" in payload ? payload.totals?.grand_total : undefined;
     const base = {
       storeName: "Department Store",
       counterName: state.counterName ?? "Counter",
-      cashier: record.payload.cashier ?? state.user ?? "cashier",
+      cashier: (("cashier" in payload ? payload.cashier : undefined) ?? state.user ?? "cashier"),
       transactionId: record.transaction_id,
-      lines: record.payload.lines.map((line) => ({
-        itemName: line.item_code,
-        qty: line.qty,
-        uom: line.uom ?? "Nos",
-        rateMinor: Math.round((line.rate ?? 0) * 100),
-        amountMinor: Math.round((line.rate ?? 0) * line.qty * 100),
-      })),
-      payments: record.payload.payments.map((p) => ({
+      lines,
+      payments: (payload.payments ?? []).map((p) => ({
         modeOfPayment: p.mode_of_payment,
         amountMinor: Math.round(p.amount * 100),
         ...(p.reference_no ? { referenceNo: p.reference_no } : {}),
       })),
-      subtotalMinor: Math.round((invoice?.net_total ?? record.payload.totals?.grand_total ?? 0) * 100),
+      subtotalMinor: Math.round((invoice?.net_total ?? totals ?? 0) * 100),
       taxMinor: Math.round((invoice?.total_taxes_and_charges ?? 0) * 100),
-      totalMinor: Math.round((invoice?.grand_total ?? record.payload.totals?.grand_total ?? 0) * 100),
+      totalMinor: Math.round((invoice?.grand_total ?? totals ?? 0) * 100),
       changeMinor: Math.round((invoice?.change_amount ?? 0) * 100),
       currency: invoice?.currency ?? "INR",
       occurredAt: record.created_at,
       duplicate: true,
+      ...(isReturn && "original_invoice" in payload
+          ? { footerNote: `RETURN against ${payload.original_invoice}` }
+          : {}),
     };
     const data: ReceiptData = invoice?.name
       ? { ...base, invoiceName: invoice.name }

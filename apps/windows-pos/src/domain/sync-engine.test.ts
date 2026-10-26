@@ -138,7 +138,7 @@ describe("SyncEngine", () => {
   it("commits a sale on success", async () => {
     repo.add({ transaction_id: "t1" });
     const transport = {
-      submitSale: async (p: SalePayload) => committedResponse("SINV-0001", p.transaction_id),
+      submit: async (record: SyncRecord) => committedResponse("SINV-0001", record.payload.transaction_id),
       checkTransaction: async () => {
         throw new Error("should not be called");
       },
@@ -152,7 +152,7 @@ describe("SyncEngine", () => {
   it("surfaces review results without retrying", async () => {
     repo.add({ transaction_id: "t1" });
     const transport = {
-      submitSale: async (p: SalePayload) => reviewResponse("ITEM_NOT_FOUND", p.transaction_id),
+      submit: async (record: SyncRecord) => reviewResponse("ITEM_NOT_FOUND", record.payload.transaction_id),
       checkTransaction: async () => {
         throw new Error("should not be called");
       },
@@ -167,7 +167,7 @@ describe("SyncEngine", () => {
   it("retries network failures with backoff and preserves the record", async () => {
     repo.add({ transaction_id: "t1" });
     const transport = {
-      submitSale: async () => {
+      submit: async () => {
         throw new TransportError("network");
       },
       checkTransaction: async () => {
@@ -196,7 +196,7 @@ describe("SyncEngine", () => {
     let submitCalls = 0;
     let checkCalls = 0;
     const transport = {
-      submitSale: async () => {
+      submit: async () => {
         submitCalls += 1;
         throw new TransportError("timeout");
       },
@@ -217,7 +217,7 @@ describe("SyncEngine", () => {
   it("keeps retrying when recovery lookup also fails", async () => {
     repo.add({ transaction_id: "t1" });
     const transport = {
-      submitSale: async () => {
+      submit: async () => {
         throw new TransportError("timeout");
       },
       checkTransaction: async () => {
@@ -236,9 +236,9 @@ describe("SyncEngine", () => {
     // must still mark it committed exactly once.
     repo.add({ transaction_id: "t1" });
     const transport = {
-      submitSale: async (p: SalePayload) => {
+      submit: async (record: SyncRecord) => {
         return {
-          ...committedResponse("SINV-0001", p.transaction_id),
+          ...committedResponse("SINV-0001", record.payload.transaction_id),
           duplicate: true,
         };
       },
@@ -253,7 +253,7 @@ describe("SyncEngine", () => {
   it("defers records beyond maxAutoAttempts", async () => {
     const record = repo.add({ transaction_id: "t1", attempts: 8 });
     const transport = {
-      submitSale: async () => committedResponse("SINV-X", "t1"),
+      submit: async () => committedResponse("SINV-X", "t1"),
       checkTransaction: async () => committedResponse("SINV-X", "t1"),
     };
     const summary = await new SyncEngine({ transport, repo, clock }).runOnce();
@@ -267,7 +267,7 @@ describe("SyncEngine", () => {
     const gate = Promise.withResolvers<SaleResponse>();
     let submitCalls = 0;
     const transport = {
-      submitSale: () => {
+      submit: () => {
         submitCalls += 1;
         return gate.promise;
       },
@@ -291,7 +291,7 @@ describe("SyncEngine", () => {
   it("resetStaleSyncing recovers records stuck after an app crash", async () => {
     repo.add({ transaction_id: "t1", state: T.Syncing });
     const transport = {
-      submitSale: async (p: SalePayload) => committedResponse("SINV-0001", p.transaction_id),
+      submit: async (record: SyncRecord) => committedResponse("SINV-0001", record.payload.transaction_id),
       checkTransaction: async () => {
         throw new Error("should not be called");
       },

@@ -8,9 +8,11 @@
 import {
   CatalogSnapshotSchema,
   OUTBOX_EVENT_TYPE,
+  RETURN_EVENT_TYPE,
   TransactionState,
   type CatalogItem,
   type CatalogSnapshot,
+  type ReturnPayload,
   type SalePayload,
   type SaleResponse,
   type SyncRecord,
@@ -52,6 +54,7 @@ export class PosStore {
     return this.db.transaction(async () => {
       const record: SyncRecord = {
         transaction_id: payload.transaction_id,
+        kind: "sale",
         state: TransactionState.PendingSync,
         payload,
         attempts: 0,
@@ -85,6 +88,45 @@ export class PosStore {
           nowMs,
         ],
       );
+      return record;
+    });
+  }
+
+  /** Persists a return and its outbox event atomically (kind = return). */
+  async saveReturnWithOutbox(
+    payload: ReturnPayload,
+    deviceId: string,
+    nowMs: number,
+  ): Promise<SyncRecord> {
+    return this.db.transaction(async () => {
+      await this.db.exec(
+        `INSERT INTO sales (transaction_id, state, payload, attempts, device_id,
+                            receipt_printed, kind, original_invoice, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, 0, 'return', ?, ?, ?)`,
+        [
+          payload.transaction_id,
+          TransactionState.PendingSync,
+          JSON.stringify(payload),
+          0,
+          deviceId,
+          payload.original_invoice,
+          nowMs,
+          nowMs,
+        ],
+      );
+      await this.db.exec(
+        `INSERT INTO outbox (event_id, transaction_id, event_type, payload, created_at)
+         VALUES (?, ?, ?, ?, ?)`,
+        [
+          `evt-${payload.transaction_id}`,
+          payload.transaction_id,
+          RETURN_EVENT_TYPE,
+          JSON.stringify({ transaction_id: payload.transaction_id }),
+          nowMs,
+        ],
+      );
+      const record = await this.getRecord(payload.transaction_id);
+      if (!record) throw new Error("return record missing after insert");
       return record;
     });
   }
@@ -367,6 +409,7 @@ function rowToRecord(row: Record<string, unknown>): SyncRecord {
   const response = row.response ? JSON.parse(String(row.response)) : null;
   return {
     transaction_id: String(row.transaction_id),
+    kind: (row.kind === undefined ? "sale" : String(row.kind)) as SyncRecord["kind"],
     state: String(row.state) as SyncRecord["state"],
     payload: JSON.parse(String(row.payload)),
     response,
