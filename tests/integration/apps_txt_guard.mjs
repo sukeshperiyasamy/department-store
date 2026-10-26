@@ -98,7 +98,7 @@ try {
     body: JSON.stringify({ payload: JSON.stringify({
       api_version: 1,
       transaction_id: `guard-${Date.now()}`,
-      device_id: "counter-a",
+      device_id: "counter-1",  // demo seed registers this device on every fresh site
       pos_profile: "QA Suite Counter",
       customer: "Walk In Customer",
       lines: [{ line_id: "l1", item_code: "PERF-0005", qty: 1 }],

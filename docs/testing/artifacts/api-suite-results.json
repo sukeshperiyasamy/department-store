@@ -1,18 +1,18 @@
 {
   "base": "http://localhost:8080",
-  "startedAt": "2026-10-26T22:05:12.885Z",
+  "startedAt": "2026-10-26T22:52:06.282Z",
   "tests": [
     {
       "id": "FIXTURES",
       "name": "seed cashier/manager tokens and race items",
       "status": "PASS",
-      "detail": "cashier=true raceA=RACE-ITEM-68AC4E raceB=RACE-ITEM-64B6D6"
+      "detail": "cashier=true raceA=RACE-ITEM-B28422 raceB=RACE-ITEM-D0112A"
     },
     {
       "id": "HEALTH-01",
       "name": "ERP responds /api/method/ping",
       "status": "PASS",
-      "detail": "status=200 41ms"
+      "detail": "status=200 35ms"
     },
     {
       "id": "AUTH-01",
@@ -35,26 +35,26 @@
     {
       "id": "CONTRACT-01",
       "name": "cashier sale posts; client rate ignored; totals from price list",
-      "status": "FAIL",
-      "detail": "status=REQUIRES_REVIEW err=INVOICE_POSTING_FAILED; doctype=undefined; grand_total=undefined vs 2×78 (client rate 1 must be ignored); duplicate=undefined"
+      "status": "PASS",
+      "detail": "grand_total=166"
     },
     {
       "id": "RECOVERY-01",
       "name": "check_transaction returns recorded verdict",
-      "status": "FAIL",
-      "detail": "status=UNKNOWN"
+      "status": "PASS",
+      "detail": "status=SERVER_COMMITTED"
     },
     {
       "id": "CATALOG-01",
-      "name": "snapshot schema + content (544 items)",
+      "name": "snapshot schema + content (483 items)",
       "status": "PASS",
       "detail": ""
     },
     {
       "id": "IDEMP-01",
       "name": "HTTP duplicate submission returns same invoice, never duplicates",
-      "status": "FAIL",
-      "detail": "first=REQUIRES_REVIEW; duplicate=undefined"
+      "status": "PASS",
+      "detail": "invoice=SINV-26-00022 duplicate=true"
     },
     {
       "id": "ERR-01",
@@ -71,14 +71,14 @@
     {
       "id": "ERR-03",
       "name": "error path: zero quantity",
-      "status": "FAIL",
-      "detail": "http=200 status=REQUIRES_REVIEW code=INVOICE_POSTING_FAILED"
+      "status": "PASS",
+      "detail": "http=200 status=REQUIRES_REVIEW code=VALIDATION_FAILED"
     },
     {
       "id": "ERR-04",
       "name": "error path: unknown item",
-      "status": "FAIL",
-      "detail": "http=200 status=REQUIRES_REVIEW code=INVOICE_POSTING_FAILED"
+      "status": "PASS",
+      "detail": "http=200 status=REQUIRES_REVIEW code=ITEM_NOT_FOUND"
     },
     {
       "id": "ERR-05",
@@ -89,8 +89,8 @@
     {
       "id": "ERR-06",
       "name": "error path: payment shortfall",
-      "status": "FAIL",
-      "detail": "http=200 status=REQUIRES_REVIEW code=INVOICE_POSTING_FAILED"
+      "status": "PASS",
+      "detail": "http=200 status=REQUIRES_REVIEW code=PAYMENT_SHORTFALL"
     },
     {
       "id": "SEC-01",
@@ -119,18 +119,18 @@
     {
       "id": "STOCK-01",
       "name": "oversell after stock exhausted is blocked with review",
-      "status": "FAIL",
-      "detail": "full=REQUIRES_REVIEW over=REQUIRES_REVIEW code=INVOICE_POSTING_FAILED msg=Could not record the transaction claim; nothing was posted. Retry the submission."
+      "status": "PASS",
+      "detail": "full=SERVER_COMMITTED over=REQUIRES_REVIEW code=VALIDATION_FAILED msg=<strong>1.0</strong> units of <a href=\"/desk/item/RACE-ITEM-02D63E\" style=\"font-weight: bo"
     },
     {
       "id": "RACE-01",
       "name": "3 concurrent submits for 1 unit: no duplicates, conflicts surfaced",
       "status": "PASS",
-      "detail": "committed=0 review=3 statuses=REQUIRES_REVIEW,REQUIRES_REVIEW,REQUIRES_REVIEW"
+      "detail": "committed=1 review=2 statuses=SERVER_COMMITTED,REQUIRES_REVIEW,REQUIRES_REVIEW"
     },
     {
       "id": "PERF-01",
-      "name": "full catalog snapshot (305 items) p50=31ms p95=42ms (n=15)",
+      "name": "full catalog snapshot (305 items) p50=30ms p95=39ms (n=15)",
       "status": "PASS",
       "detail": "provisional target: p95 < 2000ms on dev container"
     },
@@ -142,24 +142,26 @@
     },
     {
       "id": "PERF-03",
-      "name": "sale submission (stock item, full ERP posting) p50=undefinedms p95=undefinedms (n=0)",
+      "name": "sale submission (stock item, full ERP posting) p50=126ms p95=136ms (n=10)",
       "status": "PASS",
       "detail": "provisional target: p95 < 3000ms on dev container"
     }
   ],
   "perf": {
-    "catalog_full_ms_p50": "31",
-    "catalog_full_ms_p95": "42",
+    "catalog_full_ms_p50": "30",
+    "catalog_full_ms_p95": "39",
     "catalog_full_samples": 15,
     "catalog_full_items": 305,
     "catalog_incremental_ms_p50": "16",
     "catalog_incremental_items": 3,
-    "sale_submit_n": 0
+    "sale_submit_ms_p50": "126",
+    "sale_submit_ms_p95": "136",
+    "sale_submit_n": 10
   },
-  "finishedAt": "2026-10-26T22:05:26.457Z",
+  "finishedAt": "2026-10-26T22:52:14.451Z",
   "summary": {
-    "pass": 17,
-    "fail": 7,
+    "pass": 24,
+    "fail": 0,
     "blocked": 0
   }
 }

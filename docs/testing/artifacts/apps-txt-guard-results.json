@@ -1,5 +1,5 @@
 {
-  "date": "2026-10-26T21:52:29.095Z",
+  "date": "2026-10-26T23:08:25.779Z",
   "results": [
     {
       "id": "G-01",
@@ -8,18 +8,18 @@
     },
     {
       "id": "G-02",
-      "status": "FAIL",
-      "detail": "SyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 2)"
+      "status": "PASS",
+      "detail": "apps.txt stable=true; module map has all=true"
     },
     {
       "id": "G-03",
-      "status": "FAIL",
-      "detail": "SyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 2)"
+      "status": "PASS",
+      "detail": "catalog=160 created=0/0 (idempotent)"
     },
     {
       "id": "G-04",
-      "status": "FAIL",
-      "detail": "status=REQUIRES_REVIEW invoice=INVOICE_POSTING_FAILED"
+      "status": "PASS",
+      "detail": "status=SERVER_COMMITTED invoice=SINV-26-00050"
     }
   ]
 }

@@ -19,7 +19,16 @@ from typing import Any
 
 import frappe
 from frappe import _
-from frappe.utils import add_to_date, cint, flt, get_datetime, now_datetime, today
+from frappe.utils import (
+    add_to_date,
+    cint,
+    convert_utc_to_timezone,
+    flt,
+    get_datetime,
+    get_system_timezone,
+    now_datetime,
+    today,
+)
 
 from departmental_store.hooks import (
     API_VERSION,
@@ -395,9 +404,12 @@ def _default_warehouse(company: str) -> str | None:
 def _posting_date(occurred_at: Any) -> str:
     """Use the counter's local date for the posting date so offline bills keep their
     business day. Clock skew outside the accepted window fails to review instead of
-    silently shifting the books. Timezone-aware ISO timestamps are converted to
-    server-local naive time before comparison (QA-0002 regression: comparing an
-    offset-aware datetime with now_datetime() raised TypeError)."""
+    silently shifting the books. Timezone-aware ISO timestamps are converted to the
+    FRAPPE SITE timezone (QA-0005 regression: datetime.astimezone() follows the
+    container's TZ env — UTC in the docker stack — while Frappe posts stock entries
+    in the site timezone; a UTC container + Asia/Kolkata site shifted the posting
+    date to the previous calendar day, putting every recent receipt "in the future"
+    of the sale and failing stock validation with NegativeStockError)."""
     if not occurred_at or not isinstance(occurred_at, str):
         return today()
     try:
@@ -405,7 +417,8 @@ def _posting_date(occurred_at: Any) -> str:
     except Exception:
         return today()
     if occurred.tzinfo is not None:
-        occurred = occurred.astimezone().replace(tzinfo=None)
+        occurred = convert_utc_to_timezone(
+            occurred, get_system_timezone()).replace(tzinfo=None)
     now = now_datetime()
     if occurred > add_to_date(now, minutes=10) or occurred < add_to_date(now, days=-3):
         raise SaleReviewError(

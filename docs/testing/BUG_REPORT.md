@@ -86,3 +86,50 @@ All defects below were found during the 2026-10-26 QA cycle, fixed, and covered 
 - Severity: Medium · Symptom: sale of exactly the raced qty (2 seeded, bin=2.0) rejected
   claiming 1.0 units short, only when india_compliance is installed · Equivalent MC-03 passes ·
   Next: instrument get_stock_availability path (reservation/UOM) on the test site.
+
+## 2026-10-27 addendum #2 — fresh-stack reset: QA-0005 resolves STOCK-01; ISSUE-02 infra root cause
+
+### QA-0005 — posting-date timezone split fails stock validation (CRITICAL, FIXED)
+- Severity: Critical (every stock-item HTTP sale posted within seconds/minutes of a stock receipt
+  failed with NegativeStockError when container TZ ≠ site TZ; the historical "STOCK-01" and
+  ISSUE-01 investigation traced here)
+- Root cause: `_posting_date` used `datetime.astimezone()` (container TZ = UTC) while Frappe posts
+  stock entries in the site timezone (fresh sites ship `System Settings.time_zone` EMPTY → Frappe
+  falls back to Asia/Kolkata). The sale's posting date landed on the previous calendar day, so the
+  receipt SLE sat "in the future" of the sale and the running balance was 0 → "2.0 units needed"
+  with a full bin. Non-stock PERF items (no stock validation) masked the defect in most checks.
+- Fix: convert via `frappe.utils.convert_utc_to_timezone(dt, get_system_timezone())` in
+  `_posting_date`; `install.ensure_site_timezone` pins Asia/Kolkata on fresh sites.
+- Regression: `test_posting_date_converts_to_site_timezone_not_process_tz` (deterministic),
+  `test_utc_aware_timestamp_uses_site_timezone_date` (end-to-end). Post-fix: api_suite 24/24,
+  STOCK-01 `full=SERVER_COMMITTED` + oversell blocked; RACE-01 `committed=1 review=2`.
+
+### ISSUE-02 (infrastructure root cause — configurator re-run) — FIXED
+- `docker compose start backend` re-runs the exited one-shot `configurator` service
+  (compose satisfies `service_completed_successfully` deps), whose `ls -1 apps > sites/apps.txt`
+  overwrote apps.txt with the baked-only app list (frappe/erpnext) — wiping custom apps on every
+  backend restart. Fresh bench processes then lost module discovery ("Module GST India not found").
+- Fix: pwd.yml configurator now MERGES (`sort -u` union) baked apps into apps.txt. Proven:
+  backend restart re-ran configurator and apps.txt retained all 4 apps. Test scripts self-heal via
+  `ensure_app_registered` after restarts.
+
+### TEST-DEFECT — multi_counter.ts verdict counting (FIXED)
+- `record(id, status, detail)` received 4 args from every call site: verdicts landed in `detail`,
+  summary always 0/0, exit code always 0 (suite could never fail a build). Signature corrected to
+  `(id, name, status, detail)`; truthful result: 11/11 PASS.
+
+### Resolved diagnostics + seed compliance (same pass)
+- `ensure_app_registered`/`check_module_map` asserted app names as module keys (never true for
+  frappe/erpnext/india_compliance) → fixed to probe real module keys.
+- india_compliance enforces HSN on sales items and links Item Tax rows via GST HSN Code master
+  records: demo items now carry plausible HSNs; synthetic `999999` (master record created) for
+  race/PERF/test items via `seeds._ensure_demo_hsn`.
+- `regional_catalog.seed`/`check_module_map` return dicts (bench `execute` prints strings
+  repr-escaped, which broke script JSON parsing).
+
+### ISSUE-05 — resolved by environment reset (not a product defect)
+- After `down -v` + full reseed + entire validation matrix: `Innodb_deadlocks = 0` and zero
+  deadlock matches in backend/queue logs. Prior contention did not reproduce; MC-D1 retry remains
+  as defense in depth. Production sizing/indexing review still recommended pre-go-live.
+
+### QA-MC-001 → CLOSED (superseded by QA-0005 fix)

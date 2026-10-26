@@ -124,6 +124,9 @@ def gst_validation_cases() -> str:
 
     def make_item(code, rate):
         if not frappe.db.exists("Item", code):
+            from departmental_store.seeds import _ensure_demo_hsn
+
+            _ensure_demo_hsn("999999")
             frappe.get_doc({
                 "doctype": "Item", "item_code": code, "item_name": code,
                 "item_group": "All Item Groups", "stock_uom": "Nos",
@@ -196,3 +199,8 @@ def gst_validation_cases() -> str:
 
     frappe.db.commit()
     return json.dumps(results, indent=1)
+
+
+def setup_run() -> str:
+    """No-arg bench-execute wrapper around setup(run=True)."""
+    return setup(run=True)

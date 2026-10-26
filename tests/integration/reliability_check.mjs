@@ -60,6 +60,13 @@ record("RELY-01", downResult.status === 0 ? "PASS" : "FAIL",
 
 // 2. backend restarts → same transaction commits exactly once
 execSync([...COMPOSE, "start", "backend"].join(" "), { stdio: "ignore" });
+// `docker compose start backend` re-runs the one-shot configurator, which
+// historically wiped custom apps out of sites/apps.txt (ISSUE-02); self-heal.
+try {
+  execSync([...COMPOSE, "exec", "-T", "backend", "bench", "--site", "frontend",
+            "execute", "departmental_store.install.ensure_app_registered"].join(" "),
+           { stdio: "ignore" });
+} catch { /* heal is best-effort */ }
 let up = false;
 for (let i = 0; i < 30; i++) {
   await new Promise((r) => setTimeout(r, 2000));

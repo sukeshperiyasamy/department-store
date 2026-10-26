@@ -28,9 +28,20 @@ services:
     entrypoint:
       - bash
       - -c
+    # ISSUE-02 (root cause): this one-shot service re-runs whenever `docker
+    # compose start backend` satisfies its service_completed_successfully
+    # dependency. It must MERGE its baked app list into sites/apps.txt instead
+    # of overwriting it — the configurator container only has frappe/erpnext
+    # baked in, so an overwrite wipes every docker-cp'd custom app and all
+    # fresh bench processes lose module discovery ("Module GST India not
+    # found" etc.). The union is safe: baked apps are a subset of what the
+    # backend container has on disk.
     command:
       - >
-        ls -1 apps > sites/apps.txt;
+        ls -1 apps > /tmp/baked_apps.txt;
+        touch sites/apps.txt;
+        cat sites/apps.txt /tmp/baked_apps.txt | sort -u > /tmp/apps_merged.txt;
+        cp /tmp/apps_merged.txt sites/apps.txt;
         bench set-config -g db_host $$DB_HOST;
         bench set-config -gp db_port $$DB_PORT;
         bench set-config -g redis_cache "redis://$$REDIS_CACHE";

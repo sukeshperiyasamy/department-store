@@ -38,3 +38,18 @@ duplicate finalized sales under any retry/duplication pattern tested.
 - The stock-race "loser" remains REQUIRES_REVIEW until a manager resolves it (by design).
 - Windows GUI tests used a single display; true simultaneous physical counters would add
   hardware variance, not new server semantics (server-side concurrency already covered).
+
+---
+
+## 2026-10-27 fresh-stack revalidation — 11/11 PASS
+
+Suite re-run on the fully reset stack (backup → down -v → reseed): **11/11 PASS**
+(MC-FIXTURES, MC-DEVICES, MC-01…MC-09) — `docs/testing/artifacts/multi-counter-results.json`.
+Two suite defects fixed in this pass: (1) `record()` signature mismatch meant the printed summary
+could never count PASS/FAIL and the script always exited 0 — verdicts now counted correctly;
+(2) the backend-restart steps now self-heal `sites/apps.txt` (the one-shot configurator re-runs on
+`docker compose start backend` and previously wiped custom apps — see BUG_REPORT 2026-10-27
+addendum #2). Scenario outcomes unchanged and re-verified: exactly-once races (MC-03
+`committed=1 review=1`), offline durability (MC-04), restart-exact-once (MC-05), duplicate
+suppression (MC-06), concurrent refund authorization (MC-08 `≤1 commits`), DB reopen integrity
+(MC-09).

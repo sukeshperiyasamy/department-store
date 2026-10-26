@@ -46,10 +46,15 @@ class CatalogSnapshotTestCase(FrappeTestCase):
         if not frappe.db.exists("Item Group", "All Item Groups"):
             frappe.get_doc({"doctype": "Item Group", "item_group_name": "All Item Groups",
                             "is_group": 1}).insert()
+        # India Compliance enforces HSN on sales items.
+        from departmental_store.seeds import _ensure_demo_hsn
+
+        _ensure_demo_hsn("999999")
         frappe.get_doc({
             "doctype": "Item", "item_code": code, "item_name": f"Catalog {code}",
             "item_group": "All Item Groups", "stock_uom": "Nos",
             "is_stock_item": 0, "is_sales_item": 1,
+            "gst_hsn_code": "999999",
         }).insert(ignore_permissions=True)
         frappe.get_doc({
             "doctype": "Item Price", "price_list": self.price_list,

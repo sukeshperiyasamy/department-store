@@ -292,8 +292,15 @@ def seed(dry_run: bool = False) -> str:
 
     frappe.db.commit()
     total = frappe.db.count("Item", {"item_code": ("like", f"{ITEM_CODE_PREFIX}%")})
-    return json.dumps({
+    # dict on purpose: bench execute prints dicts as clean JSON, while a
+    # json.dumps string gets printed repr-escaped and breaks script parsing.
+    return {
         "dataset_size": _DEMO_COUNT, "created": created, "skipped_existing": skipped,
         "total_demo_items_in_catalog": total, "dry_run": bool(dry_run),
         "note": "barcodes are synthetic in-store range (prefix 20), demo data only",
-    })
+    }
+
+
+def seed_run() -> str:
+    """No-arg bench-execute wrapper around seed(dry_run=False)."""
+    return seed(dry_run=False)

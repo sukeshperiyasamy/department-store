@@ -9,6 +9,7 @@ error codes, and stock/accounting effects of a submitted POS sale.
 
 import json
 import uuid
+from datetime import datetime, timezone
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
@@ -230,10 +231,16 @@ def make_item(company: str, is_stock_item: int = 0, with_price: bool = True,
     code = f"POS-ITEM-{_suffix()}"
     ensure_uom("Nos")
     ensure_item_group()
+    # India Compliance enforces HSN on sales items; seeds._ensure_demo_hsn
+    # creates the synthetic master record the items reference.
+    from departmental_store.seeds import _ensure_demo_hsn
+
+    _ensure_demo_hsn("999999")
     frappe.get_doc({
         "doctype": "Item", "item_code": code, "item_name": f"Test Item {code}",
         "item_group": "All Item Groups", "stock_uom": "Nos",
         "is_stock_item": is_stock_item, "is_sales_item": 1, "is_purchase_item": 0,
+        "gst_hsn_code": "999999",
     }).insert(ignore_permissions=True)
     if with_price:
         frappe.get_doc({
@@ -415,9 +422,13 @@ class TestOccurredAtHandling(SubmitPosSaleTestCase):
     """QA-0002 regression: offset-aware occurred_at must not crash posting."""
 
     def test_aware_iso_timestamp_posts_successfully(self):
+        """QA-0002 regression: offset-aware occurred_at must not crash posting.
+        The fixture sends TRUE UTC (what a real counter does with
+        new Date().toISOString()); site-local wall time mislabeled as UTC is
+        genuinely hours off and goes to review under the QA-0005 contract."""
         item = make_item(self.company)
         data = self.payload(item, amount=20.0,
-                            occurred_at=frappe.utils.now_datetime()
+                            occurred_at=datetime.now(timezone.utc)
                             .replace(tzinfo=None).isoformat() + "+00:00")
         result = self.submit(data)
         self.assertEqual(result["status"], "SERVER_COMMITTED")
@@ -439,6 +450,35 @@ class TestOccurredAtHandling(SubmitPosSaleTestCase):
         result = self.submit(data)
         self.assertEqual(result["status"], "REQUIRES_REVIEW")
         self.assertEqual(result["error"]["code"], "VALIDATION_FAILED")
+
+    def test_utc_aware_timestamp_uses_site_timezone_date(self):
+        """QA-0005 regression: the container TZ may differ from the site TZ
+        (UTC docker container + Asia/Kolkata site). Converting occurred_at with
+        datetime.astimezone() split the posting date onto the previous day, so a
+        receipt posted minutes earlier landed "in the future" of the sale and
+        stock validation failed with NegativeStockError. The posting date must
+        follow the FRAPPE SITE timezone, not the process TZ."""
+        item = make_item(self.company)
+        # UTC "now" as an offset-aware ISO string, like the real POS does with
+        # new Date().toISOString().
+        utc_now = datetime.now(timezone.utc)
+        data = self.payload(
+            item, amount=20.0,
+            occurred_at=utc_now.replace(tzinfo=None).isoformat() + "Z")
+        result = self.submit(data)
+        self.assertEqual(result["status"], "SERVER_COMMITTED")
+        invoice_name = result["invoice"]["name"]
+        posting_date = frappe.db.get_value("Sales Invoice", invoice_name, "posting_date")
+        self.assertEqual(str(posting_date), frappe.utils.today(),
+                         "posting date must be the site-local business date")
+
+    def test_posting_date_converts_to_site_timezone_not_process_tz(self):
+        """Deterministic QA-0005 unit check: a fixed UTC timestamp must map to
+        the site-timezone calendar date, not the container's."""
+        occurred = frappe.utils.get_datetime("2026-10-26T20:00:00+00:00")
+        expected = frappe.utils.convert_utc_to_timezone(
+            occurred, frappe.utils.get_system_timezone()).date().isoformat()
+        self.assertEqual(sales._posting_date(occurred.isoformat()), expected)
 
 
 class TestCheckTransaction(SubmitPosSaleTestCase):

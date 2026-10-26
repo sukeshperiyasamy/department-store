@@ -63,6 +63,18 @@ def make_race_items() -> str:
     return json.dumps({"race_a": a, "race_b": b})
 
 
+def _ensure_demo_hsn(hsn: str) -> None:
+    """India Compliance validates HSN on sales items and links Item Tax rows
+    through the GST HSN Code master, so every synthetic HSN referenced by seed
+    items must exist there first."""
+    if not frappe.db.exists("GST HSN Code", hsn):
+        frappe.get_doc({
+            "doctype": "GST HSN Code", "__newname": hsn,
+            "hsn_code": hsn,
+            "description": "Synthetic demo HSN (test data only)",
+        }).insert(ignore_permissions=True)
+
+
 def _make_race_item(qty: int) -> str:
     demo(run=True)
     company = frappe.db.get_value("Company", {"abbr": "DEMO"}, "name")
@@ -74,6 +86,7 @@ def _make_race_item(qty: int) -> str:
     code = f"RACE-ITEM-{uuid.uuid4().hex[:6].upper()}"
     if not frappe.db.exists("UOM", "Nos"):
         frappe.get_doc({"doctype": "UOM", "uom_name": "Nos"}).insert()
+    _ensure_demo_hsn("999999")
     frappe.get_doc({
         "doctype": "Item", "item_code": code, "item_name": f"Race {code}",
         "item_group": "All Item Groups", "stock_uom": "Nos",
@@ -111,11 +124,13 @@ def make_perf_items(n: int = 300) -> str:
         digits = [int(d) for d in base12]
         total = sum(d * (3 if j % 2 else 1) for j, d in enumerate(digits))
         barcode = base12 + str((10 - total % 10) % 10)
+        _ensure_demo_hsn("999999")
         frappe.get_doc({
             "doctype": "Item", "item_code": code,
             "item_name": f"Perf Item {i}_WIDGET-AISLE-{i % 20}",
             "item_group": "All Item Groups", "stock_uom": "Nos",
             "is_stock_item": 0, "is_sales_item": 1,
+            "gst_hsn_code": "999999",
             "ds_search_aliases": f"perf{i}",
         }).insert(ignore_permissions=True)
         frappe.get_doc({
@@ -249,13 +264,14 @@ def demo(run: bool = False) -> str:
         }).insert(ignore_permissions=True)
         ope.submit()
 
-    # Catalog: batch-tracked groceries and simple goods
+    # Catalog: batch-tracked groceries and simple goods; HSN codes are plausible
+    # test values so India Compliance's validate_hsn_code check passes.
     items = [
-        ("COLGATE-200", "Colgate Toothpaste 200g", 99, True, None),
-        ("RICE-BASMATI-5KG", "Basmati Rice 5kg", 450, True, None),
-        ("MILK-500ML", "Fresh Milk 500ml", 28, True, "MILK-BATCH-001"),
-        ("BISCUIT-PARLE", "Parle-G Biscuit", 10, True, None),
-        ("SHAMPOO-340", "Shampoo Bottle 340ml", 199, True, None),
+        ("COLGATE-200", "Colgate Toothpaste 200g", 99, True, None, "330610"),
+        ("RICE-BASMATI-5KG", "Basmati Rice 5kg", 450, True, None, "100600"),
+        ("MILK-500ML", "Fresh Milk 500ml", 28, True, "MILK-BATCH-001", "040110"),
+        ("BISCUIT-PARLE", "Parle-G Biscuit", 10, True, None, "190531"),
+        ("SHAMPOO-340", "Shampoo Bottle 340ml", 199, True, None, "330510"),
     ]
     if not frappe.db.exists("Item", "COLGATE-200"):
         def ean13(base12: str) -> str:
@@ -263,16 +279,20 @@ def demo(run: bool = False) -> str:
             total = sum(d * (3 if i % 2 else 1) for i, d in enumerate(digits))
             return base12 + str((10 - total % 10) % 10)
 
+        for hsn_code in {item[5] for item in items}:
+            _ensure_demo_hsn(hsn_code)
+
         barcodes = {
             code: ean13(f"8901234{i:05d}")
-            for i, (code, _n, _r, _s, _b) in enumerate(items)
+            for i, (code, _n, _r, _s, _b, _h) in enumerate(items)
         }
-        for code, name, rate, stock, batch in items:
+        for code, name, rate, stock, batch, hsn in items:
             frappe.get_doc({
                 "doctype": "Item", "item_code": code, "item_name": name,
                 "item_group": "All Item Groups", "stock_uom": "Nos",
                 "is_stock_item": 1, "is_sales_item": 1,
                 "has_batch_no": 1 if batch else 0,
+                "gst_hsn_code": hsn,
                 "ds_search_aliases": name.lower().split()[0],
             }).insert(ignore_permissions=True)
             frappe.get_doc({
@@ -302,7 +322,7 @@ def demo(run: bool = False) -> str:
                 {"item_code": code, "qty": qty, "t_warehouse": warehouse,
                  "uom": "Nos", "basic_rate": rate * 0.6,
                  **({"batch_no": batch} if batch else {})}
-                for code, name, rate, stock, batch in items
+                for code, name, rate, stock, batch, _hsn in items
                 for qty in (40,)
             ],
         }).insert(ignore_permissions=True)
@@ -390,3 +410,8 @@ def make_qa_pos_profile() -> str:
         ope.submit()
     frappe.db.commit()
     return name
+
+
+def demo_run() -> str:
+    """No-arg bench-execute wrapper around demo(run=True)."""
+    return demo(run=True)

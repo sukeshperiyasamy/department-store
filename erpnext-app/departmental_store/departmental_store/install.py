@@ -5,6 +5,7 @@ def after_install() -> None:
     ensure_roles()
     ensure_item_aliases_field()
     ensure_site_language()
+    ensure_site_timezone()
     ensure_cashier_permissions()
     ensure_app_registered()
     ensure_default_settings()
@@ -65,11 +66,17 @@ def ensure_app_registered() -> dict:
     frappe.cache.delete_value("app_modules")
     frappe.cache.delete_value("installed_app_modules")
     frappe.setup_module_map(include_all_apps=True)
-    registered = all(
-        app in frappe.local.module_app for app in merged
-    )
+    # module_app maps scrubbed MODULE names -> app (e.g. "core" -> "frappe"),
+    # so the correct probe is this app's own module, not the app names of
+    # frappe/erpnext which never appear as module keys.
+    registered = "departmental_store" in frappe.local.module_app
     frappe.db.commit()
-    return {"apps_txt_updated": changed_apps_txt, "module_map_ok": registered}
+    return {
+        "apps_txt_updated": changed_apps_txt,
+        "module_map_ok": registered,
+        "apps_txt": merged,
+        "module_count": len(frappe.local.module_app),
+    }
 
 
 def ensure_cashier_permissions() -> None:
@@ -100,6 +107,16 @@ def ensure_site_language() -> None:
     (frappe/locale.py get_locale_value UnboundLocalError) once notifications run."""
     if not frappe.db.get_single_value("System Settings", "language"):
         frappe.db.set_single_value("System Settings", "language", "en")
+
+
+def ensure_site_timezone() -> None:
+    """Fresh pwd sites ship with an empty time_zone: Frappe then resolves dates
+    in its fallback (Asia/Kolkata) while Python-level datetime.astimezone()
+    follows the container's TZ env (UTC), splitting posting dates from stock
+    ledger dates (QA-0005). The store operates in Tamil Nadu — pin the site
+    timezone explicitly instead of relying on either default."""
+    if not frappe.db.get_single_value("System Settings", "time_zone"):
+        frappe.db.set_single_value("System Settings", "time_zone", "Asia/Kolkata")
 
 
 ROLE_DEFINITIONS = [

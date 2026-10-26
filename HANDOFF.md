@@ -65,50 +65,74 @@ A departmental-store ERP for a single store with 2–3 Windows POS counters:
 
 - Docker stack: `docker compose -f deployment/erpnext/pwd.yml -p departmental-erp up -d` (site `frontend`,
   ERP on :8080, dashboard on :3100). Site credentials: see gitignored `docs/local-demo-credentials.md`.
-- Seed/maintenance (inside `backend` container, site `frontend`):
+- Seed/maintenance (inside `backend` container, site `frontend`; all seeds are idempotent):
   - `bench --site frontend execute departmental_store.install.ensure_app_registered` — **run this whenever any
-    bench command says "Module … not found"**; it repairs `sites/apps.txt` + redis module maps (recurring issue, §7).
-  - Seeds: `…seeds.demo --kwargs "{'run': True}"`, `…seeds.make_dashboard_user`, `…seeds.make_cashier_user_a/_b`,
-    `…seeds.make_qa_pos_profile`, `…seeds.make_race_items`, `…seeds.make_perf_items --kwargs "{'n': 300}"`,
-    `…regional_catalog.seed` (regional catalog), `…gst_setup.setup --kwargs "{'run': True}"`.
-- Tests: `bench --site frontend run-tests --app departmental_store` (30 PASS);
-  `npm run typecheck` (0 errors); `npm run test` (86 TS tests); `npm run build` both frontends;
-  `node tests/integration/api_suite.mjs`; `npx tsx tests/integration/multi_counter.ts`;
+    bench command says "Module … not found"**; it repairs `sites/apps.txt` + redis module maps.
+  - No-arg wrappers (Git-Bash-safe): `…seeds.demo_run`, `…seeds.make_dashboard_user`,
+    `…seeds.make_cashier_user_a/_b`, `…seeds.make_qa_pos_profile`, `…seeds.make_race_items`,
+    `…seeds.make_perf_items --kwargs "{'n': 300}"`, `…regional_catalog.seed_run` (160 TN products),
+    `…gst_setup.setup_run`, `…install.ensure_site_timezone` (pins Asia/Kolkata on fresh sites).
+  - **`bench pip` is bench-level, NOT site-level**: `bench pip install -e ./apps/departmental_store`
+    (no `--site`). After installing/updating apps, restart backend + queue workers + scheduler
+    (long-lived processes don't re-read `.pth`), then restart frontend (nginx re-resolves backend IP).
+- Tests: `bench --site frontend run-tests --app departmental_store` (32 PASS);
+  `npm run typecheck` (0 errors); `npm run test` (91 TS tests); `npm run build` both frontends;
+  `node tests/integration/apps_txt_guard.mjs` (4 checks); `node tests/integration/api_suite.mjs` (24 checks);
+  `npx tsx tests/integration/multi_counter.ts` (11 checks);
   `node tests/integration/reliability_check.mjs` (stops/starts the backend container!).
 - Windows exe: toolchain = rustup GNU + MSYS2 mingw64 binutils (no admin needed — see
   `docs/release/WINDOWS_BUILD_AND_INSTALLATION.md`); build `npx tauri build --no-bundle` from `apps/windows-pos`
   with both toolchain dirs on PATH; artifact `src-tauri/target/release/windows-pos.exe`.
 
-## 6. Verified test status (as of 2026-10-27)
+## 6. Verified test status (as of 2026-10-27, after full environment reset + revalidation)
 
-- **PASS**: 30 bench tests (sales/returns/catalog); 80 POS vitest + 10 shared-types + 1 dashboard;
-  typecheck 0 errors; both builds; API suite 23/24; multi-counter 9/9; reliability 4/4; DR restore; GST math
-  incl. POS path; Windows exe E2E flow (login→catalog→cart→payment→sync→verdict).
-- **FAIL (open)**: `STOCK-01` in api_suite — full-qty raced sale rejected claiming 1.0 short while Bin shows 2.0,
-  only with india_compliance enabled; equivalent MC-03 passes. Investigate `get_stock_availability` path.
+- Environment reset (ISSUE-05): backup `20261027_035610` verified → `docker compose down -v` →
+  fresh stack → apps reinstalled → reseeded (160 catalog idempotent, GST templates, 300 PERF items).
+- **PASS on the fresh stack**: 32 bench tests (sales 18 / returns 10 / catalog 4); 80 POS vitest +
+  10 shared-types + 1 dashboard; typecheck 0 errors; apps_txt_guard 4/4; **api_suite 24/24
+  (including STOCK-01)**; multi-counter 11/11; reliability 4/4; **zero deadlocks**
+  (`Innodb_deadlocks = 0`, no deadlock matches in backend/queue logs).
+- STOCK-01 was closed as **QA-0005, a real product bug** (timezone conversion), not environmental —
+  see §7 pitfall 8. ISSUE-05 (DB contention) did not reproduce on the fresh volumes.
 - **BLOCKED**: physical printer + camera hardware tests (no devices); NSIS installer (MSVC CI runner);
-  speech-recognition accuracy (no engine chosen); regional catalog seed execution (see §7).
+  speech-recognition accuracy (no engine chosen).
 - **NOT RUN**: GSTR filing tooling; mobile-native (PWA only); load testing (k6 not installed).
 
 ## 7. Critical pitfalls (read twice)
 
-1. **`sites/apps.txt` churn**: interrupted bench operations rewrite `sites/apps.txt` dropping installed apps and
-   the redis `app_modules`/`installed_app_modules` caches go stale → every DocType insert fails with
-   "Module … not found". **Fix**: `bench --site frontend execute departmental_store.install.ensure_app_registered`
-   then `bench --site frontend clear-cache` and restart the backend. This recurred many times.
+1. **`sites/apps.txt` churn — TWO causes, both fixed 2026-10-27 but keep the guard**:
+   (a) the one-shot `configurator` service re-runs on every `docker compose start backend`
+   (compose re-runs exited `service_completed_successfully` dependencies) and its
+   `ls -1 apps > sites/apps.txt` used to wipe custom apps (its container only has frappe+erpnext
+   baked in) — pwd.yml now MERGES via `sort -u` union; (b) stale redis module caches after
+   interrupted bench ops. **Fix of last resort**:
+   `bench --site frontend execute departmental_store.install.ensure_app_registered` then
+   `bench --site frontend clear-cache` and restart the backend.
 2. **ERPNext v16 POS Invoice does not move stock** — that's why the platform posts **Sales Invoice `is_pos`**
    (ADR-0002). Do not "fix" this back to POS Invoice.
-3. **Bench kwargs quoting** through Git Bash mangles args — prefer no-arg seed wrapper functions (pattern
-   `make_cashier_user_a/_b`).
+3. **Bench kwargs quoting** through Git Bash mangles args — prefer no-arg seed wrapper functions
+   (`demo_run`, `seed_run`, `setup_run`, `make_cashier_user_a/_b`).
 4. **IPython console in docker hides multiline output** — use `bench execute` (prints return value) or write
-   results to a file.
+   results to a file. Note `bench execute` MASKS the real exception with a NameError eval fallback —
+   debug a failing seed via `bench console`.
 5. **Flag defaults**: `Departmental Store Settings` row created via API defaults to zeros; use
    `ensure_default_settings` (install) or set the demo row explicitly. Opt-in modules (voice/AI/MCP/camera)
    default OFF by design.
 6. **Commit hygiene**: never commit token files (`tok.*` gitignored; a leak happened in `e484d5e`, rotated +
    documented); never force-push; demo barcodes are in-store range `20…` (never claim real products).
-7. **India Compliance** enforces HSN (6/8 digits, must exist in GST HSN Code doctype) on every new sellable
-   item — seeds include it; keep it that way.
+7. **India Compliance** enforces HSN on every new **sales** item (length-validated per GST Settings; Item Tax
+   rows link through the GST HSN Code master — the record must EXIST, not just be well-formed). Seeds/tests
+   create synthetic `999999` + plausible demo HSNs via `seeds._ensure_demo_hsn`; keep that pattern for any
+   new seed. Keep GST Settings `validate_hsn_code` ON — the GST validation suite depends on it.
+8. **Timezone split (QA-0005)**: containers run UTC while the Frappe site timezone is Asia/Kolkata.
+   NEVER convert timestamps with `datetime.astimezone()` in server code (follows the container TZ);
+   use `frappe.utils.convert_utc_to_timezone(dt, get_system_timezone())`. `_posting_date` and
+   `ensure_site_timezone` exist because of this; a regression here turns every receipt into
+   "future stock" and fails NegativeStockError. The bench `pip freeze` env belongs to the container
+   that installed it — other containers (queues) share `sites/` but NOT the Python env; restart all
+   python services after installing apps.
+9. **Bench returns**: functions that return json.dumps STRINGS get printed repr-escaped by
+   `bench execute` (breaks JSON parsers); return dicts instead — bench prints them as clean JSON.
 
 ## 7b. Code intelligence — Graphify (installed 2026-10-27)
 

@@ -32,9 +32,9 @@ const evidence: Record<string, unknown> = {
   startedAt: new Date().toISOString(), base: BASE, counters: {}, tests: [],
 };
 
-const record = (id: string, status: string, detail: string) => {
+const record = (id: string, name: string, status: string, detail: string) => {
   results.push({ id, status, detail });
-  console.log(`${status === "PASS" ? "✓" : status === "BLOCKED" ? "⊘" : "✗"} ${id} ${status} — ${detail}`);
+  console.log(`${status === "PASS" ? "✓" : status === "BLOCKED" ? "⊘" : "✗"} ${id} ${status} — ${name}${detail ? ` :: ${detail}` : ""}`);
 };
 
 function bench(fn: string): string {
@@ -212,6 +212,9 @@ async function main() {
     // MC-05 backend restart → exactly-once
     {
       execSync([...COMPOSE, "start", "backend"].join(" "), { stdio: "ignore" });
+      // compose start re-runs the one-shot configurator, which historically
+      // wiped custom apps out of sites/apps.txt (ISSUE-02); self-heal first.
+      try { bench("departmental_store.install.ensure_app_registered"); } catch { /* heal best-effort */ }
       let up = false;
       for (let i = 0; i < 30; i++) {
         await new Promise((r) => setTimeout(r, 2000));
