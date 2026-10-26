@@ -15,6 +15,7 @@ import {
   type SalePayload,
   type SaleResponse,
 } from "@departmental/shared-types";
+import { z, type ZodType, type ZodTypeDef } from "zod";
 import { TransportError } from "../domain/sync-engine";
 
 export interface FrappeClientConfig {
@@ -26,6 +27,9 @@ export interface FrappeClientConfig {
 }
 
 const DEFAULT_TIMEOUT_MS = 30_000;
+
+/** For methods whose result shape is not part of the v1 contract (e.g. logout). */
+const passthroughSchema: ZodType<unknown> = z.unknown();
 
 export class FrappeClient {
   private readonly fetchImpl: typeof fetch;
@@ -53,7 +57,7 @@ export class FrappeClient {
   }
 
   async logout(): Promise<void> {
-    await this.call("logout", {});
+    await this.call("logout", {}, passthroughSchema);
   }
 
   async submitSale(payload: SalePayload): Promise<SaleResponse> {
@@ -92,16 +96,17 @@ export class FrappeClient {
   }
 
   async recordSync(deviceId: string, checkpoint: string): Promise<void> {
-    await this.call("departmental_store.api.devices.record_sync", {
-      device_id: deviceId,
-      checkpoint,
-    });
+    await this.call(
+      "departmental_store.api.devices.record_sync",
+      { device_id: deviceId, checkpoint },
+      passthroughSchema,
+    );
   }
 
   private async call<T>(
     method: string,
     args: Record<string, unknown>,
-    schema: { parse(data: unknown): T },
+    schema: ZodType<T, ZodTypeDef, unknown>,
   ): Promise<T> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);

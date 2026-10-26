@@ -75,7 +75,13 @@ export function removeLine(cart: Cart, lineId: string): Cart {
 }
 
 export function clearCart(cart: Cart): Cart {
-  return { ...emptyCart(cart.totalsAreEstimates), customer: cart.customer, customerId: cart.customerId };
+  const next = emptyCart(cart.totalsAreEstimates);
+  const withCustomer: Cart = {
+    ...next,
+    ...(cart.customer !== undefined ? { customer: cart.customer } : {}),
+    ...(cart.customerId !== undefined ? { customerId: cart.customerId } : {}),
+  };
+  return withCustomer;
 }
 
 export interface DisplayTotals {

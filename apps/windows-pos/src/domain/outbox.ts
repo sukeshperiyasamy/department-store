@@ -32,20 +32,24 @@ const ALLOWED: Record<State, Partial<Record<TransitionEvent, State>>> = {
   },
   [TransactionState.PendingSync]: {
     CLAIM_FOR_SYNC: TransactionState.Syncing,
+    // Re-defer (e.g. server says PROCESSING) keeps it pending with a later attempt.
+    RETRY_NOW: TransactionState.PendingSync,
     CANCELLED: TransactionState.Cancelled,
   },
   [TransactionState.Syncing]: {
     SERVER_COMMITTED: TransactionState.ServerCommitted,
     SYNC_FAILED_RETRYABLE: TransactionState.SyncFailed,
     REVIEW_REQUIRED: TransactionState.RequiresReview,
-    // Crash recovery: the app restarted mid-sync; the record returns to pending.
-    SYNC_FAILED_RETRYABLE: TransactionState.SyncFailed,
   },
+  // Auto-retry when the backoff expires; the engine re-claims directly.
   [TransactionState.SyncFailed]: {
+    CLAIM_FOR_SYNC: TransactionState.Syncing,
     RETRY_NOW: TransactionState.PendingSync,
     CANCELLED: TransactionState.Cancelled,
   },
+  // Manual retry from the review screen re-claims directly after a manager fix.
   [TransactionState.RequiresReview]: {
+    CLAIM_FOR_SYNC: TransactionState.Syncing,
     RETRY_NOW: TransactionState.PendingSync,
     CANCELLED: TransactionState.Cancelled,
   },
@@ -97,5 +101,7 @@ export function describeRecordState(record: SyncRecord): string {
       return "Draft";
     case TransactionState.Cancelled:
       return "Cancelled";
+    default:
+      return String(record.state);
   }
 }

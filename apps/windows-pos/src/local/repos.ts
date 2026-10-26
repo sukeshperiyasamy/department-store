@@ -16,8 +16,8 @@ import {
   type SyncRecord,
 } from "@departmental/shared-types";
 import type { SqliteDriver } from "./driver";
-import { CURRENT_VERSION, MIGRATIONS } from "./schema";
-import { transition } from "../domain/outbox";
+import { MIGRATIONS } from "./schema";
+import { transition, canTransition } from "../domain/outbox";
 
 export class StateConflictError extends Error {
   constructor(readonly transactionId: string) {
@@ -26,7 +26,7 @@ export class StateConflictError extends Error {
 }
 
 export class PosStore {
-  constructor(private readonly db: SqliteDriver) {}
+  constructor(readonly db: SqliteDriver) {}
 
   async migrate(): Promise<void> {
     const rows = await this.db.select<{ user_version: number }>("PRAGMA user_version");
@@ -120,8 +120,7 @@ export class PosStore {
     return Object.fromEntries(rows.map((r) => [r.state, r.n]));
   }
 
-  /** Guarded state move; returns false when the row is not in `fromState`.
-   * Uses UPDATE..RETURNING so success is observable through the shared driver. */
+  /** Guarded state move; returns false when the row is not in `fromState`. */
   private async moveTo(
     transactionId: string,
     fromState: string,
@@ -132,22 +131,20 @@ export class PosStore {
     const keys = Object.keys(fields);
     const assignments = keys.map((k) => `${k} = ?`).concat("updated_at = ?", "state = ?");
     const values = keys.map((k) => fields[k]).concat(nowMs, toState);
-    const rows = await this.db.select<{ changes: number }>(
-      `WITH updated AS (
-         UPDATE sales SET ${assignments.join(", ")}
-         WHERE transaction_id = ? AND state = ?
-         RETURNING 1
-       ) SELECT COUNT(*) AS changes FROM updated`,
+    const result = await this.db.exec(
+      `UPDATE sales SET ${assignments.join(", ")}
+       WHERE transaction_id = ? AND state = ?`,
       [...values, transactionId, fromState],
     );
-    return (rows[0]?.changes ?? 0) > 0;
+    return result.changes > 0;
   }
 
   async claimForSync(transactionId: string): Promise<boolean> {
     const row = await this.getRow(transactionId);
     if (!row) return false;
     const from = String(row.state);
-    // Validate via the state machine, then guarded SQL UPDATE.
+    // Not claimable (already syncing or terminal): the guarded update below is a no-op.
+    if (!canTransition(from as TransactionState, "CLAIM_FOR_SYNC")) return false;
     transition(from as TransactionState, "CLAIM_FOR_SYNC");
     return this.moveTo(transactionId, from, TransactionState.Syncing, {}, Date.now());
   }
@@ -226,25 +223,21 @@ export class PosStore {
   /** Crash recovery: records left in SYNCING (app killed mid-flight) return to
    * PENDING_SYNC. Safe: server idempotency protects against double commits. */
   async resetStaleSyncing(nowMs: number): Promise<number> {
-    const rows = await this.db.select<{ changes: number }>(
-      `WITH updated AS (
-         UPDATE sales SET state = ?, updated_at = ?
-         WHERE state = ?
-         RETURNING 1
-       ) SELECT COUNT(*) AS changes FROM updated`.replace("::int", ""),
+    const result = await this.db.exec(
+      `UPDATE sales SET state = ?, updated_at = ? WHERE state = ?`,
       [TransactionState.PendingSync, nowMs, TransactionState.Syncing],
     );
-    return rows[0]?.changes ?? 0;
+    return result.changes;
   }
 
   async due(nowMs: number, limit = 50): Promise<SyncRecord[]> {
     const rows = await this.db.select<Record<string, unknown>>(
       `SELECT * FROM sales
-       WHERE state = ?
+       WHERE state IN (?, ?)
          AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
        ORDER BY created_at ASC
        LIMIT ?`,
-      [TransactionState.PendingSync, nowMs, limit],
+      [TransactionState.PendingSync, TransactionState.SyncFailed, nowMs, limit],
     );
     return rows.map(rowToRecord);
   }

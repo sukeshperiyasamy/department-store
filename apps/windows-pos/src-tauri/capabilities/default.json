@@ -1,0 +1,14 @@
+{
+  "$schema": "https://schema.tauri.app/capabilities/2",
+  "identifier": "default",
+  "description": "POS window capabilities: SQL plugin and raw printing",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "sql:default",
+    {
+      "identifier": "sql:load",
+      "allow": [{ "db": "sqlite:pos.db" }]
+    }
+  ]
+}

@@ -18,7 +18,7 @@ import {
   type SaleResponse,
   type SyncRecord,
 } from "@departmental/shared-types";
-import { backoffDelayMs, transition } from "./outbox";
+import { backoffDelayMs } from "./outbox";
 
 export type TransportErrorKind = "timeout" | "network" | "server" | "auth";
 
@@ -99,21 +99,8 @@ export class SyncEngine {
     }
   }
 
-  /** Manual retry: pull SYNC_FAILED / REQUIRES_REVIEW records back to pending. */
-  async requeue(transactionId: string): Promise<void> {
-    const record = await this.getRecord?.(transactionId);
-    if (!record) return;
-    const next = transition(record.state, "RETRY_NOW");
-    await this.repo.markRetryableFailure(
-      transactionId,
-      record.last_error_message ?? "manual retry",
-      this.opts.clock(),
-    );
-    void next;
-  }
-
-  /** Optional accessor for manual retry flows (wired by the app layer). */
-  getRecord?: (transactionId: string) => Promise<SyncRecord | null>;
+  /** Manual retry flows belong to the app layer: pull the record back to
+   * PENDING_SYNC via repo.markRetryableFailure and run the engine again. */
 
   private async processRecord(
     record: SyncRecord,

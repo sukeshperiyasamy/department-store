@@ -6,7 +6,7 @@
  * independent of syncing (receipt_printed flag is tracked on the sync record and
  * reprinting is always available from the transaction view).
  */
-import { formatMoney, type Money } from "./money";
+import { formatMoney, money } from "./money";
 
 export interface ReceiptLine {
   itemName: string;

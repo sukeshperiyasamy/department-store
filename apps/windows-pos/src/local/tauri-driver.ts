@@ -1,54 +1,66 @@
 /**
  * Tauri SQL plugin driver — production driver inside the desktop shell.
- * Only importable when running under Tauri (dynamic import avoids bundling
- * issues in tests and in plain vite dev).
+ * Nested transactions use SAVEPOINTs, matching the Node test driver.
  */
+import type { QueryResult } from "@tauri-apps/plugin-sql";
 import type { SqliteDriver } from "./driver";
 
-interface TauriDb {
-  execute(sql: string, params?: readonly unknown[]): Promise<{ rowsAffected: number }>;
-  select<T>(sql: string, params?: readonly unknown[]): Promise<T[]>;
-  close(): Promise<void>;
-}
+type PluginDatabase = InstanceType<(typeof import("@tauri-apps/plugin-sql"))["default"]>;
 
 export class TauriSqliteDriver implements SqliteDriver {
-  private db: TauriDb | null = null;
-  private inTransaction = false;
+  private db: PluginDatabase | null = null;
+  private depth = 0;
 
-  private async getDb(): Promise<TauriDb> {
-    if (!this.db) {
-      const { Database } = await import("@tauri-apps/plugin-sql");
-      this.db = await Database.load("sqlite:pos.db");
+  private async getDb(): Promise<PluginDatabase> {
+    const existing = this.db;
+    if (!existing) {
+      const mod = await import("@tauri-apps/plugin-sql");
+      const loaded = await mod.default.load("sqlite:pos.db");
+      this.db = loaded;
+      return loaded;
     }
-    return this.db;
+    return existing;
   }
 
-  async exec(sql: string, params: readonly unknown[] = []): Promise<void> {
+  async exec(sql: string, params: readonly unknown[] = []): Promise<{ changes: number }> {
     const db = await this.getDb();
-    await db.execute(sql, params);
+    const result: QueryResult = await db.execute(sql, [...params]);
+    return { changes: result.rowsAffected };
   }
 
   async select<T>(sql: string, params: readonly unknown[] = []): Promise<T[]> {
     const db = await this.getDb();
-    return db.select<T>(sql, params);
+    return db.select<T[]>(sql, [...params]);
   }
 
   async transaction<T>(fn: () => Promise<T>): Promise<T> {
-    if (this.inTransaction) {
-      // The plugin has no nested transaction support; assume single-threaded use.
-      return fn();
+    if (this.depth === 0) {
+      await this.exec("BEGIN IMMEDIATE");
+      this.depth = 1;
+      try {
+        const result = await fn();
+        await this.exec("COMMIT");
+        return result;
+      } catch (error) {
+        await this.exec("ROLLBACK");
+        throw error;
+      } finally {
+        this.depth = 0;
+      }
     }
-    await this.exec("BEGIN IMMEDIATE");
-    this.inTransaction = true;
+    const savepoint = `sp_${this.depth}`;
+    this.depth += 1;
+    await this.exec(`SAVEPOINT ${savepoint}`);
     try {
       const result = await fn();
-      await this.exec("COMMIT");
+      await this.exec(`RELEASE ${savepoint}`);
       return result;
     } catch (error) {
-      await this.exec("ROLLBACK");
+      await this.exec(`ROLLBACK TO ${savepoint}`);
+      await this.exec(`RELEASE ${savepoint}`);
       throw error;
     } finally {
-      this.inTransaction = false;
+      this.depth -= 1;
     }
   }
 

@@ -1,0 +1,25 @@
+[package]
+name = "windows-pos"
+version = "0.1.0"
+description = "Department Store Windows POS"
+authors = ["Sukesh Periyasamy"]
+edition = "2021"
+
+[lib]
+name = "windows_pos_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-sql = { version = "2", features = ["sqlite"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+dirs = "5"
+
+[profile.release]
+codegen-units = 1
+lto = true
+strip = true

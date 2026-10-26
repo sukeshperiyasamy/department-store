@@ -11,7 +11,8 @@ import { z } from "zod";
 
 export const API_VERSION = 1;
 
-export const API_VERSION_SCHEMA = z.number().int();
+/** All API v1 envelopes carry exactly this version; clients must refuse others. */
+export const API_VERSION_SCHEMA = z.literal(API_VERSION);
 
 /** Server verdict states for a submitted counter transaction. */
 export const ServerSaleStatus = {
@@ -299,7 +300,8 @@ export const SyncRecordSchema = z.object({
   payload: SalePayloadSchema,
   response: SaleResponseSchema.nullable().optional(),
   attempts: z.number().int().nonnegative().default(0),
-  next_attempt_at: z.string().nullable().optional(),
+  /** Epoch millis (local store convention); ISO strings are only for display. */
+  next_attempt_at: z.number().nullable().optional(),
   last_error_code: z.string().nullable().optional(),
   last_error_message: z.string().nullable().optional(),
   created_at: z.string(),
