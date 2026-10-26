@@ -7,7 +7,26 @@ def after_install() -> None:
     ensure_site_language()
     ensure_cashier_permissions()
     ensure_app_registered()
+    ensure_default_settings()
     frappe.db.commit()
+
+
+def ensure_default_settings() -> None:
+    """Create the feature-flag settings row with intended defaults on install;
+    an existing row is never overwritten (admin changes win)."""
+    if not frappe.db.exists("DocType", "Departmental Store Settings"):
+        return
+    if frappe.db.exists("Departmental Store Settings", "Departmental Store Settings"):
+        return
+    frappe.get_doc({
+        "doctype": "Departmental Store Settings",
+        "batch_expiry_enabled": 1,
+        "expiry_notifications_enabled": 1,
+        "regional_catalog_enabled": 1,
+        "receipt_printing_enabled": 1,
+        "barcode_label_printing_enabled": 1,
+        "expiry_warning_days": "7,30,60",
+    }).insert(ignore_permissions=True)
 
 
 def ensure_app_registered() -> dict:

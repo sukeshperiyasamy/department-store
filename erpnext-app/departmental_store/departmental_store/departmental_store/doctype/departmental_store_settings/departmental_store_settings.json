@@ -1,0 +1,124 @@
+{
+ "actions": [],
+ "creation": "2026-10-27 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "issingle": 1,
+ "module": "Departmental Store",
+ "name": "Departmental Store Settings",
+ "owner": "Administrator",
+ "modified": "2026-10-27 00:00:00.000000",
+ "modified_by": "Administrator",
+ "field_order": [
+  "section_general",
+  "voice_assistant_enabled",
+  "voice_hold_shortcut_enabled",
+  "ai_provider_enabled",
+  "mcp_adapter_enabled",
+  "camera_product_capture_enabled",
+  "batch_expiry_enabled",
+  "expiry_notifications_enabled",
+  "regional_catalog_enabled",
+  "receipt_printing_enabled",
+  "barcode_label_printing_enabled",
+  "expiry_warning_days"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_general",
+   "fieldtype": "Section Break",
+   "label": "Modules"
+  },
+  {
+   "fieldname": "voice_assistant_enabled",
+   "fieldtype": "Check",
+   "label": "Voice Assistant",
+   "default": 0,
+   "description": "Disabled modules must not run in the background or expose active controls."
+  },
+  {
+   "fieldname": "voice_hold_shortcut_enabled",
+   "fieldtype": "Check",
+   "label": "Voice Hold Shortcut (Ctrl+Space)",
+   "default": 0,
+   "description": "Disabled modules must not run in the background or expose active controls."
+  },
+  {
+   "fieldname": "ai_provider_enabled",
+   "fieldtype": "Check",
+   "label": "AI Provider",
+   "default": 0,
+   "description": "Disabled modules must not run in the background or expose active controls."
+  },
+  {
+   "fieldname": "mcp_adapter_enabled",
+   "fieldtype": "Check",
+   "label": "MCP Adapter",
+   "default": 0,
+   "description": "Disabled modules must not run in the background or expose active controls."
+  },
+  {
+   "fieldname": "camera_product_capture_enabled",
+   "fieldtype": "Check",
+   "label": "Camera Product Capture",
+   "default": 0,
+   "description": "Disabled modules must not run in the background or expose active controls."
+  },
+  {
+   "fieldname": "batch_expiry_enabled",
+   "fieldtype": "Check",
+   "label": "Batch & Expiry Tracking",
+   "default": 1,
+   "description": "Disabled modules must not run in the background or expose active controls."
+  },
+  {
+   "fieldname": "expiry_notifications_enabled",
+   "fieldtype": "Check",
+   "label": "Expiry Notifications",
+   "default": 1,
+   "description": "Disabled modules must not run in the background or expose active controls."
+  },
+  {
+   "fieldname": "regional_catalog_enabled",
+   "fieldtype": "Check",
+   "label": "Regional Catalog (Tamil/Tanglish)",
+   "default": 1,
+   "description": "Disabled modules must not run in the background or expose active controls."
+  },
+  {
+   "fieldname": "receipt_printing_enabled",
+   "fieldtype": "Check",
+   "label": "Receipt Printing",
+   "default": 1,
+   "description": "Disabled modules must not run in the background or expose active controls."
+  },
+  {
+   "fieldname": "barcode_label_printing_enabled",
+   "fieldtype": "Check",
+   "label": "Barcode Label Printing",
+   "default": 1,
+   "description": "Disabled modules must not run in the background or expose active controls."
+  },
+  {
+   "fieldname": "expiry_warning_days",
+   "fieldtype": "Data",
+   "label": "Expiry warning windows (days, comma separated)",
+   "default": "7,30,60"
+  }
+ ],
+ "permissions": [
+  {
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "role": "System Manager"
+  },
+  {
+   "read": 1,
+   "role": "Store Manager"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
