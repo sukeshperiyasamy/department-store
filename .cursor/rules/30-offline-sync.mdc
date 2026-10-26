@@ -1,0 +1,20 @@
+---
+description: Rules for SQLite, offline transactions and synchronization
+globs: ["apps/**/src/**/*", "services/sync-engine/**/*", "database/local-sqlite/**/*"]
+alwaysApply: false
+---
+# Offline-first requirements
+- Use SQLite transactions for local state changes.
+- Persist the local transaction and its outbox event atomically.
+- Use a stable UUID per transaction and a separate stable event ID where needed.
+- Server-side idempotency is mandatory; client-only duplicate checks are insufficient.
+- Model sync state explicitly; do not infer it from connectivity alone.
+- Retry transient failures with bounded backoff and preserve pending records.
+- Do not retry permanent validation failures forever; mark them for review with actionable details.
+- Make synchronization safe when the server commits but the response is lost.
+- Apply catalog updates in a versioned and recoverable manner.
+- Do not overwrite a pending sale when catalog prices or product data refresh.
+- Keep local timestamps and server timestamps distinct; handle clock skew.
+- Treat offline stock as potentially stale and follow the documented store policy.
+- Do not silently resolve stock conflicts, invoice-number conflicts, or payment uncertainty.
+- Add tests for app restart, PC restart, duplicate delivery, lost response, server outage, schema migration, and concurrent last-item sales.

@@ -1,0 +1,25 @@
+---
+description: Rules for security, permissions, payments and Indian GST workflows
+alwaysApply: false
+---
+# Security and authorization
+- Enforce permissions on the backend for every sensitive operation.
+- Use least-privilege service accounts and short-lived or revocable credentials where supported.
+- Never expose database ports publicly.
+- Never log passwords, API tokens, payment credentials, or unnecessary personal information.
+- Audit sensitive changes, stock adjustments, refunds, price overrides, and approvals.
+- Require explicit confirmation for destructive or bulk operations.
+
+# Payments
+- Distinguish payment method recorded from payment confirmed.
+- Do not treat a UPI reference typed by a cashier as proof of settlement.
+- Reconcile cash, digital payments, refunds, and cashier shifts.
+- Never store card secrets or payment credentials in the POS.
+
+# GST and accounting
+- Use the configured ERPNext tax and accounting workflows as the authoritative source.
+- Do not implement an independent competing GST engine in the POS.
+- Test tax-inclusive/exclusive pricing, discounts, rounding, CGST/SGST, IGST, returns, and credit notes against approved expected results.
+- Applicability of e-invoicing/e-waybills depends on current rules and business facts; do not assume all retail invoices require them.
+- Never generate fake IRNs, signed QR payloads, or official compliance responses.
+- Obtain qualified review of production tax configuration and reports.

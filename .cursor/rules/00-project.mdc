@@ -1,0 +1,29 @@
+---
+description: Global product and architecture rules for the departmental store ERP
+alwaysApply: true
+---
+# Product context
+Build a custom departmental-store ERP for one store and 2–3 Windows POS counters. Use ERPNext/Frappe for central inventory, purchasing, sales, accounting, and approved tax workflows. Build a custom Tauri + React + TypeScript POS and SQLite local-first queue.
+
+# Non-negotiable architecture
+- ERPNext is the authoritative backend for finalized inventory and accounting.
+- Reuse ERPNext DocTypes and supported business operations; do not write directly to ERPNext database tables.
+- The POS must call supported REST endpoints or custom Frappe methods that validate and submit transactions through ERPNext business logic.
+- Local SQLite stores catalog cache, drafts, and pending outbox operations; it is not a second central ledger.
+- Do not add infrastructure or services without a concrete requirement.
+- Never assume offline counters can guarantee global stock availability.
+
+# Transaction integrity
+- Use stable unique transaction IDs and server-enforced idempotency.
+- Persist a local sale and its outbox event in one SQLite transaction.
+- Retries must not create duplicate sales.
+- Do not report a transaction as server-committed until the server confirms it.
+- Surface conflicts and failed transactions; never silently drop or rewrite bills.
+- Do not invent official invoice numbers, IRNs, or government QR payloads.
+
+# Quality
+- TypeScript strict mode for new code.
+- Add tests for new business rules, offline behavior, and error paths.
+- Validate all external input and enforce permissions server-side.
+- Never commit secrets or real customer/business data.
+- Document assumptions; do not invent requirements.

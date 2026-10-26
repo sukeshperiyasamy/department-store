@@ -1,0 +1,19 @@
+---
+description: Rules for ERPNext, Frappe and custom server-side code
+globs: ["erpnext-app/**/*", "**/*.py"]
+alwaysApply: false
+---
+# Frappe/ERPNext development
+- Reuse standard DocTypes and standard transaction workflows wherever practical.
+- Use custom DocTypes only for genuinely store-specific data not represented by existing models.
+- Never use direct SQL writes to mutate ERPNext business records. Read-only queries must still follow Frappe security and performance requirements.
+- Use supported Frappe APIs and whitelisted methods with explicit validation and permission checks.
+- Do not trust client-supplied prices, taxes, stock quantities, user IDs, permissions, or payment status.
+- Validate item status, quantities, prices, tax setup, warehouse, customer, payment allocation, and transaction state on the server.
+- Submit documents through the normal ERPNext lifecycle so stock ledger and accounting effects are generated correctly.
+- Use transactions and uniqueness constraints for idempotency records.
+- Avoid changing ERPNext core files. Put customizations in the custom Frappe app.
+- Check compatibility with the exact Frappe, ERPNext, and India Compliance versions in the environment.
+- Do not assume a feature exists until it has been verified in the deployed version.
+- Write automated tests for permissions, validation, duplicate requests, returns, and posting behavior.
+- Never fabricate IRNs, signed QR data, e-waybill data, or other government responses.

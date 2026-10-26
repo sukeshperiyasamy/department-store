@@ -1,0 +1,1656 @@
+# Product Requirements Document (PRD)
+## Departmental Store ERP, Smart POS & Business Management System
+
+**Version:** 1.0  
+**Status:** Initial implementation specification  
+**Date:** 26 October 2026  
+**Product type:** Custom retail management platform  
+**Initial deployment:** One departmental store, 2–3 billing counters  
+**Primary market:** India  
+**Primary currency:** INR (₹)  
+**Tax framework:** Indian GST, subject to applicable rules and professional validation
+
+---
+
+# 1. Executive Summary
+
+## 1.1 Product vision
+
+Build a complete departmental store business management system that integrates billing, inventory, purchasing, supplier management, accounting, GST workflows, barcode printing, voice commands, employee management and remote business monitoring.
+
+The system will be tailored to the operational requirements of a physical departmental store. It will provide a fast Windows-based billing application for cashiers, a central ERP backend for business transactions, offline capabilities for network interruptions, and a cloud-connected mobile experience for the owner.
+
+The product must be reliable enough for everyday retail operations and extensible enough to support additional departments, devices and branches in the future.
+
+## 1.2 Problem statement
+
+Traditional retail systems may have fragmented workflows across billing software, spreadsheets, stock registers, accounting applications and manual barcode generation.
+
+This creates several operational problems:
+
+- Sales and stock quantities become inconsistent.
+- Cashiers need to search manually for products.
+- Purchasing decisions depend on incomplete stock information.
+- Expiring, damaged and slow-moving inventory can be overlooked.
+- Supplier dues, expenses and cash movements are difficult to reconcile.
+- The owner cannot conveniently monitor the store remotely.
+- Internet or network failures can interrupt billing.
+- Creating and printing product labels is time-consuming.
+- Reports may not reflect actual transactions or accounting balances.
+
+The proposed system will bring these workflows into one coordinated platform.
+
+## 1.3 Product objectives
+
+1. Provide fast, reliable billing across 2–3 Windows counters.
+2. Maintain centralized and auditable inventory records.
+3. Automate purchasing and supplier-payment workflows.
+4. Support Indian retail tax and accounting requirements.
+5. Provide barcode-based product identification and label printing.
+6. Allow billing to continue during defined network outages.
+7. Introduce safe, practical offline voice commands.
+8. Give the owner access to sales, stock, cash and business reports remotely.
+9. Maintain recoverable backups and a clear transaction history.
+10. Establish an architecture that can be expanded without replacing the core system.
+
+## 1.4 Success criteria
+
+The system will be considered ready for initial production when:
+
+- All three intended counters can operate against the central server.
+- Sales update stock and accounting correctly.
+- Duplicate synchronization does not create duplicate finalized sales.
+- Offline transactions are preserved through application and PC restarts.
+- GST calculations pass approved test cases.
+- Receipts and labels print reliably on the selected hardware.
+- Role permissions prevent unauthorized financial or administrative operations.
+- Backups can be restored and verified.
+- The owner can inspect synchronized business data remotely.
+- The store's representative end-to-end acceptance tests pass.
+
+---
+
+# 2. Scope and Boundaries
+
+## 2.1 Included in the product
+
+The initial product includes:
+
+- Product, category, brand and department management
+- Barcode and SKU management
+- Customer and supplier records
+- Purchase orders and goods receipts
+- Supplier invoices and purchase returns
+- Inventory, batches and expiry tracking
+- Stock adjustments and physical stock counts
+- Windows desktop POS
+- Multi-counter operations
+- Cash, UPI, card and split payments
+- Sales returns, refunds and exchanges
+- Cashier shifts and cash reconciliation
+- Loyalty, memberships and store credit
+- Expenses and cashbook workflows
+- Accounting integration and financial reporting
+- GST configuration and supported compliance integrations
+- Barcode sticker and receipt printing
+- Offline sales queue and synchronization
+- Voice-assisted product search and label printing
+- Owner web dashboard and mobile application
+- Remote access, notifications and backups
+- Audit logs, user permissions and administrative configuration
+
+## 2.2 Excluded from the initial release
+
+The following are not launch requirements unless separately approved:
+
+- Multi-branch operations with inter-branch stock transfers
+- Franchise management
+- E-commerce marketplace integration
+- Delivery fleet management
+- Payroll and statutory HR management
+- Automated bank transfers or supplier payouts
+- Automatic purchase orders without human approval
+- AI-generated accounting entries without validation
+- A custom double-entry accounting engine
+- An independent custom GST engine replacing established compliance logic
+- Guaranteed stock reservation across disconnected counters
+- Fully automated financial decisions made by voice
+
+These may be considered in later releases.
+
+---
+
+# 3. Users and Roles
+
+## 3.1 Store owner
+
+The owner has access to:
+
+- Sales and revenue dashboards
+- Gross margin and inventory valuation
+- Cash, UPI and card reconciliation
+- Expenses and supplier dues
+- Inventory and expiry alerts
+- Employee activity and cashier performance
+- Purchase approvals and discount approvals
+- Financial statements and GST reports
+- Remote monitoring and system health
+- Backup and synchronization status
+
+## 3.2 Store manager
+
+The manager handles:
+
+- Daily operations
+- Product and price management
+- Purchasing and receiving
+- Stock corrections
+- Returns and refunds within authorized limits
+- Employee assignments
+- Discount approvals
+- Stock-count reconciliation
+- Operational reports
+
+## 3.3 Cashier
+
+The cashier can:
+
+- Log in to an assigned counter
+- Scan or search for products
+- Add, remove or adjust items in a draft bill
+- Apply permitted discounts
+- Accept authorized payment methods
+- Complete sales and print receipts
+- Process authorized returns
+- Open and close cashier shifts
+- View permitted transaction history
+
+Cashiers must not be able to modify posted accounting entries, change tax configuration, alter historical prices or perform unauthorized stock adjustments.
+
+## 3.4 Inventory operator
+
+The inventory operator can:
+
+- Receive stock
+- Print product labels
+- Manage batches and expiry dates
+- Perform stock counts
+- Record damaged goods
+- Review stock discrepancies
+- Request stock adjustments
+- View reorder recommendations
+
+## 3.5 Accountant
+
+The accountant can:
+
+- Review sales and purchase transactions
+- Reconcile cash and bank movements
+- Manage expenses and approved journal workflows
+- Review receivables and payables
+- Generate financial statements
+- Review GST-related records and reports
+- Perform authorized period-end operations
+
+## 3.6 System administrator
+
+The administrator manages:
+
+- User accounts and roles
+- Counter registration
+- Hardware configuration
+- Application updates
+- Local and remote access
+- Integration credentials
+- Backup policies
+- System diagnostics
+
+Administrative privileges must be separated from ordinary cashier access.
+
+---
+
+# 4. System Architecture
+
+## 4.1 Architecture overview
+
+The system will use a central ERP backend with custom clients and supporting services.
+
+```text
+                    STORE OWNER
+                         |
+                 Mobile App / Web
+                         |
+                 Secure Remote API
+                         |
+                  Cloud Access Layer
+                         |
+                  Store ERP API
+                         |
+       +-----------------+-----------------+
+       |                 |                 |
+   POS Counter 1     POS Counter 2     POS Counter 3
+   Windows App      Windows App       Windows App
+       |                 |                 |
+    SQLite DB         SQLite DB         SQLite DB
+    Local Outbox      Local Outbox      Local Outbox
+       |                 |                 |
+       +-----------------+-----------------+
+                         |
+                  Store LAN / Ethernet
+                         |
+                Main Store Server
+                         |
+                 ERPNext / Frappe
+                         |
+                      MariaDB
+                         |
+              GST and Compliance App
+```
+
+The diagram is conceptual. Cloud access, synchronization and service placement will be finalized during technical design.
+
+## 4.2 Backend foundation
+
+**Selected foundation:** ERPNext and Frappe.
+
+ERPNext will be responsible for established business operations such as:
+
+- Product and party masters
+- Purchasing and stock transactions
+- Sales transactions
+- Stock valuation
+- Payment and accounting workflows
+- Financial reports
+- Standard document lifecycle and permissions
+
+A custom Frappe application will hold store-specific extensions, server-side operations, integrations and additional reports.
+
+The India Compliance application will be evaluated for the selected ERPNext release and applicable Indian GST requirements.
+
+### Backend rules
+
+- Do not modify ERPNext core files unnecessarily.
+- Do not write directly to ERPNext's database tables from the POS.
+- Use supported APIs or custom server-side business methods.
+- Use the ERP's transaction lifecycle for posting stock and accounting effects.
+- Keep custom code in version-controlled applications.
+- Validate app compatibility before upgrading ERPNext.
+
+## 4.3 Windows POS client
+
+**Proposed stack:**
+
+- Tauri
+- React
+- TypeScript
+- SQLite
+- Rust where native functionality is required
+
+Electron remains an acceptable alternative if its device integrations or development requirements prove more suitable.
+
+The POS must provide:
+
+- Fast product lookup
+- Barcode scanner support
+- Cart and payment screens
+- Receipt printing
+- Local transaction persistence
+- Offline status display
+- Synchronization status
+- Voice command interface
+- Label printing controls
+
+## 4.4 Main store server
+
+The preferred production arrangement is a dedicated Linux host or supported Linux environment running ERPNext.
+
+The server should provide:
+
+- Central ERP API
+- MariaDB database
+- Background workers
+- Local network access
+- Backup scheduling
+- Synchronization endpoints
+- Printer or device services when required
+
+A Windows PC can be used for development, but the final server arrangement must be validated against the official deployment requirements.
+
+## 4.5 Cloud and mobile layer
+
+The owner dashboard may use a custom web interface, a mobile-friendly Frappe interface, or a dedicated mobile application.
+
+A native mobile application is a later-phase feature, not a prerequisite for getting billing operational.
+
+The cloud layer must not become a mandatory dependency for local billing.
+
+---
+
+# 5. Functional Requirements
+
+Priority definitions:
+
+- **P0:** Required for the initial operational release.
+- **P1:** Required for a complete departmental-store system.
+- **P2:** Enhancement after the core system is stable.
+
+## 5.1 Product and department management
+
+**Priority: P0/P1**
+
+### Requirements
+
+- Create, edit, deactivate and search products.
+- Assign products to departments and categories.
+- Maintain SKU, barcode, name, brand, size, weight and unit.
+- Support piece, packet, bottle, kilogram, gram, litre and other configured units.
+- Configure purchase units and sales units where applicable.
+- Maintain MRP, selling price, purchase price and permitted price lists.
+- Store HSN/SAC and applicable tax configuration.
+- Support manufacturer barcodes and store-generated internal barcodes.
+- Maintain product images where useful.
+- Import products from validated CSV or spreadsheet templates.
+- Record price changes with user, time and reason.
+- Restrict edits to authorized roles.
+
+### Acceptance criteria
+
+- Every sellable product has a unique internal item identifier.
+- Barcode lookup resolves to the correct product.
+- Duplicate internal identifiers are rejected.
+- Inactive products cannot be added to new sales unless explicitly permitted by a documented rule.
+- Price changes do not silently alter historical invoices.
+
+## 5.2 Customer management
+
+**Priority: P1**
+
+The system must support:
+
+- Customer name and contact details
+- Optional GSTIN and billing details where applicable
+- Customer purchase history
+- Loyalty membership
+- Points balance and transaction history
+- Authorized customer credit
+- Outstanding balances
+- Store credit and refund history
+- Customer search during billing
+- Configurable privacy and access permissions
+
+Customer data collection must be limited to what is necessary for the business.
+
+## 5.3 Supplier management
+
+**Priority: P0/P1**
+
+The system must support:
+
+- Supplier identity and contact details
+- GSTIN and applicable tax information
+- Supplier-specific product references
+- Purchase price history
+- Payment terms
+- Purchase orders and receipts
+- Supplier invoices and credit notes
+- Outstanding payable balance
+- Supplier payment history
+- Supplier returns
+- Due-date reports
+
+## 5.4 Purchasing
+
+**Priority: P1**
+
+### Workflow
+
+1. Review low-stock and reorder recommendations.
+2. Select products and supplier.
+3. Create a purchase order.
+4. Obtain approval when required.
+5. Record goods received.
+6. Verify quantities and discrepancies.
+7. Capture batch and expiry details when applicable.
+8. Record the supplier invoice.
+9. Verify tax and purchase pricing.
+10. Post the transaction through the ERP workflow.
+11. Record supplier payment when made.
+
+### Required features
+
+- Draft and submitted purchase orders
+- Partial goods receipts
+- Backorders and outstanding quantities
+- Purchase price comparison
+- Supplier-specific product codes
+- Minimum order quantities and pack sizes
+- Purchase returns
+- Supplier credit notes
+- Purchase invoice matching
+- Due-date tracking
+- Approval rules
+- Purchase history
+
+### Acceptance criteria
+
+A partially received order must retain the correct outstanding quantity. Returned goods must follow the appropriate stock and accounting workflow rather than simply deleting the original receipt.
+
+## 5.5 Inventory management
+
+**Priority: P0/P1**
+
+### Requirements
+
+- Central stock ledger
+- Warehouse and location configuration
+- Stock on hand
+- Batch and expiry tracking
+- Damaged and expired stock handling
+- Stock adjustment requests
+- Physical stock counts
+- Stock discrepancy reports
+- Stock movement history
+- Reserved stock where supported
+- Low-stock alerts
+- Reorder recommendations
+- Stock valuation reports
+- Slow-moving inventory reports
+- Product-wise movement history
+
+### Stock calculation
+
+The reporting layer should distinguish:
+
+- Physical quantity on hand
+- Reserved quantity
+- Quantity available for sale
+- Outstanding purchase quantity
+- Stock in transit, where applicable
+
+These values must use consistent ERP definitions.
+
+### Reorder recommendations
+
+Initial reorder-point logic:
+
+`Reorder point = Average daily demand × Supplier lead time + Safety stock`
+
+The system should also consider:
+
+- Current stock
+- Outstanding purchase orders
+- Recent sales
+- Supplier minimum order quantity
+- Purchase pack sizes
+- Expiry risk
+- Seasonality, if enough reliable data exists
+
+Recommendations must not automatically commit the store to purchasing. An authorized user approves the order.
+
+### Acceptance criteria
+
+Every posted stock movement must be traceable to its source transaction. Stock adjustments require a reason and an authorized user.
+
+## 5.6 Batch and expiry management
+
+**Priority: P1**
+
+Requirements:
+
+- Capture batch number and expiry date for applicable products.
+- Support multiple batches of one product.
+- Report items nearing expiry.
+- Report expired inventory.
+- Support configurable alert periods.
+- Identify stock by batch during returns and stock adjustments.
+- Warn or block the sale of expired products according to configured policy.
+- Support batch-aware stock valuation where applicable.
+
+The expiry alert schedule must be configurable, for example 30, 15 and 7 days before expiry.
+
+Products that do not use batch or expiry tracking must not be forced into unnecessary batch workflows.
+
+## 5.7 Sales and Windows POS
+
+**Priority: P0**
+
+### Checkout requirements
+
+- Search by barcode, SKU, name and supported aliases.
+- Scan multiple products rapidly.
+- Update quantities in the cart.
+- Remove draft items.
+- Show price, quantity, discount and line total.
+- Calculate tax through the approved backend workflow.
+- Apply authorized discounts.
+- Accept cash, UPI, card and other configured methods.
+- Support split tender.
+- Complete a sale and print a receipt.
+- Retrieve permitted previous transactions.
+- Support customer association.
+- Provide keyboard shortcuts.
+- Display clear network and synchronization status.
+
+### POS screen layout
+
+The initial layout should include:
+
+- Search and barcode input
+- Current cart
+- Quantity and price controls
+- Discount information
+- Tax and total summary
+- Payment action
+- Receipt status
+- Counter and cashier identity
+- Offline or online indicator
+
+### Billing performance targets
+
+These are proposed engineering targets and must be validated on the chosen hardware:
+
+- Barcode-to-product resolution: under 200 ms for a local cached lookup at the 95th percentile.
+- Normal cart updates: under 100 ms at the 95th percentile.
+- A typical 20-item bill: checkout interaction should remain responsive, without waiting on cloud connectivity.
+- Finalized online sales: target under 2 seconds for a normal local-network transaction at the 95th percentile, excluding external payment confirmation and physical printing delays.
+
+The backend remains responsible for final validation and posting.
+
+## 5.8 Payments and cashier shifts
+
+**Priority: P0/P1**
+
+### Supported payment types
+
+- Cash
+- UPI
+- Debit or credit card
+- Configured digital payment methods
+- Split payments
+- Authorized store credit
+
+The system must distinguish recording a payment method from confirming that an external payment actually succeeded.
+
+A UPI reference entered by a cashier is not, by itself, proof of a successful payment.
+
+### Shift management
+
+- Open shift with opening cash.
+- Record cash sales and permitted cash movements.
+- Record cash paid in or paid out with reasons.
+- Calculate expected closing cash.
+- Enter physical closing cash.
+- Report cash overage or shortage.
+- Reconcile digital payment totals.
+- Require manager approval when configured limits are exceeded.
+
+## 5.9 Sales returns, exchanges and refunds
+
+**Priority: P1**
+
+Requirements:
+
+- Find the original sale.
+- Select returned items and quantities.
+- Apply configured return-window and product rules.
+- Record a return reason.
+- Calculate the appropriate refund or credit.
+- Support exchange workflows.
+- Record the refund method.
+- Return stock only when the item is accepted back into saleable inventory.
+- Route damaged or expired returns to the appropriate stock workflow.
+- Generate the appropriate ERP credit or return transaction.
+- Preserve links to the original sale.
+
+Posted invoices must not be edited or deleted simply to reverse a sale.
+
+## 5.10 Discounts, promotions and loyalty
+
+**Priority: P1**
+
+### Discounts
+
+- Fixed-value and percentage discounts
+- Item-level and bill-level discounts
+- Role-based discount limits
+- Manager approvals
+- Discount reason codes
+- Audit logs
+
+### Loyalty
+
+- Customer membership
+- Points earning rules
+- Points redemption
+- Loyalty balance
+- Transaction history
+- Expiry rules where supported
+- Reversal of points after returns
+- Configurable promotions
+
+The exact calculation, tax interaction and accounting treatment must be confirmed before enabling loyalty in production.
+
+## 5.11 Barcode generation and label printing
+
+**Priority: P1**
+
+### Requirements
+
+- Retain a valid manufacturer barcode when appropriate.
+- Generate an internal identifier when needed.
+- Support Code 128 and suitable retail barcode formats.
+- Validate check digits for formats that require them.
+- Print selected quantities of labels.
+- Print labels for newly received inventory.
+- Reprint labels from a product record.
+- Support different label dimensions.
+- Preview labels before printing.
+- Support USB and network label printers where compatible.
+
+### Example label fields
+
+- Store name
+- Product name
+- SKU
+- Barcode
+- MRP
+- Selling price
+- Unit or net quantity
+- Batch and expiry, when relevant
+
+Not every label requires every field. Layouts must be configurable.
+
+### Safety rules
+
+Internal barcodes must not collide with existing product identifiers. The barcode type must be chosen based on scanner compatibility, label dimensions and the store's operational requirements.
+
+A product barcode, a payment QR code and a government e-invoice QR code are different things and must never be treated as interchangeable.
+
+## 5.12 Receipt printing
+
+**Priority: P0**
+
+Requirements:
+
+- Support the selected 58 mm or 80 mm receipt printer.
+- Print store identity and invoice information.
+- Print item details, quantities, discounts, taxes and totals.
+- Print payment breakdown.
+- Include required tax and invoice information.
+- Print return or credit documentation where applicable.
+- Support reprints with an appropriate duplicate marker.
+- Report printer failures clearly.
+- Support configurable receipt footers.
+
+Receipt templates must be validated against the store's legal and business requirements.
+
+## 5.13 Accounting and financial reporting
+
+**Priority: P1**
+
+ERPNext will provide the accounting foundation.
+
+### Required workflows
+
+- Sales and purchase accounting
+- Cash and bank accounts
+- Payment entries
+- Supplier payables
+- Customer receivables
+- Expense recording
+- Credit notes and refunds
+- Inventory valuation
+- Cost of goods sold
+- Gross margin reporting
+- Profit and loss
+- Balance sheet
+- Cash flow reporting
+- Trial balance
+- General ledger
+- Cashbook
+- Bank reconciliation
+
+### Accounting integrity requirements
+
+- Every posted financial transaction must follow configured accounting rules.
+- Posted entries must be traceable to source documents.
+- Reversals must use approved reversal or credit workflows.
+- Closed periods must have appropriate restrictions.
+- The accountant must be able to reconcile POS totals with ERP accounting.
+- Report definitions must distinguish revenue, tax collected, discounts, refunds, gross margin and net profit.
+
+The system must not treat total sales revenue as profit.
+
+## 5.14 Indian GST and compliance
+
+**Priority: P0 for applicable tax handling; P1 for complete compliance workflows**
+
+### Requirements
+
+- Store and configure applicable GST registration details.
+- Maintain product HSN and tax configuration.
+- Calculate applicable CGST, SGST and IGST through validated ERP tax rules.
+- Support configured tax-inclusive and tax-exclusive pricing.
+- Apply discounts and rounding according to approved rules.
+- Generate relevant sales and purchase reports.
+- Support credit notes and returns.
+- Support reconciliation and export workflows.
+- Integrate with an appropriate compliance application or authorized service where required.
+- Record the status of electronic submissions and responses.
+
+### Electronic invoicing
+
+The system must determine applicability based on the business's registration, turnover, transaction type and current rules.
+
+If an e-invoice is required, the relevant IRN and signed QR data must come from the authorized IRP workflow. The software must never fabricate these values.
+
+GST settings must be tested with an accountant or qualified tax professional before live use.
+
+## 5.15 Voice assistant
+
+**Priority: P2 after billing reliability is established**
+
+### Proposed stack
+
+- Offline speech recognition using `whisper.cpp`, `faster-whisper` or Vosk.
+- Product matching using the local catalog.
+- Rule-based intent extraction.
+- RapidFuzz or equivalent matching for spoken product names.
+- Explicit validation before execution.
+
+### Supported commands
+
+Examples:
+
+- "Find Colgate toothpaste."
+- "Add two Colgate toothpaste, 200 grams."
+- "How many packets of rice are available?"
+- "Print 20 labels for this product."
+- "Show today's sales."
+
+### Command-processing workflow
+
+1. Capture audio.
+2. Transcribe speech locally.
+3. Extract intent, product, quantity and parameters.
+4. Match the product against the local catalog.
+5. Check ambiguity and permissions.
+6. Display or speak the interpreted command.
+7. Ask for confirmation where needed.
+8. Execute through the approved application operation.
+9. Report success or failure.
+
+### Safety rules
+
+- Do not silently choose between similarly named products.
+- Do not allow voice commands to bypass role permissions.
+- Require confirmation for destructive, financial or bulk actions.
+- Never treat speech transcription as proof that a transaction succeeded.
+- Keep the interface usable without voice.
+
+Voice recognition quality must be evaluated using actual store noise, accents, product names and representative commands.
+
+## 5.16 Owner dashboard
+
+**Priority: P1**
+
+The owner dashboard should include:
+
+- Today's sales
+- Sales by department
+- Sales by counter
+- Sales by payment method
+- Number of bills
+- Average bill value
+- Returns and refunds
+- Gross margin
+- Expenses
+- Cash and bank summaries
+- Stock valuation
+- Low-stock items
+- Expiring and expired inventory
+- Supplier dues
+- Customer receivables
+- Cashier performance
+- Sync and server health
+
+The dashboard must show the last successful synchronization time. It must not label stale data as live.
+
+## 5.17 Mobile application
+
+**Priority: P2**
+
+The mobile experience should provide:
+
+- Secure owner login
+- Sales dashboard
+- Stock lookup
+- Low-stock and expiry alerts
+- Expense summaries
+- Supplier dues
+- Sales and payment reports
+- Transaction lookup
+- Purchase approval where appropriate
+- Notification preferences
+- Server connectivity status
+
+The initial mobile release should be read-only for sensitive financial data wherever possible. Write actions can be introduced after permissions and audit controls are tested.
+
+## 5.18 Staff and access management
+
+**Priority: P1**
+
+- Role-based access control
+- Unique user accounts
+- Counter registration
+- Configurable session timeout
+- Manager approvals
+- Failed-login monitoring
+- Audit trails
+- Restricted financial operations
+- Controlled user deactivation
+- Secure credential handling
+
+Shared administrator accounts should not be used for normal cashier operations.
+
+## 5.19 Notifications
+
+**Priority: P1/P2**
+
+Notifications may cover:
+
+- Low stock
+- Expiry approaching
+- Expired inventory
+- Unusual stock discrepancy
+- Supplier payment due
+- Cashier shift variance
+- Synchronization failure
+- Backup failure
+- Server storage or database health issues
+
+Notification thresholds and delivery methods must be configurable. Alerts should be deduplicated to avoid flooding the owner.
+
+---
+
+# 6. Offline Operation and Synchronization
+
+Offline support is one of the most important and technically challenging requirements.
+
+## 6.1 Offline capability
+
+Each Windows counter will have its own SQLite database containing:
+
+- Cached product catalog
+- Barcodes and search aliases
+- Approved price data
+- Applicable cached tax configuration
+- Counter configuration
+- Local draft bills
+- Offline transaction queue
+- Synchronization status
+- Local operational logs
+
+The local database must use appropriate transactional writes and integrity checks.
+
+## 6.2 Source of truth
+
+The central ERP server is the authoritative source for finalized inventory and accounting records.
+
+A counter's local database is authoritative only for its locally recorded pending operations until the server accepts them.
+
+The cloud dashboard is a remote reporting and access layer. It must not independently create a second authoritative inventory ledger.
+
+## 6.3 Transaction states
+
+Every sale must have an explicit state such as:
+
+- `DRAFT`
+- `LOCAL_SAVED`
+- `PENDING_SYNC`
+- `SYNCING`
+- `SERVER_COMMITTED`
+- `SYNC_FAILED`
+- `REQUIRES_REVIEW`
+- `CANCELLED`
+
+A locally saved bill must not be presented as a centrally committed transaction.
+
+## 6.4 Outbox and idempotency
+
+Every local transaction must receive a unique transaction identifier, preferably a UUID.
+
+The synchronization process must:
+
+1. Save the transaction durably in SQLite.
+2. Add a corresponding outbox event in the same local database transaction.
+3. Send the event to the central server.
+4. Validate it on the server.
+5. Process it through the approved ERP business workflow.
+6. Persist the server-side result and idempotency record atomically.
+7. Return the result to the counter.
+8. Mark the local transaction as committed only after confirmation.
+
+If a response is lost after the server commits, retrying the same event must return the existing result rather than create another sale.
+
+A unique client transaction ID alone is not enough: the server must enforce uniqueness and handle retries safely.
+
+## 6.5 Offline stock conflicts
+
+Independent counters cannot guarantee a globally accurate stock quantity while disconnected.
+
+The system must support an explicit policy:
+
+- **Online:** validate current stock against the central ERP.
+- **Brief LAN outage:** permit offline sales according to configurable limits and cached stock information.
+- **Long outage:** allow the owner to disable offline sales or restrict selected products.
+- **Reconnect:** identify overselling or stock conflicts and require reconciliation when necessary.
+
+The system must not silently discard a bill or silently rewrite a completed transaction to conceal an oversell.
+
+## 6.6 Invoice numbering
+
+Invoice numbering must follow the configured ERP invoice-series and applicable legal requirements.
+
+Offline transactions may need provisional local identifiers. The central server must assign or validate the final official invoice identity through an approved workflow.
+
+The implementation must prevent duplicate finalized invoice numbers across counters. The exact strategy must be established before enabling offline production billing.
+
+## 6.7 Synchronization monitoring
+
+The application must show:
+
+- Current connection state
+- Number of pending transactions
+- Oldest pending transaction age
+- Last successful synchronization
+- Failed transactions
+- Transactions requiring review
+
+Administrators must have a way to inspect and safely retry failed operations.
+
+---
+
+# 7. Security, Privacy and Reliability
+
+## 7.1 Security requirements
+
+- Authenticate all server requests.
+- Enforce permissions on the backend, not only in the UI.
+- Store credentials and API tokens securely.
+- Use TLS for remote connections.
+- Restrict ERP services to trusted network interfaces where appropriate.
+- Use a secure remote access method rather than exposing MariaDB directly to the internet.
+- Apply least-privilege access to services and users.
+- Maintain audit logs for sensitive operations.
+- Encrypt backups and protect their credentials.
+- Keep software dependencies and operating systems updated.
+
+## 7.2 Backup requirements
+
+The backup strategy must include:
+
+- Scheduled database backups
+- Required files and attachments
+- Encrypted offsite copies
+- Backup success/failure notifications
+- Retention policies
+- Periodic restore testing
+- Documented recovery procedures
+
+A backup that has never been restored and verified is not sufficient evidence of recoverability.
+
+## 7.3 Proposed service objectives
+
+These are initial targets to validate, not guarantees.
+
+| Metric | Proposed target |
+|---|---|
+| Local cached product lookup | Under 200 ms at p95 |
+| Online local-network sale submission | Under 2 seconds at p95 under normal load, excluding external dependencies |
+| Offline transaction durability | Survives application restart and ordinary PC restart after successful local commit |
+| Duplicate sale creation on retry | Zero |
+| Core local billing availability | Must not depend on cloud availability |
+| Recovery point objective | Target maximum 15 minutes of central data loss, subject to backup design |
+| Recovery time objective | Target service restoration within 4 hours |
+| Backup restoration | Verified in scheduled recovery drills |
+
+Recovery objectives must be approved against the store's budget, equipment and operational tolerance.
+
+## 7.4 Auditability
+
+The system must record:
+
+- User
+- Timestamp
+- Counter or device
+- Action performed
+- Source transaction
+- Before/after values where appropriate
+- Approval details
+- Failure and retry information
+
+Sensitive logs must avoid unnecessary exposure of customer information and credentials.
+
+---
+
+# 8. Hardware Requirements
+
+## 8.1 Billing counters
+
+Each counter requires:
+
+- Windows PC
+- Barcode scanner
+- Receipt printer
+- Ethernet connection where possible
+- Optional cash drawer
+- Optional customer display
+- Optional label printer access
+
+A scanner that operates in USB HID keyboard mode is the preferred initial option, subject to testing.
+
+## 8.2 Main server
+
+Recommended starting configuration:
+
+- SSD storage
+- Sufficient RAM for the ERP stack and database
+- Reliable wired LAN
+- UPS protection
+- Automated backups
+- Stable cooling and power
+- Restricted administrative access
+
+The final hardware sizing must follow load testing with the actual catalog size, number of concurrent users and transaction volume.
+
+## 8.3 Label printers
+
+Printer compatibility must be confirmed before selecting a final printing library. The system may support ESC/POS for receipts and ZPL or TSPL for labels depending on the selected hardware.
+
+A device discovery and print-test utility should be provided for administrators.
+
+---
+
+# 9. User Experience Requirements
+
+## 9.1 Cashier UX
+
+The cashier workflow must minimize clicks and avoid unnecessary modal dialogs.
+
+Priority requirements:
+
+- Barcode input receives focus after suitable actions.
+- Scanning rapidly adds products.
+- Quantity changes are easy.
+- Product and price information are clear.
+- Discounts require appropriate permission.
+- The payment screen clearly shows outstanding balance.
+- A completed sale cannot be accidentally submitted twice.
+- Print failures do not silently lose the sale.
+- Network state is visible without blocking normal online billing.
+
+## 9.2 Manager UX
+
+Managers should have accessible workflows for:
+
+- Receiving inventory
+- Stock adjustments
+- Product price changes
+- Returns
+- Approvals
+- Stock counts
+- Reports
+
+## 9.3 Owner UX
+
+The owner dashboard should prioritize meaningful metrics and alerts, not a large number of decorative charts.
+
+Each financial metric must have a documented definition so that the owner understands what it represents.
+
+---
+
+# 10. Data Model
+
+The initial logical data model includes the following entities. ERPNext's existing DocTypes should be reused wherever they meet the requirements.
+
+| Entity | Purpose |
+|---|---|
+| Company | Legal and accounting entity |
+| Department | Store-specific department |
+| Item | Product master |
+| Barcode | Product identifiers |
+| Item Group | Product category hierarchy |
+| Warehouse | Inventory location |
+| Batch | Batch and expiry information |
+| Customer | Customer record |
+| Supplier | Supplier record |
+| Price List | Selling or buying prices |
+| Purchase Order | Supplier order |
+| Purchase Receipt | Goods received |
+| Purchase Invoice | Supplier invoice |
+| Sales Invoice / POS transaction | Sale and financial transaction |
+| Payment Entry | Payment recording |
+| Return / Credit Note | Reversal or return transaction |
+| Stock Ledger Entry | Stock movement history |
+| Loyalty Transaction | Points earned or redeemed |
+| Cashier Shift | Shift and cash reconciliation |
+| Expense | Expense transaction |
+| User / Role | Access control |
+| Audit Event | Traceable system actions |
+| Counter Device | Registered POS installation |
+| Offline Outbox Event | Pending synchronization event |
+| Sync Result | Server acceptance or failure result |
+| Label Job | Requested label print job |
+| Voice Command Log | Minimal operational command record |
+
+### Data-model principles
+
+- Reuse ERPNext document types instead of duplicating core ledgers.
+- Keep locally queued transactions distinguishable from posted ERP documents.
+- Preserve transaction lineage for returns and reversals.
+- Use stable identifiers across counters.
+- Enforce uniqueness in the authoritative database.
+- Version custom schema changes through migrations.
+- Avoid storing sensitive payment credentials in the POS.
+
+---
+
+# 11. Reporting Requirements
+
+## 11.1 Sales reports
+
+- Daily and monthly sales
+- Department-wise sales
+- Product-wise sales
+- Counter-wise sales
+- Cashier-wise sales
+- Payment-method breakdown
+- Returns and refunds
+- Discounts
+- Average bill value
+- Hourly sales distribution
+
+## 11.2 Inventory reports
+
+- Stock on hand
+- Stock valuation
+- Low stock
+- Expiring inventory
+- Expired inventory
+- Damaged inventory
+- Stock adjustments
+- Physical count discrepancies
+- Slow-moving products
+- Reorder suggestions
+- Product movement history
+
+## 11.3 Financial reports
+
+- Profit and loss
+- Balance sheet
+- Cash flow
+- Trial balance
+- General ledger
+- Cashbook
+- Supplier payables
+- Customer receivables
+- Expense summaries
+- Gross margin analysis
+- Inventory valuation
+
+## 11.4 Reconciliation reports
+
+- POS totals versus ERP sales
+- Cashier expected versus actual cash
+- Recorded versus confirmed digital payments
+- Pending offline transactions
+- Failed synchronization events
+- Stock discrepancies
+- GST-related reconciliation
+
+Reports must define the treatment of taxes, returns, discounts, cancelled sales and unsynchronized transactions.
+
+---
+
+# 12. Technical Stack and Repository Structure
+
+## 12.1 Proposed technology choices
+
+| Layer | Technology |
+|---|---|
+| ERP backend | ERPNext / Frappe |
+| Central database | MariaDB |
+| Indian compliance | Compatible India Compliance app |
+| Windows application | Tauri + React + TypeScript |
+| Local database | SQLite |
+| Desktop native services | Rust where needed |
+| Backend extension | Custom Frappe app |
+| Local networking | REST API over LAN |
+| Owner web interface | React/Next.js or Frappe interface |
+| Mobile | Evaluate PWA versus React Native |
+| Voice recognition | Vosk or Whisper-based local inference |
+| Product matching | RapidFuzz or equivalent |
+| Receipt printing | ESC/POS-compatible implementation |
+| Label printing | Printer-compatible ZPL/TSPL implementation |
+| Source control | Git |
+| Deployment | Supported Linux environment, containerized where appropriate |
+| Monitoring | Application logs, health checks and sync metrics |
+
+Specific versions must be selected together after checking compatibility.
+
+## 12.2 Proposed monorepo
+
+```text
+department-store-erp/
+├── apps/
+│   ├── windows-pos/
+│   ├── owner-dashboard/
+│   └── mobile-app/
+├── services/
+│   ├── sync-engine/
+│   ├── print-service/
+│   ├── voice-service/
+│   └── reporting-service/
+├── packages/
+│   ├── domain/
+│   ├── api-contracts/
+│   ├── permissions/
+│   ├── barcode/
+│   └── testing/
+├── erpnext-app/
+│   └── departmental_store/
+├── database/
+│   ├── local-sqlite/
+│   └── migrations/
+├── deployment/
+│   ├── development/
+│   ├── server/
+│   └── backup/
+├── tests/
+│   ├── integration/
+│   ├── offline-sync/
+│   ├── gst/
+│   └── hardware/
+└── docs/
+    ├── PRD.md
+    ├── architecture.md
+    ├── api-contracts.md
+    ├── deployment.md
+    └── recovery-runbook.md
+```
+
+This is a proposed organization. The final structure should avoid unnecessary services until there is a clear reason to split them.
+
+---
+
+# 13. Development Roadmap
+
+## Phase 0 — Feasibility and environment
+
+**Deliverables**
+
+- Development environment audit
+- ERPNext deployment
+- Compatible India Compliance installation
+- Database and backup configuration
+- Basic test company
+- API authentication
+- Product and sales workflow verification
+
+**Exit criteria**
+
+The team can create a test product, execute a supported sale and verify the corresponding stock and accounting effects.
+
+## Phase 1 — First working POS
+
+**Deliverables**
+
+- Windows application shell
+- Product search
+- Barcode scanning
+- Cart management
+- Basic tax display
+- Cash payment workflow
+- Sale submission through the backend
+- Receipt printing
+- Basic cashier authentication
+
+**Exit criteria**
+
+A complete test sale works from scan to receipt and produces the expected ERP records.
+
+## Phase 2 — Offline billing and multi-counter support
+
+**Deliverables**
+
+- SQLite local database
+- Cached product catalog
+- Durable transaction outbox
+- Server-side idempotency
+- Sync status and retries
+- Offline transaction recovery
+- Counter registration
+- Two-counter and three-counter concurrency tests
+- Invoice-numbering strategy
+
+**Exit criteria**
+
+Interrupted connections and duplicate retries do not lose or duplicate finalized sales. Stock conflicts are surfaced explicitly.
+
+## Phase 3 — Purchasing and inventory
+
+**Deliverables**
+
+- Supplier management
+- Purchase orders
+- Goods receiving
+- Batch and expiry workflows
+- Stock adjustments
+- Damaged goods
+- Stock counts
+- Reorder recommendations
+- Barcode label printing
+
+**Exit criteria**
+
+Purchase and stock workflows reconcile against the central ERP ledger.
+
+## Phase 4 — Financial operations and GST
+
+**Deliverables**
+
+- Cashier shift reconciliation
+- Payment reconciliation
+- Expense workflows
+- Returns and refunds
+- Customer credit and loyalty, as approved
+- GST reporting and compliance integration
+- Financial reports
+- Approval rules
+
+**Exit criteria**
+
+Representative sales, returns, purchases and payment scenarios reconcile correctly in accounting and applicable tax reports.
+
+## Phase 5 — Owner dashboard and remote access
+
+**Deliverables**
+
+- Owner dashboard
+- Secure remote access
+- Sales and inventory reports
+- Alerts
+- Backup monitoring
+- Server health monitoring
+- Mobile-friendly experience
+
+**Exit criteria**
+
+The owner can access authorized reports remotely, with stale-data indicators and no direct public exposure of the database.
+
+## Phase 6 — Voice assistant
+
+**Deliverables**
+
+- Offline speech recognition
+- Product-name matching
+- Voice-to-cart
+- Stock queries
+- Label printing commands
+- Confirmation and permissions
+- Voice evaluation dataset and tests
+
+**Exit criteria**
+
+The defined command set performs reliably on representative hardware and store noise without bypassing authorization or silently selecting ambiguous products.
+
+## Phase 7 — Production hardening
+
+**Deliverables**
+
+- Load and reliability testing
+- Backup restoration drill
+- Update and rollback process
+- User training
+- Operational documentation
+- Security review
+- Pilot deployment
+- Production sign-off
+
+---
+
+# 14. Testing Strategy
+
+## 14.1 POS tests
+
+- Valid and invalid barcode scans
+- Multiple units of the same product
+- Discount limits
+- Split payments
+- Cash change calculation
+- Printer unavailable
+- Application restart during a draft bill
+- Duplicate checkout attempts
+- Return and refund workflows
+
+## 14.2 Offline synchronization tests
+
+- LAN disconnected during checkout
+- Server unavailable after local save
+- POS application restarted with pending transactions
+- PC restarted before synchronization
+- Duplicate request sent to the server
+- Server commits but response is lost
+- Same product sold at multiple counters
+- Stock conflict after reconnect
+- Local database corruption recovery
+- Server-side validation failure
+
+## 14.3 Inventory and purchasing tests
+
+- Partial receipt
+- Purchase return
+- Batch expiry
+- Damaged stock
+- Stock count discrepancy
+- Reorder calculations
+- Price updates
+- Concurrent sales of the final available unit
+
+## 14.4 GST and accounting tests
+
+- Applicable CGST/SGST scenario
+- Applicable IGST scenario
+- Tax-inclusive price
+- Tax-exclusive price
+- Discounted sale
+- Sales return
+- Purchase return
+- Cash and digital payment reconciliation
+- Rounding
+- Period-end reporting
+
+All tax tests must use approved expected results.
+
+## 14.5 Security tests
+
+- Cashier attempts restricted action
+- Expired or invalid session
+- Unauthorized API request
+- Duplicate transaction replay
+- Remote access without authorization
+- Audit-log completeness
+- Backup credential protection
+
+---
+
+# 15. Risks and Mitigations
+
+| Risk | Mitigation |
+|---|---|
+| ERPNext workflow differs from POS expectations | Build an early proof of concept against the exact deployed version |
+| Custom POS submits incomplete accounting data | Use supported ERP business operations and integration tests |
+| Offline sales create stock conflicts | Explicit offline policies, conflict detection and reconciliation |
+| Duplicate invoices after retries | Server-enforced idempotency and transactional processing |
+| Invoice numbers collide across counters | Finalize a compliant numbering strategy before production |
+| GST workflow is incomplete | Validate applicable rules and compliance integration with an accountant |
+| Printer compatibility problems | Test real devices before finalizing the printing stack |
+| Voice misidentifies a product | Match confidence thresholds and confirmation for ambiguous commands |
+| Cloud outage blocks billing | Keep central local-server billing independent of cloud access |
+| Server disk or power failure | UPS, backups, monitoring and restoration drills |
+| ERPNext upgrade breaks customizations | Version pinning, compatibility tests and staged upgrades |
+| Reporting numbers are misleading | Document definitions and reconcile against ERP records |
+| Poor network quality | Wired LAN, network diagnostics and durable local queues |
+
+---
+
+# 16. Deployment and Operations
+
+## 16.1 Development
+
+- Use a dedicated development environment.
+- Never test with live financial data unless explicitly authorized and appropriately protected.
+- Keep secrets outside source control.
+- Use synthetic test products and transactions.
+- Version database migrations and configuration.
+
+## 16.2 Pilot
+
+- Deploy to one counter first.
+- Verify product catalog and tax configuration.
+- Compare sample bills against the approved workflow.
+- Test receipt printing.
+- Simulate LAN outages.
+- Reconcile all test transactions.
+- Expand to the other counters after approval.
+
+## 16.3 Production
+
+- Configure automated service startup.
+- Configure backup and monitoring alerts.
+- Restrict server and database access.
+- Keep the POS and backend versions compatible.
+- Maintain a rollback procedure.
+- Train staff in normal billing, returns and offline recovery.
+- Document emergency procedures for prolonged server outages.
+
+---
+
+# 17. Initial Release Acceptance Criteria
+
+The first production candidate must satisfy all of the following:
+
+- [ ] ERPNext runs in the selected supported deployment environment.
+- [ ] Product and price data can be loaded and maintained.
+- [ ] Barcode scans resolve to the correct products.
+- [ ] A cashier can complete and print a sale.
+- [ ] Stock and accounting effects are correct.
+- [ ] Cash, UPI and split-payment workflows behave as specified.
+- [ ] Failed printing does not silently discard a transaction.
+- [ ] Offline bills survive ordinary application and PC restarts after local commit.
+- [ ] Duplicate synchronization attempts do not create duplicate sales.
+- [ ] Multiple counters are tested concurrently.
+- [ ] Invoice numbering and offline policy are approved.
+- [ ] GST test cases pass professional review.
+- [ ] Role permissions and audit logs work.
+- [ ] Backup restoration is verified.
+- [ ] The owner can identify pending synchronization and server health.
+- [ ] Staff have documented recovery procedures.
+
+---
+
+# 18. Initial Build Plan: First Two Weeks
+
+The exact schedule depends on deployment issues and the team's development capacity.
+
+### Days 1–2: Environment and backend
+
+- Audit installed tools.
+- Set up the development environment.
+- Deploy ERPNext.
+- Verify access to the ERP interface and API.
+- Configure a test company and basic master data.
+
+### Days 3–4: Business workflow proof
+
+- Create a test product and barcode.
+- Configure a representative tax scenario.
+- Execute a supported test sale.
+- Verify stock, payment and accounting effects.
+- Verify a return or reversal.
+
+### Days 5–7: POS foundation
+
+- Create the desktop project.
+- Build the billing screen.
+- Connect barcode input and product search.
+- Implement cart operations.
+- Add the initial backend integration.
+
+### Days 8–10: Checkout and printing
+
+- Implement the initial payment workflow.
+- Generate the required sale request.
+- Display the transaction status.
+- Print a test receipt.
+- Handle API and printer failures.
+
+### Days 11–14: Offline foundation
+
+- Create the local SQLite schema.
+- Implement local drafts and the outbox.
+- Add synchronization and server-side idempotency.
+- Simulate network interruptions.
+- Document unresolved risks before multi-counter expansion.
+
+These are planning estimates, not a guarantee of completion within 14 calendar days.
+
+---
+
+# 19. Official and Reference Repositories
+
+The following are starting points for implementation. Repository versions, licensing and feature compatibility must be checked before adoption.
+
+- ERPNext: https://github.com/frappe/erpnext
+- Frappe Framework: https://github.com/frappe/frappe
+- ERPNext documentation: https://docs.frappe.io/erpnext
+- India Compliance: https://github.com/resilient-tech/india-compliance
+- Frappe Docker: https://github.com/frappe/frappe_docker
+- POS-Awesome: https://github.com/ucraft-com/POS-Awesome
+- Tauri: https://github.com/tauri-apps/tauri
+- SQLite: https://www.sqlite.org/docs.html
+- Whisper.cpp: https://github.com/ggml-org/whisper.cpp
+- Vosk: https://github.com/alphacep/vosk-api
+- RapidFuzz: https://github.com/rapidfuzz/RapidFuzz
+
+These are references and candidate dependencies, not a requirement to install every project. Each dependency should have a defined role.
+
+---
+
+# 20. Open Decisions Before Production
+
+The architecture is defined at a high level, but the following details need confirmation during implementation:
+
+1. Exact product count and expected number of bills per day.
+2. Number of departments and whether multiple storage locations are needed.
+3. Selected receipt and label printer models.
+4. Whether the main server will be a dedicated Linux machine or a supported Linux environment on existing hardware.
+5. Whether offline billing may continue indefinitely or should be restricted after a configurable duration.
+6. Exact tax and invoice requirements for the store's business registration.
+7. Whether customer credit and loyalty are required at launch.
+8. Preferred mobile approach: PWA or native mobile application.
+9. Backup retention, cloud provider and recovery objectives.
+10. Whether future branches are a real requirement or simply an architectural possibility.
+
+These decisions should be recorded before the relevant feature is released.
+
+---
+
+# 21. Final Product Definition
+
+The intended deliverable is a **custom departmental store business management platform built around ERPNext**, with a purpose-built Windows POS, independent local SQLite queues, controlled offline synchronization, barcode and printer integration, Indian GST workflows, inventory and purchasing management, financial reporting, voice-assisted operations and secure owner access.
+
+The implementation order is deliberate: establish the ERP foundation, prove one complete sale, make it reliable offline, expand to multiple counters, and then add the broader business-management and automation features.
+
+**The first engineering milestone is not the dashboard or voice assistant. It is one correctly processed sale that remains safe under failure conditions.** That transaction becomes the foundation for the rest of the system.

@@ -1,0 +1,20 @@
+---
+description: Rules for tests, documentation and production readiness
+globs: ["**/*"]
+alwaysApply: false
+---
+# Testing
+- Add unit tests for domain rules and integration tests for ERP posting behavior.
+- Test negative paths, timeouts, retries, duplicate submissions, and permission failures.
+- For offline features, test persistence across application and PC restarts.
+- Test at least two counters concurrently before enabling multi-counter production use.
+- Test receipt and label printing on actual selected hardware.
+- Verify backups by restoring them in a test environment.
+- Never claim tests passed unless they were executed and the result was observed.
+
+# Documentation
+- Update API contracts when endpoints change.
+- Document environment variables without recording their secret values.
+- Record architectural decisions that affect invoice numbering, offline policy, payment confirmation, or accounting.
+- Include setup, migration, rollback, backup, restore, and troubleshooting instructions.
+- Label proposed targets and assumptions clearly; do not present them as verified guarantees.

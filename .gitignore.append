@@ -1,0 +1,18 @@
+# Suggested additions to merge into the repository's .gitignore
+.env
+.env.*
+!.env.example
+*.sqlite
+*.sqlite3
+*.db
+secrets/
+private/
+logs/
+dist/
+build/
+target/
+node_modules/
+__pycache__/
+*.py[cod]
+.coverage
+htmlcov/

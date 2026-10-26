@@ -1,0 +1,158 @@
+# Recommended Tech Stack — Departmental Store ERP
+
+For your system, I recommend ERPNext + Frappe for the business backend and Tauri + React + TypeScript for the custom Windows POS, with SQLite for offline billing and a separate cloud/mobile layer.
+
+## 1. Complete technology stack
+
+[Journey + Target (ERPNext + Frappe) = Ambition (2026) | Md. Nazmul Sheak](https://images.openai.com/static-rsc-4/dak7cDRJ6DMiOIyglYoEXgtjIYdSTWIOMsTgoeK4jVpr0hIWLvwgGlClUIbNbAF-cFI6FmDbhbpkWosC3m-OrdYKyhRmIcbgHUK-CXgSvP1WIWScpYxNhxgD0sjLuMgjkGfo53GErdLeDGE_zw3be7pLqdvOzO9oW4p9aO5nDEQ?purpose=inline)
+
+1\. ERP backend and business logic
+
+Core foundation
+
+- ERP: ERPNext
+- Framework: Frappe Framework
+- Backend language: Python
+- Central database: MariaDB
+- Custom modules: Custom Frappe app
+- Indian GST: India Compliance app, subject to version and feature verification
+
+Handles inventory, purchasing, suppliers, accounting, stock ledgers and supported tax workflows.
+
+[Tauri: An Electron alternative written in Rust | Product Hunt](https://images.openai.com/static-rsc-4/eJsaeSe3s7NgYq_PVrfzC4LPaDezfK9BQrUranDAXvzFHZ_AEAR2UKpZv_BruP2jeWng6Tw04zUcCCRmEA3zhwVxugLDOQ1-EmogSuLysOZrStchzgUpbNcXWlgydma6uet1TLNOTsKB5DzfKHU2dxPwGtJ5ohx2-TjWK39YObM?purpose=inline)
+
+2\. Windows billing application
+
+Custom development
+
+- Desktop framework: Tauri
+- UI: React + TypeScript
+- Styling: Tailwind CSS
+- UI components: shadcn/ui, where compatible
+- Native integration: Rust
+- Communication: REST API over the local network
+
+Provides fast barcode-first billing, keyboard shortcuts, payment screens and printer integration.
+
+[Logo SQLite – Logos PNG](https://images.openai.com/static-rsc-4/DB8WVS6NrLCtUSYIc2zTPGzrMvrfjPYZpaPLLiELKaGa-8ig6i55NjodHWZqWiL__4SWevhxL3ba1kAF3Oq8brovMP1dXTdtm6k7QmtOMoYPoCrfB7byzg0w9qPHn11PT6I-8w3z6cczqMbyPlGjM0DKm0LT-4oa8zA_FnqDFow?purpose=inline)
+
+3\. Offline database and synchronization
+
+- Local database: SQLite
+- TypeScript database access: `@tauri-apps/plugin-sql` or a suitable native SQLite integration
+- Sync pattern: Transactional outbox
+- Identifiers: UUIDs
+- Background work: Rust service or managed application worker
+
+Stores cached products and pending bills on each counter. Server-side idempotency prevents duplicate sales during retries.
+
+[Next.js Sanity CMS Starter | Schema UI Starter](https://images.openai.com/static-rsc-4/DSDkG6Hirfu5BDCL-4UrHQ7DwjZ2ICRXoXBJZodx7lF0NWIKujGOKmdKCzjFsAXzKfOfLQgFETXH3p2TWEOJQuxKK5F1Hf2CeKULeun1PhpDQ_GaDckzv0o3gfga9pro7MmYE9AoIdrdXk1ZCAl-WmwnamWSYW9SF6jJKrgLaqo?purpose=inline)
+
+4\. Owner dashboard
+
+- Framework: Next.js
+- Language: TypeScript
+- Charts: Recharts
+- Data source: Authenticated ERP APIs and approved reporting endpoints
+- Notifications: Push or email, based on selected provider
+
+Shows daily sales, stock, expenses, supplier dues, margins and synchronization health.
+
+[Maximizing efficiency and productivity with Expo dev tools](https://images.openai.com/static-rsc-4/hp3rRo8ATYWvsjUs6cn95ixY-b5oM2scj_lE58mBKCeHu8Dcs9b6fcO7WDXBpoCdmUOcdaOcapgBvkWQLH2YNfa36C3DO6nHrV-VAqMokp3ccbrCu9gX54uoO01DSCp0F_lI2NCCmv0kvrOEjTdlhzKeaHz7QNUCM8g2JXHabIQ?purpose=inline)
+
+5\. Mobile application
+
+- Framework: React Native + Expo
+- Language: TypeScript
+- API: Secure HTTPS endpoints
+- Initial focus: Owner reports, alerts and stock lookup
+
+Build after the web dashboard and backend permissions are stable. A mobile-friendly PWA is an alternative if you want to reduce initial development work.
+
+[Is Whisper HIPAA compliant? (2025 update)](https://images.openai.com/static-rsc-4/X77h_E9yHSMHl_CFbsRJVf-c2zPu4pXV6rWuaGW6celjPFGbyrctEfr8I8iBfDCHp5GZqX9Emkzjba3b88u5cCl8LoBAqem2t6TSBKXdL7dqLKfPgTIFp0MxBiiM1qrnadpLKcL3Yae2CD9Q1yTwi0ZO6bdgcG8nGfDLSPL9Mso?purpose=inline)
+
+6\. Offline voice assistant
+
+- Speech recognition: `whisper.cpp` or Vosk
+- Product matching: RapidFuzz
+- Command parsing: TypeScript rules and structured intent extraction
+- Execution: Validated POS commands
+
+Supports commands such as “Add two Colgate toothpaste” and “Print 20 labels.” Confirmation is required for ambiguous or sensitive actions.
+
+[Learn How to Develop, Deploy, and Run Your Application with Docker | by Neeraj Kushwaha | Medium](https://images.openai.com/static-rsc-4/vpeCahKUt8HLTzNJcfyZuraqvPe4DYkQcZ6H_bYFxktcjGE9IzKNCy_2wzufjFg1CV4gCPUSKqyNqOP1LsjwqsGi_Ptm9bXovNu4KVQgDh00UrSckl0PXpeQz3Fy185kJss3Wgjsqi7965WWyoiWi3LAsk2u_qRKHUOJ4rIUl0s?purpose=inline)
+
+7\. Deployment and infrastructure
+
+- Server OS: Ubuntu Linux or another officially supported environment
+- Deployment: Frappe's supported installation or Docker deployment
+- Source control: Git + GitHub
+- Backups: Encrypted local and offsite backups
+- Remote access: Tailscale or Cloudflare Tunnel, appropriately secured
+- Monitoring: Application logs, backup status and sync health
+
+The store's local server must keep billing operational even if the internet or cloud services are unavailable.
+
+## 2. Hardware integration stack
+
+| Hardware              | Technology                                             |
+| --------------------- | ------------------------------------------------------ |
+| USB barcode scanner   | USB HID keyboard mode                                  |
+| Receipt printer       | ESC/POS or vendor-supported interface                  |
+| Barcode label printer | ZPL or TSPL, depending on the model                    |
+| Cash drawer           | Receipt printer kick interface or supported connection |
+| Store network         | Ethernet LAN                                           |
+| Server protection     | UPS and automated backups                              |
+
+We should select the printing libraries after confirming your actual printer models.
+
+## 3. System architecture
+
+Windows POS — Tauri + React + TypeScript
+
+Billing · Barcode · Payments · Voice · Printing
+
+Local SQLite + Outbox Sync
+
+Cached products · Pending sales · Retry handling
+
+Local Store Server — ERPNext + Frappe
+
+Validated transactions · Inventory · Accounting · GST workflows
+
+Secure Cloud Access
+
+Owner dashboard · Mobile · Alerts · Offsite backups
+
+The central ERP server is the authority for finalized inventory and accounting. SQLite is the durable local queue, not a separate accounting system.
+
+## 4. What we should build first
+
+| Order | Deliverable                             | Priority          |
+| ----- | --------------------------------------- | ----------------- |
+| 1     | ERPNext development environment         | Now               |
+| 2     | Custom Frappe app and test company      | Next              |
+| 3     | Windows POS shell and product search    | Next              |
+| 4     | Barcode scanning, cart and checkout     | Core MVP          |
+| 5     | Sale posting and receipt printing       | Core MVP          |
+| 6     | SQLite offline queue and safe sync      | Core reliability  |
+| 7     | Multi-counter testing                   | Before production |
+| 8     | Purchasing, inventory and GST workflows | Full ERP          |
+| 9     | Owner dashboard and mobile app          | Later phase       |
+| 10    | Voice assistant and advanced automation | Later phase       |
+
+## 5. Final stack decision
+
+My recommendation is to start with these technologies and avoid adding unnecessary infrastructure:
+
+- Backend: ERPNext + Frappe + Python + MariaDB
+- Windows POS: Tauri + React + TypeScript + Rust
+- Offline: SQLite + transactional outbox
+- Owner dashboard: Next.js + TypeScript
+- Mobile: React Native + Expo, later
+- Voice: whisper.cpp or Vosk + RapidFuzz
+- Deployment: Linux server + supported Frappe deployment + Git
+
+One important distinction: do not add PostgreSQL, Redis alternatives, a separate microservice platform or a second inventory database without a specific need. ERPNext's supported deployment has its own infrastructure requirements, and the initial system should remain as simple as possible.
+
+Official references: [ERPNext](https://github.com/frappe/erpnext?utm_source=chatgpt.com) · [Frappe](https://github.com/frappe/frappe?utm_source=chatgpt.com) · [Tauri](https://tauri.app/?utm_source=chatgpt.com) · [SQLite](https://www.sqlite.org/docs.html?utm_source=chatgpt.com) · [India Compliance](https://github.com/resilient-tech/india-compliance?utm_source=chatgpt.com).

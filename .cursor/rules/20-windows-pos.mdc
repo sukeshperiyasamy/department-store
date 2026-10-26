@@ -1,0 +1,20 @@
+---
+description: Rules for the Windows POS application
+globs: ["apps/windows-pos/**/*", "apps/**/*.tsx", "apps/**/*.ts"]
+alwaysApply: false
+---
+# POS implementation
+- Use Tauri + React + TypeScript unless the project decision record explicitly changes the desktop shell.
+- Keep the cashier workflow keyboard-first and barcode-first.
+- Keep UI components separate from domain rules and API transport.
+- Use TypeScript strict mode; avoid `any` unless justified and documented.
+- Treat API responses as untrusted input and validate them.
+- Show clear states for local saved, pending sync, syncing, server committed, failed, and requires review.
+- Never show a sale as centrally completed until server confirmation is received.
+- A print failure must not silently lose or duplicate the underlying sale.
+- Prevent double-submission in the UI, but rely on server-side idempotency for correctness.
+- Do not calculate authoritative tax, inventory valuation, or accounting entries only in the client.
+- Do not store API secrets in source code or plain-text config files.
+- Support USB HID barcode scanners where possible; confirm printer protocol before choosing a library.
+- Make keyboard focus behavior explicit and testable.
+- Provide accessible labels, visible validation, and useful error messages.
