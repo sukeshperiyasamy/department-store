@@ -5,7 +5,31 @@ def after_install() -> None:
     ensure_roles()
     ensure_item_aliases_field()
     ensure_site_language()
+    ensure_cashier_permissions()
     frappe.db.commit()
+
+
+def ensure_cashier_permissions() -> None:
+    """Cashiers must be able to bill through the sync API: least-privilege custom
+    permission on Sales Invoice (read/create/write/submit, no cancel/delete/
+    amend — returns and credit notes stay manager/accountant work)."""
+    existing = frappe.db.exists(
+        "Custom DocPerm", {"parent": "Sales Invoice", "role": "Cashier"})
+    if existing:
+        return
+    frappe.get_doc({
+        "doctype": "Custom DocPerm",
+        "parent": "Sales Invoice",
+        "parenttype": "DocType",
+        "role": "Cashier",
+        "read": 1,
+        "write": 1,
+        "create": 1,
+        "submit": 1,
+        "delete": 0,
+        "cancel": 0,
+        "amend": 0,
+    }).insert(ignore_permissions=True)
 
 
 def ensure_site_language() -> None:

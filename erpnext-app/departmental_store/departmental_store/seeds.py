@@ -10,6 +10,114 @@ import uuid
 import frappe
 
 
+def touch_one_perf_price() -> str:
+    """Bump one PERF item price (for incremental snapshot measurement)."""
+    import random
+
+    name = frappe.get_all("Item Price",
+                          filters={"item_code": ("like", "PERF-%"), "selling": 1},
+                          pluck="name", limit=1)[0]
+    frappe.db.set_value("Item Price", name, "price_list_rate", random.randrange(5, 95))
+    frappe.db.commit()
+    return name
+
+
+def make_cashier_user() -> str:
+    """Cashier test user with API keys for integration/security testing.
+    Follows the ERPNext convention that billing users hold Accounts User
+    (GL posting requires account access); reporting stays manager-only."""
+    if not frappe.db.exists("User", "cashier@demo.store"):
+        frappe.get_doc({
+            "doctype": "User", "email": "cashier@demo.store",
+            "first_name": "Cashier", "send_welcome_email": 0,
+            "roles": [{"role": "Cashier"}, {"role": "Accounts User"}],
+        }).insert(ignore_permissions=True)
+    else:
+        user = frappe.get_doc("User", "cashier@demo.store")
+        if not any(r.role == "Accounts User" for r in user.roles):
+            user.append("roles", {"role": "Accounts User"})
+            user.save(ignore_permissions=True)
+    from frappe.core.doctype.user.user import generate_keys
+    frappe.local.form_dict.cmd = "x"
+    keys = generate_keys("cashier@demo.store")
+    frappe.db.commit()
+    return json.dumps(keys)
+
+
+def make_race_items() -> str:
+    """Two items for oversell testing: one with 2 units (sequential test) and
+    one with 1 unit (parallel race test). No-arg so bench execute needs no kwargs."""
+    a = _make_race_item(2)
+    b = _make_race_item(1)
+    return json.dumps({"race_a": a, "race_b": b})
+
+
+def _make_race_item(qty: int) -> str:
+    demo(run=True)
+    company = frappe.db.get_value("Company", {"abbr": "DEMO"}, "name")
+    # Receive into the warehouse the POS profile bills against.
+    profile_warehouse = frappe.db.get_value("POS Profile", "Counter 1", "warehouse")
+    warehouse = profile_warehouse or frappe.db.get_value(
+        "Warehouse", {"company": company, "is_group": 0}, "name")
+    code = f"RACE-ITEM-{uuid.uuid4().hex[:6].upper()}"
+    if not frappe.db.exists("UOM", "Nos"):
+        frappe.get_doc({"doctype": "UOM", "uom_name": "Nos"}).insert()
+    frappe.get_doc({
+        "doctype": "Item", "item_code": code, "item_name": f"Race {code}",
+        "item_group": "All Item Groups", "stock_uom": "Nos",
+        "is_stock_item": 1, "is_sales_item": 1,
+    }).insert(ignore_permissions=True)
+    frappe.get_doc({
+        "doctype": "Item Price", "price_list": "Standard Selling",
+        "item_code": code, "selling": 1, "price_list_rate": 100,
+        "currency": "INR",
+    }).insert(ignore_permissions=True)
+    if not frappe.db.exists("Stock Entry Type", "Material Receipt"):
+        frappe.get_doc({"doctype": "Stock Entry Type", "__newname": "Material Receipt",
+                        "purpose": "Material Receipt"}).insert(ignore_permissions=True)
+    se = frappe.get_doc({
+        "doctype": "Stock Entry", "stock_entry_type": "Material Receipt",
+        "company": company,
+        "items": [{"item_code": code, "qty": qty, "t_warehouse": warehouse,
+                   "uom": "Nos", "basic_rate": 50}],
+    }).insert(ignore_permissions=True)
+    se.submit()
+    frappe.db.commit()
+    return code
+
+
+def make_perf_items(n: int = 300) -> str:
+    """Bulk-create n items with barcodes and prices for performance testing."""
+    demo(run=True)
+    made = 0
+    for i in range(n):
+        code = f"PERF-{i:04d}"
+        if frappe.db.exists("Item", code):
+            continue
+        base12 = f"890600{i % 1000000:06d}"
+        digits = [int(d) for d in base12]
+        total = sum(d * (3 if j % 2 else 1) for j, d in enumerate(digits))
+        barcode = base12 + str((10 - total % 10) % 10)
+        frappe.get_doc({
+            "doctype": "Item", "item_code": code,
+            "item_name": f"Perf Item {i}_WIDGET-AISLE-{i % 20}",
+            "item_group": "All Item Groups", "stock_uom": "Nos",
+            "is_stock_item": 0, "is_sales_item": 1,
+            "ds_search_aliases": f"perf{i}",
+        }).insert(ignore_permissions=True)
+        frappe.get_doc({
+            "doctype": "Item Price", "price_list": "Standard Selling",
+            "item_code": code, "selling": 1, "price_list_rate": 10 + (i % 90),
+            "currency": "INR",
+        }).insert(ignore_permissions=True)
+        item_doc = frappe.get_doc("Item", code)
+        item_doc.append("barcodes", {"barcode": barcode, "barcode_type": "EAN"})
+        item_doc.save(ignore_permissions=True)
+        made += 1
+    frappe.db.commit()
+    return f"created {made} items (total perf items: {frappe.db.count('Item', {'item_code': ('like', 'PERF-%')})})"
+
+
 def make_dashboard_user() -> str:
     """Least-privilege dashboard service user with an API token pair."""
     if not frappe.db.exists("User", "dashboard@demo.store"):

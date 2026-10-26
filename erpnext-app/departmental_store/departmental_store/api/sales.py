@@ -14,6 +14,7 @@ counter sync engine can persist the exact server verdict.
 """
 
 import json
+import re
 from typing import Any
 
 import frappe
@@ -40,6 +41,10 @@ from departmental_store.departmental_store.doctype.pos_sale_sync_log.pos_sale_sy
 
 MAX_LINES = 500
 
+# QA-0003: transaction ids become document names and join the audit trail; keep
+# them to a strict charset so injection payloads are rejected before any write.
+TRANSACTION_ID_RE = re.compile(r"^[A-Za-z0-9_\-\.]{1,100}$")
+
 
 class SaleReviewError(Exception):
     """Deterministic failure that must surface as Requires Review on the counter."""
@@ -62,8 +67,9 @@ def submit_pos_sale(payload: str | dict | None = None) -> dict:
     # Everything after parsing is reported as a structured result, never raised,
     # so the counter can persist the exact server verdict.
     try:
-        _require(transaction_id and len(transaction_id) <= 100,
-                 "transaction_id is required (max 100 chars)")
+        _require(isinstance(transaction_id, str)
+                 and TRANSACTION_ID_RE.match(transaction_id),
+                 "transaction_id is required (max 100 chars; letters, digits, - _ . only)")
         _require(isinstance(data.get("lines"), list) and bool(data["lines"]),
                  "lines must be a non-empty list")
         _require(len(data["lines"]) <= MAX_LINES, f"at most {MAX_LINES} lines allowed")
@@ -83,10 +89,15 @@ def submit_pos_sale(payload: str | dict | None = None) -> dict:
 
     log = _claim_transaction(transaction_id, data, device)
     if log is None:
-        # Lost a concurrent race; the winner's result is authoritative.
+        # Either another request won the race (its result is authoritative) or the
+        # claim write failed (QA-0003: never leak a 500 — report for retry).
         existing = _existing_result(transaction_id)
-        existing["duplicate"] = True
-        return existing
+        if existing:
+            existing["duplicate"] = True
+            return existing
+        return _review_result(transaction_id, ERROR_INVOICE_POSTING_FAILED,
+                              "Could not record the transaction claim; nothing was "
+                              "posted. Retry the submission.")
 
     try:
         result = _post_sale(data, device)
@@ -187,7 +198,8 @@ def _existing_result(transaction_id: str) -> dict | None:
 
 
 def _claim_transaction(transaction_id: str, data: dict, device: dict | None):
-    """Insert the idempotency claim atomically. Returns None if another request won."""
+    """Insert the idempotency claim atomically. Returns None if another request
+    won the race OR the claim could not be recorded (logged, reported for retry)."""
     try:
         log = frappe.get_doc({
             "doctype": "POS Sale Sync Log",
@@ -206,6 +218,13 @@ def _claim_transaction(transaction_id: str, data: dict, device: dict | None):
         return log
     except frappe.DuplicateEntryError:
         frappe.db.rollback()
+        return None
+    except Exception as claim_error:  # never leak a 500 from the claim path
+        frappe.db.rollback()
+        frappe.logger("departmental_store").error({
+            "event": "pos_claim_failed", "transaction_id": transaction_id,
+            "error": str(claim_error)[:500],
+        })
         return None
 
 
@@ -346,13 +365,17 @@ def _default_warehouse(company: str) -> str | None:
 def _posting_date(occurred_at: Any) -> str:
     """Use the counter's local date for the posting date so offline bills keep their
     business day. Clock skew outside the accepted window fails to review instead of
-    silently shifting the books."""
+    silently shifting the books. Timezone-aware ISO timestamps are converted to
+    server-local naive time before comparison (QA-0002 regression: comparing an
+    offset-aware datetime with now_datetime() raised TypeError)."""
     if not occurred_at or not isinstance(occurred_at, str):
         return today()
     try:
         occurred = get_datetime(occurred_at)
     except Exception:
         return today()
+    if occurred.tzinfo is not None:
+        occurred = occurred.astimezone().replace(tzinfo=None)
     now = now_datetime()
     if occurred > add_to_date(now, minutes=10) or occurred < add_to_date(now, days=-3):
         raise SaleReviewError(

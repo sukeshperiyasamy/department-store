@@ -19,34 +19,44 @@ CUSTOM_ALIAS_FIELD = "ds_search_aliases"
 def catalog_snapshot(since: str | None = None, price_list: str | None = None,
                      include_customers: str | int | None = None) -> dict:
     """Return a catalog snapshot for POS caching. `since` = previous checkpoint for
-    incremental updates; omit for a full snapshot."""
+    incremental updates; omit for a full snapshot.
+
+    Incremental correctness: an item is re-sent when EITHER the item OR any of
+    its selling prices changed after `since` (a price-only change must reach
+    counters — QA-0001 regression). Deletions are still not detected; clients
+    full-refresh when the catalog drifts."""
     # Any authenticated POS user (cashier) may read the catalog.
     customer_flag = cint(include_customers)
 
     price_list_name, currency = _resolve_price_list(price_list)
 
-    item_filters = {"disabled": 0, "is_sales_item": 1}
     if since:
-        item_filters["modified"] = (">", since)
+        # Items changed directly, plus items whose selling prices changed.
+        changed_codes = set(frappe.get_all(
+            "Item", filters={"disabled": 0, "is_sales_item": 1,
+                             "modified": (">", since)},
+            pluck="name", limit=0))
+        priced_codes = set(frappe.get_all(
+            "Item Price",
+            filters={"price_list": price_list_name, "selling": 1,
+                     "item_code": ("in", _active_sales_item_codes()),
+                     "modified": (">", since)},
+            pluck="item_code", limit=0))
+        target_codes = sorted(changed_codes | priced_codes)
+        items = _fetch_items_by_codes(target_codes) if target_codes else []
+    else:
+        items = _fetch_items_by_codes(None)
 
-    items = frappe.get_all(
-        "Item",
-        filters=item_filters,
-        fields=[
-            "name as item_code", "item_name", "item_group", "stock_uom", "brand",
-            "description", "is_stock_item", "has_batch_no", "has_serial_no",
-            "disabled", CUSTOM_ALIAS_FIELD + " as aliases", "modified",
-        ],
-        limit=0,
-    )
     item_codes = [it.item_code for it in items]
 
     barcodes_by_item = _barcodes(item_codes)
-    prices_by_item = _prices(item_codes, price_list_name, since)
+    # Current effective prices for every re-sent item (no `since` filter here:
+    # the whole item row is upserted on the client, so it must carry the
+    # present-day price, not a historical one).
+    prices_by_item = _prices(item_codes, price_list_name, since=None)
     tax_templates = _tax_templates()
 
     out_items = []
-    max_modified = None
     for it in items:
         out_items.append({
             "item_code": it.item_code,
@@ -63,13 +73,13 @@ def catalog_snapshot(since: str | None = None, price_list: str | None = None,
             "price": prices_by_item.get(it.item_code),
             "modified": str(it.modified),
         })
-        if not max_modified or str(it.modified) > max_modified:
-            max_modified = str(it.modified)
 
     result = {
         "api_version": API_VERSION,
         "generated_at": now_datetime().isoformat(),
-        "checkpoint": max_modified or (since or ""),
+        # Checkpoint covers BOTH items and prices so no change is skipped by the
+        # next incremental pull.
+        "checkpoint": _new_checkpoint(price_list_name) or (since or ""),
         "price_list": price_list_name,
         "currency": currency,
         "items": out_items,
@@ -91,6 +101,38 @@ def catalog_snapshot(since: str | None = None, price_list: str | None = None,
         )
 
     return result
+
+
+def _active_sales_item_codes() -> list[str]:
+    return frappe.get_all("Item", filters={"disabled": 0, "is_sales_item": 1},
+                          pluck="name", limit=0)
+
+
+def _fetch_items_by_codes(codes: list[str] | None) -> list:
+    filters = {"disabled": 0, "is_sales_item": 1}
+    if codes is not None:
+        filters["name"] = ("in", codes)
+    return frappe.get_all(
+        "Item",
+        filters=filters,
+        fields=[
+            "name as item_code", "item_name", "item_group", "stock_uom", "brand",
+            "description", "is_stock_item", "has_batch_no", "has_serial_no",
+            "disabled", CUSTOM_ALIAS_FIELD + " as aliases", "modified",
+        ],
+        limit=0,
+    )
+
+
+def _new_checkpoint(price_list: str) -> str | None:
+    """Max modified across items AND selling prices of this price list."""
+    item_max = frappe.get_all("Item", filters={"disabled": 0, "is_sales_item": 1},
+                              fields=[{"MAX": "modified"}], as_list=True)
+    price_max = frappe.get_all("Item Price",
+                               filters={"price_list": price_list, "selling": 1},
+                               fields=[{"MAX": "modified"}], as_list=True)
+    candidates = [str(row[0]) for row in (item_max + price_max) if row and row[0]]
+    return max(candidates) if candidates else None
 
 
 def _resolve_price_list(requested: str | None) -> tuple[str, str | None]:

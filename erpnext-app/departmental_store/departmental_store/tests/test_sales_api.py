@@ -391,6 +391,56 @@ class TestSalePosting(SubmitPosSaleTestCase):
         self.assertEqual(result["invoice"]["change_amount"], 30.0)
 
 
+class TestTransactionIdValidation(SubmitPosSaleTestCase):
+    """QA-0003 regression: unsafe transaction ids are rejected before any write."""
+
+    def test_injection_style_id_is_rejected_without_leak(self):
+        item = make_item(self.company)
+        bad_id = "x' OR 1=1 --;<script>alert(1)</script>"
+        result = self.submit(self.payload(item, transaction_id=bad_id))
+        self.assertEqual(result["status"], "REQUIRES_REVIEW")
+        self.assertEqual(result["error"]["code"], "VALIDATION_FAILED")
+        self.assertIsNone(result["invoice"])
+        self.assertEqual(frappe.db.count("POS Sale Sync Log",
+                                         {"transaction_id": bad_id}), 0)
+
+    def test_valid_charset_ids_are_accepted(self):
+        item = make_item(self.company)
+        result = self.submit(self.payload(item, amount=20.0,
+                                          transaction_id="Abc-123_xyz.456"))
+        self.assertEqual(result["status"], "SERVER_COMMITTED")
+
+
+class TestOccurredAtHandling(SubmitPosSaleTestCase):
+    """QA-0002 regression: offset-aware occurred_at must not crash posting."""
+
+    def test_aware_iso_timestamp_posts_successfully(self):
+        item = make_item(self.company)
+        data = self.payload(item, amount=20.0,
+                            occurred_at=frappe.utils.now_datetime()
+                            .replace(tzinfo=None).isoformat() + "+00:00")
+        result = self.submit(data)
+        self.assertEqual(result["status"], "SERVER_COMMITTED")
+
+    def test_far_future_timestamp_goes_to_review(self):
+        item = make_item(self.company)
+        data = self.payload(item,
+                            occurred_at=frappe.utils.add_to_date(
+                                frappe.utils.now_datetime(), days=5).isoformat())
+        result = self.submit(data)
+        self.assertEqual(result["status"], "REQUIRES_REVIEW")
+        self.assertEqual(result["error"]["code"], "VALIDATION_FAILED")
+
+    def test_stale_timestamp_goes_to_review(self):
+        item = make_item(self.company)
+        data = self.payload(item,
+                            occurred_at=frappe.utils.add_to_date(
+                                frappe.utils.now_datetime(), days=-10).isoformat())
+        result = self.submit(data)
+        self.assertEqual(result["status"], "REQUIRES_REVIEW")
+        self.assertEqual(result["error"]["code"], "VALIDATION_FAILED")
+
+
 class TestCheckTransaction(SubmitPosSaleTestCase):
     def test_unknown_transaction(self):
         result = sales.check_transaction(str(uuid.uuid4()))

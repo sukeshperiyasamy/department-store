@@ -1,0 +1,167 @@
+{
+  "base": "http://localhost:8080",
+  "startedAt": "2026-10-26T18:05:34.547Z",
+  "tests": [
+    {
+      "id": "FIXTURES",
+      "name": "seed cashier/manager tokens and race items",
+      "status": "PASS",
+      "detail": "cashier=true raceA=RACE-ITEM-3544F9 raceB=RACE-ITEM-C75530"
+    },
+    {
+      "id": "HEALTH-01",
+      "name": "ERP responds /api/method/ping",
+      "status": "PASS",
+      "detail": "status=200 50ms"
+    },
+    {
+      "id": "AUTH-01",
+      "name": "unauthenticated sale submission is rejected",
+      "status": "PASS",
+      "detail": "status=403"
+    },
+    {
+      "id": "AUTH-02",
+      "name": "unauthenticated catalog read is rejected",
+      "status": "PASS",
+      "detail": "status=403"
+    },
+    {
+      "id": "AUTH-03",
+      "name": "invalid token is rejected",
+      "status": "PASS",
+      "detail": "status=401"
+    },
+    {
+      "id": "CONTRACT-01",
+      "name": "cashier sale posts; client rate ignored; totals from price list",
+      "status": "PASS",
+      "detail": "grand_total=132"
+    },
+    {
+      "id": "RECOVERY-01",
+      "name": "check_transaction returns recorded verdict",
+      "status": "PASS",
+      "detail": "status=SERVER_COMMITTED"
+    },
+    {
+      "id": "CATALOG-01",
+      "name": "snapshot schema + content (330 items)",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "id": "IDEMP-01",
+      "name": "HTTP duplicate submission returns same invoice, never duplicates",
+      "status": "PASS",
+      "detail": "invoice=ACC-SINV-2026-00089 duplicate=true"
+    },
+    {
+      "id": "ERR-01",
+      "name": "error path: missing transaction_id",
+      "status": "PASS",
+      "detail": "http=200 status=REQUIRES_REVIEW code=VALIDATION_FAILED"
+    },
+    {
+      "id": "ERR-02",
+      "name": "error path: unsupported api_version",
+      "status": "PASS",
+      "detail": "http=200 status=REQUIRES_REVIEW code=VALIDATION_FAILED"
+    },
+    {
+      "id": "ERR-03",
+      "name": "error path: zero quantity",
+      "status": "PASS",
+      "detail": "http=200 status=REQUIRES_REVIEW code=VALIDATION_FAILED"
+    },
+    {
+      "id": "ERR-04",
+      "name": "error path: unknown item",
+      "status": "PASS",
+      "detail": "http=200 status=REQUIRES_REVIEW code=ITEM_NOT_FOUND"
+    },
+    {
+      "id": "ERR-05",
+      "name": "error path: unknown device",
+      "status": "PASS",
+      "detail": "http=200 status=REQUIRES_REVIEW code=DEVICE_UNKNOWN"
+    },
+    {
+      "id": "ERR-06",
+      "name": "error path: payment shortfall",
+      "status": "PASS",
+      "detail": "http=200 status=REQUIRES_REVIEW code=PAYMENT_SHORTFALL"
+    },
+    {
+      "id": "SEC-01",
+      "name": "SQL/XSS payload rejected safely (strict id charset), no stack leak",
+      "status": "PASS",
+      "detail": "code=VALIDATION_FAILED"
+    },
+    {
+      "id": "SEC-02",
+      "name": "cashier cannot register devices (server-side denial)",
+      "status": "PASS",
+      "detail": "status=403"
+    },
+    {
+      "id": "SEC-03",
+      "name": "cashier cannot read owner reports",
+      "status": "PASS",
+      "detail": "status=403"
+    },
+    {
+      "id": "SEC-04",
+      "name": "manager token reads owner reports",
+      "status": "PASS",
+      "detail": "status=200"
+    },
+    {
+      "id": "STOCK-01",
+      "name": "oversell after stock exhausted is blocked with review",
+      "status": "PASS",
+      "detail": "full=SERVER_COMMITTED over=REQUIRES_REVIEW code=VALIDATION_FAILED msg=<strong>1.0</strong> units of <a href=\"/desk/item/RACE-ITEM-3544F9\" style=\"font-weight: bo"
+    },
+    {
+      "id": "RACE-01",
+      "name": "3 concurrent submits for 1 unit: no duplicates, conflicts surfaced",
+      "status": "PASS",
+      "detail": "committed=1 review=2 statuses=REQUIRES_REVIEW,REQUIRES_REVIEW,SERVER_COMMITTED"
+    },
+    {
+      "id": "PERF-01",
+      "name": "full catalog snapshot (305 items) p50=31ms p95=33ms (n=15)",
+      "status": "PASS",
+      "detail": "provisional target: p95 < 2000ms on dev container"
+    },
+    {
+      "id": "PERF-02",
+      "name": "incremental snapshot after 1 price change: p50=16ms, items=1",
+      "status": "PASS",
+      "detail": "incremental must return ~1 item (QA-0001 fix)"
+    },
+    {
+      "id": "PERF-03",
+      "name": "sale submission (stock item, full ERP posting) p50=114ms p95=117ms (n=5)",
+      "status": "PASS",
+      "detail": "provisional target: p95 < 3000ms on dev container"
+    }
+  ],
+  "perf": {
+    "catalog_full_ms_p50": "31",
+    "catalog_full_ms_p95": "33",
+    "catalog_full_samples": 15,
+    "catalog_full_items": 305,
+    "catalog_incremental_ms_p50": "16",
+    "catalog_incremental_items": 1,
+    "sale_submit_ms_p50": "114",
+    "sale_submit_ms_p95": "117",
+    "sale_submit_n": 5
+  },
+  "finishedAt": "2026-10-26T18:05:40.862Z",
+  "summary": {
+    "pass": 24,
+    "fail": 0,
+    "blocked": 0
+  }
+}
