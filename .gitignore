@@ -29,3 +29,6 @@ coverage/
 tok.tmp
 tok.env
 *.token
+
+# local-only credentials document (never commit)
+docs/local-demo-credentials.md
