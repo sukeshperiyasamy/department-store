@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { usePos } from "./store";
+import { usePos, useServices } from "./store";
 import { formatMoney, fromMajorUnits, serverAmountToMoney } from "../domain/money";
 import { displayTotals } from "../domain/cart";
 
@@ -14,7 +14,8 @@ interface PaymentRow {
  * sale + outbox event atomically in SQLite before any UI success is shown.
  */
 export function PaymentScreen({ onClose }: { onClose: () => void }) {
-  const { state, dispatch, services } = usePos();
+  const { state, dispatch } = usePos();
+  const services = useServices();
   const [rows, setRows] = useState<PaymentRow[]>([
     { mode_of_payment: "Cash", amount: "", reference_no: "" },
   ]);

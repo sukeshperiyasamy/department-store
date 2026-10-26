@@ -109,11 +109,19 @@ export interface PosServices {
 export const PosContext = createContext<{
   state: PosState;
   dispatch: React.Dispatch<PosAction>;
-  services: PosServices;
+  /** Null until the cashier completes login (services are created there). */
+  services: PosServices | null;
 } | null>(null);
 
 export function usePos() {
   const ctx = useContext(PosContext);
   if (!ctx) throw new Error("usePos must be used within PosContext");
   return ctx;
+}
+
+/** For screens that require wired services (rendered only inside the shell). */
+export function useServices(): PosServices {
+  const { services } = usePos();
+  if (!services) throw new Error("services not ready");
+  return services;
 }

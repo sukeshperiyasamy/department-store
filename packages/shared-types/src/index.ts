@@ -259,6 +259,47 @@ export const ServerStatusSchema = z.object({
 });
 export type ServerStatus = z.infer<typeof ServerStatusSchema>;
 
+export const StockAlertRowSchema = z.object({
+  item_code: z.string(),
+  warehouse: z.string(),
+  actual_qty: z.number(),
+  reserved_qty: z.number(),
+  reorder_level: z.number(),
+  reorder_qty: z.number(),
+});
+
+export const StockAlertsSchema = z.object({
+  api_version: API_VERSION_SCHEMA,
+  generated_at: z.string(),
+  days_to_expiry: z.number().int(),
+  out_of_stock: z.array(StockAlertRowSchema).default([]),
+  low_stock: z.array(StockAlertRowSchema).default([]),
+  expiring: z
+    .array(
+      z.object({
+        batch_id: z.string(),
+        item_code: z.string(),
+        expiry_date: z.string(),
+        batch_qty: z.number(),
+      }),
+    )
+    .default([]),
+});
+export type StockAlerts = z.infer<typeof StockAlertsSchema>;
+
+export const ERPNextInvoiceSchema = z.object({
+  name: z.string(),
+  customer: z.string().nullable().optional(),
+  posting_date: z.string(),
+  posting_time: z.string().nullable().optional(),
+  grand_total: z.number(),
+  base_grand_total: z.number(),
+  status: z.string(),
+  is_return: z.number().int().optional(),
+  owner: z.string().nullable().optional(),
+});
+export type ERPNextInvoice = z.infer<typeof ERPNextInvoiceSchema>;
+
 /** Client-side transaction states (counter SQLite). Superset of server verdicts:
  * a sale is SERVER_COMMITTED only after the server confirms it. */
 export const TransactionState = {

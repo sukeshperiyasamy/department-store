@@ -10,10 +10,15 @@
 import "server-only";
 import { cookies } from "next/headers";
 import {
+  API_VERSION_SCHEMA,
+  CatalogSnapshotSchema,
   OwnerSummarySchema,
   ServerStatusSchema,
+  StockAlertsSchema,
+  type CatalogSnapshot,
   type OwnerSummary,
   type ServerStatus,
+  type StockAlerts,
 } from "@departmental/shared-types";
 import { z, type ZodType, type ZodTypeDef } from "zod";
 
@@ -122,6 +127,50 @@ export async function fetchOwnerSummary(businessDate?: string): Promise<OwnerSum
 
 export async function fetchServerStatus(): Promise<ServerStatus> {
   return callFrappe("departmental_store.api.reports.server_status", {}, ServerStatusSchema);
+}
+
+export async function fetchStockAlerts(daysToExpiry?: number): Promise<StockAlerts> {
+  return callFrappe(
+    "departmental_store.api.reports.stock_alerts",
+    daysToExpiry ? { days_to_expiry: daysToExpiry } : {},
+    StockAlertsSchema,
+  );
+}
+
+export async function fetchCatalogSnapshot(): Promise<CatalogSnapshot> {
+  return callFrappe(
+    "departmental_store.api.catalog.catalog_snapshot",
+    { include_customers: 0 },
+    CatalogSnapshotSchema,
+  );
+}
+
+/** Recent submitted invoices via the app's whitelisted reporting method
+ * (raw ERPNext REST returned 403 for the reporting service user). */
+const InvoiceSchema = z.object({
+  name: z.string(),
+  customer: z.string().nullable().optional(),
+  posting_date: z.string(),
+  posting_time: z.string().nullable().optional(),
+  status: z.string(),
+  base_grand_total: z.number(),
+  is_return: z.number().optional(),
+  owner: z.string().nullable().optional(),
+});
+const RecentInvoicesSchema = z.object({
+  api_version: API_VERSION_SCHEMA,
+  generated_at: z.string(),
+  invoices: z.array(InvoiceSchema),
+});
+export type InvoiceRow = z.infer<typeof InvoiceSchema>;
+
+export async function fetchRecentInvoices(limit = 25): Promise<InvoiceRow[]> {
+  const result = await callFrappe(
+    "departmental_store.api.reports.recent_invoices",
+    { limit },
+    RecentInvoicesSchema,
+  );
+  return result.invoices;
 }
 
 export const zod = z;

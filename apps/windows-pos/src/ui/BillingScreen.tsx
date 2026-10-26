@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { usePos } from "./store";
+import { usePos, useServices } from "./store";
 import type { CatalogItem } from "@departmental/shared-types";
 import { addItem, displayTotals, removeLine, setQty } from "../domain/cart";
 import { formatMoney, serverAmountToMoney } from "../domain/money";
@@ -9,7 +9,8 @@ import { formatMoney, serverAmountToMoney } from "../domain/money";
  * Shortcuts: F2 checkout, F4 focus search, F8 remove last line, Esc clear search.
  */
 export function BillingScreen({ onCheckout }: { onCheckout: () => void }) {
-  const { state, dispatch, services } = usePos();
+  const { state, dispatch } = usePos();
+  const services = useServices();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<CatalogItem[]>([]);
   const [error, setError] = useState<string | null>(null);

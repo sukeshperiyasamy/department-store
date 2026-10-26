@@ -5,7 +5,7 @@ Aggregates are read-only queries over submitted (docstatus=1) documents.
 """
 
 import frappe
-from frappe.utils import flt, now_datetime, today
+from frappe.utils import cint, flt, now_datetime, today
 
 from departmental_store.hooks import API_VERSION
 
@@ -97,6 +97,115 @@ def _cashier_split(sales: list) -> list[dict]:
         entry["bills"] += 1
         entry["gross_sales"] = flt(entry["gross_sales"] + flt(inv.base_grand_total))
     return sorted(by_user.values(), key=lambda e: -e["gross_sales"])
+
+
+@frappe.whitelist()
+def recent_invoices(limit: int = 25) -> dict:
+    """Recent submitted bills for the dashboard (standard REST /api/resource
+    returned 403 for the reporting service user, so this read-only whitelisted
+    method serves the same data under explicit manager permission checks)."""
+    frappe.only_for(SUMMARY_ROLES)
+    limit = max(1, min(cint(limit), 100))
+    rows = frappe.get_all(
+        "Sales Invoice",
+        filters={"docstatus": 1},
+        fields=["name", "customer", "posting_date", "posting_time", "status",
+                "base_grand_total", "is_return", "owner"],
+        order_by="posting_date desc, posting_time desc, creation desc",
+        limit=limit,
+    )
+    for r in rows:
+        r.posting_time = str(r.posting_time)
+    return {
+        "api_version": API_VERSION,
+        "generated_at": now_datetime().isoformat(),
+        "invoices": rows,
+    }
+
+
+@frappe.whitelist()
+def stock_alerts(days_to_expiry: int = 30, limit: int = 200) -> dict:
+    """Inventory alerts for the dashboard: out-of-stock / below-reorder items and
+    batches nearing expiry. Read-only; manager/accountant roles only.
+
+    Definitions:
+    - out_of_stock: sellable stock item with Bin actual_qty <= 0.
+    - low_stock: Item Reorder row (reorder_level > 0) whose Bin actual_qty is at
+      or below the reorder level.
+    - expiring: non-expired Batch with expiry_date within `days_to_expiry` and
+      batch_qty > 0.
+    """
+    frappe.only_for(SUMMARY_ROLES)
+
+    limit = max(1, min(cint(limit), 500))
+    days_to_expiry = max(1, min(cint(days_to_expiry), 365))
+
+    bins = frappe.get_all(
+        "Bin",
+        fields=["item_code", "warehouse", "actual_qty", "reserved_qty", "stock_uom"],
+        limit=0)
+    sellable = set(frappe.get_all(
+        "Item", filters={"disabled": 0, "is_sales_item": 1, "is_stock_item": 1},
+        pluck="name", limit=0))
+
+    out_of_stock = []
+    for b in bins:
+        if b.item_code in sellable and flt(b.actual_qty) <= 0:
+            out_of_stock.append(_bin_row(b))
+    out_of_stock.sort(key=lambda r: r["item_code"])
+    out_of_stock = out_of_stock[:limit]
+
+    # Reorder levels live in the Item Reorder child table (v15+), keyed by
+    # (parent item, warehouse).
+    reorders = frappe.get_all(
+        "Item Reorder",
+        filters={"warehouse_reorder_level": (">", 0)},
+        fields=["parent as item_code", "warehouse", "warehouse_reorder_level as reorder_level",
+                "warehouse_reorder_qty as reorder_qty"],
+        limit=0)
+    bin_qty = {(b.item_code, b.warehouse): flt(b.actual_qty) for b in bins}
+    low_stock = []
+    for r in reorders:
+        if r.item_code not in sellable:
+            continue
+        actual = bin_qty.get((r.item_code, r.warehouse))
+        if actual is not None and actual <= flt(r.reorder_level):
+            low_stock.append({
+                "item_code": r.item_code, "warehouse": r.warehouse,
+                "actual_qty": actual, "reserved_qty": 0.0,
+                "reorder_level": flt(r.reorder_level),
+                "reorder_qty": flt(r.reorder_qty),
+            })
+    low_stock.sort(key=lambda x: x["actual_qty"] - x["reorder_level"])
+    low_stock = low_stock[:limit]
+
+    # NULL expiry_date rows are excluded automatically by the `<` comparison.
+    expiring = frappe.get_all(
+        "Batch",
+        filters=[["expiry_date", "<", frappe.utils.add_days(None, days_to_expiry)],
+                 ["batch_qty", ">", 0]],
+        fields=["name as batch_id", "item as item_code", "expiry_date", "batch_qty"],
+        order_by="expiry_date asc", limit=limit)
+
+    return {
+        "api_version": API_VERSION,
+        "generated_at": now_datetime().isoformat(),
+        "days_to_expiry": days_to_expiry,
+        "out_of_stock": out_of_stock,
+        "low_stock": low_stock,
+        "expiring": [{
+            "batch_id": b.batch_id, "item_code": b.item_code,
+            "expiry_date": str(b.expiry_date), "batch_qty": flt(b.batch_qty),
+        } for b in expiring],
+    }
+
+
+def _bin_row(b) -> dict:
+    return {
+        "item_code": b.item_code, "warehouse": b.warehouse,
+        "actual_qty": flt(b.actual_qty), "reserved_qty": flt(b.reserved_qty),
+        "reorder_level": flt(b.reorder_level), "reorder_qty": flt(b.reorder_qty),
+    }
 
 
 @frappe.whitelist()

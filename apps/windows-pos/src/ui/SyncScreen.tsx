@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { usePos } from "./store";
+import { usePos, useServices } from "./store";
 import { formatMoney } from "../domain/money";
 import type { SyncRecord } from "@departmental/shared-types";
 import { describeRecordState } from "../domain/outbox";
@@ -7,7 +7,8 @@ import type { ReceiptData } from "../domain/receipt";
 
 /** Transaction queue view: nothing is ever hidden — pending, failed and review states. */
 export function SyncScreen() {
-  const { state, dispatch, services } = usePos();
+  const { state, dispatch } = usePos();
+  const services = useServices();
 
   useEffect(() => {
     const load = async () => {
@@ -116,7 +117,8 @@ export function SyncScreen() {
 }
 
 export function SyncBadge() {
-  const { state, dispatch, services } = usePos();
+  const { state, dispatch } = usePos();
+  const services = useServices();
   const pending = (state.counts["PENDING_SYNC"] ?? 0) + (state.counts["SYNC_FAILED"] ?? 0);
   const review = state.counts["REQUIRES_REVIEW"] ?? 0;
 

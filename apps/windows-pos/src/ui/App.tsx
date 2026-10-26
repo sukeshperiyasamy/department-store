@@ -14,7 +14,7 @@ export function App() {
   const [services, setServices] = useState<AppServices | null>(null);
 
   return (
-    <PosContext.Provider value={services ? { state, dispatch, services } : null}>
+    <PosContext.Provider value={{ state, dispatch, services }}>
       {state.screen === "login" ? (
         <LoginScreen onReady={setServices} />
       ) : (
@@ -24,7 +24,7 @@ export function App() {
   );
 }
 
-function Shell({ state }: { state: PosState }) {
+export function Shell({ state }: { state: PosState }) {
   const { dispatch, services } = usePos();
   const [payOpen, setPayOpen] = useState(false);
 
@@ -152,6 +152,7 @@ function LoginScreen({ onReady }: { onReady: (s: AppServices) => void }) {
         }}
       >
         <h1>Department Store POS</h1>
+        <p className="lead">Sign in with your ERP account. Billing works offline; bills sync automatically.</p>
         <label>
           Server
           <input value={serverUrl} onChange={(e) => setServerUrl(e.target.value)} />
