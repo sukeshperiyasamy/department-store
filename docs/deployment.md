@@ -107,3 +107,17 @@ scheduler container + cron; encrypt and copy offsite (rclone to a private
 bucket). Counter SQLite: copy `AppData` database file while the app is closed
 (WAL mode); or add filesystem snapshots. **Restore must be rehearsed
 quarterly** — see docs/backup-and-restore.md runbook.
+
+## Code-intelligence tooling (Graphify)
+
+```bash
+python -m pip install graphifyy        # CLI lands in Python Scripts/ (add to PATH)
+graphify install                       # skill config for AI platforms
+graphify . --code-only                 # rebuild graphify-out/ (local AST, no API key)
+graphify update .                      # refresh after code changes
+graphify path "A" "B" / explain "X"    # query nodes/edges
+```
+
+Artifacts (`graphify-out/`: GRAPH_REPORT.md, graph.json, graph.html) are gitignored.
+Verify `built_at_commit` matches HEAD before trusting the map. Full LLM/doc mode is
+intentionally unconfigured — do not add an API key.

@@ -110,6 +110,38 @@ A departmental-store ERP for a single store with 2–3 Windows POS counters:
 7. **India Compliance** enforces HSN (6/8 digits, must exist in GST HSN Code doctype) on every new sellable
    item — seeds include it; keep it that way.
 
+## 7b. Code intelligence — Graphify (installed 2026-10-27)
+
+`graphifyy 0.9.96` (Apache-2.0, pip) builds a queryable knowledge graph of the repo.
+CLI lives in the Python `Scripts/` dir (add it to PATH: `%USERPROFILE%/AppData/Local/Python/pythoncore-3.14-64/Scripts`).
+
+**Setup/refresh (verified commands)**:
+```bash
+graphify install            # copies the /graphify skill into platform config dirs
+graphify . --code-only      # rebuild graph from local AST — NO API key needed
+graphify update .           # incremental refresh after code changes (zero API cost)
+```
+
+**Artifacts (gitignored)**: `graphify-out/GRAPH_REPORT.md` (human report), `graph.json`
+(1005 nodes / 1951 links / 76 communities, relations: contains/calls/imports/imports_from/
+method/references), `graph.html`, `manifest.json`, `cache/`. The graph records
+`built_at_commit` — compare against `git rev-parse HEAD` before trusting it; stale means
+run `graphify update .` first.
+
+**Key findings (from commit a83d9494)**:
+- God nodes: `PosStore` (33 edges), `SyncRecord` (27), `make_item()` (25, test fixture hub),
+  `FrappeClient` (24), `CatalogItem` (19), `AppServices` (18), `SaleReviewError`/`SaleResponse` (17).
+- Relation mix: 649 contains · 480 calls · 260 imports · 203 imports_from · 150 method · 79 references.
+- Surprise: `tests/integration/multi_counter.ts` **directly instantiates `FrappeClient` and
+  `PosStore`** — behavioral changes to those classes ripple into the integration suite.
+- Full LLM/doc-image semantic mode is intentionally NOT configured (requires GEMINI/OPENAI/
+  ANTHROPIC API key). Do not add a key; `--code-only` is sufficient for code navigation.
+
+**How future agents should use it**: before grepping or reading many files for
+architecture/refactor/bug questions, query `graphify-out/graph.json` first (directly, or via
+`graphify path "A" "B"` / `graphify explain "X"`), locate exact files + call/import edges, then
+read only those files. Grep only for strings the graph misses (SQL literals, config values).
+
 ## 8. Next steps, priority order
 
 1. **Run `regional_catalog.seed`** (code done, 160 products) — blocked only by the apps.txt churn; self-heal
