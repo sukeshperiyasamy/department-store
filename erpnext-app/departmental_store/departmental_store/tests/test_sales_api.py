@@ -195,6 +195,11 @@ def make_pos_opening_entry(company: str, pos_profile: str, mop: str) -> str:
     })
     if existing:
         return existing
+    # ERPNext allows one open shift per user: close any other open entry.
+    for row in frappe.get_all("POS Opening Entry",
+                              filters={"user": frappe.session.user, "status": "Open"},
+                              pluck="name"):
+        frappe.get_doc("POS Opening Entry", row).cancel()
     doc = frappe.get_doc({
         "doctype": "POS Opening Entry",
         "company": company,
