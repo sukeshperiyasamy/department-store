@@ -1,0 +1,22 @@
+{
+  "name": "department-store",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Departmental store ERP: Windows POS (Tauri+React), owner dashboard (Next.js), shared API contracts",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "npm run test --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test:pos": "npm run test --workspace @departmental/windows-pos",
+    "test:dashboard": "npm run test --workspace @departmental/owner-dashboard",
+    "dev:pos": "npm run dev --workspace @departmental/windows-pos",
+    "dev:dashboard": "npm run dev --workspace @departmental/owner-dashboard"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
