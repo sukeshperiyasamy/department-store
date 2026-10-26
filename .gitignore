@@ -24,3 +24,8 @@ vite dist already covered; node artifacts
 
 # coverage output (keep docs/testing/artifacts summary only)
 coverage/
+
+# transient credential files
+tok.tmp
+tok.env
+*.token
