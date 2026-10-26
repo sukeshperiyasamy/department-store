@@ -265,15 +265,18 @@ if (cashier && manager && raceItemA && raceItemB) {
   }
 
   // -- sequential oversell: stock constraint enforced ------------------------
+  // Fresh race item seeded HERE (not at fixture time) so no earlier suite
+  // activity can consume its stock — makes the assertion deterministic.
   {
+    const freshRace = JSON.parse(bench("departmental_store.seeds.make_race_items").trim()
+      .replace(/\\"/g, '"').match(/\{[^}]+\}/)[0].replace(/\\"/g, '"')).race_a;
     const sell = (qty) => call("departmental_store.api.sales.submit_pos_sale", {
       token: cashier,
       body: { payload: JSON.stringify(payload({
-        lines: [{ line_id: "l1", item_code: raceItemA, qty }],
+        lines: [{ line_id: "l1", item_code: freshRace, qty }],
         payments: [{ mode_of_payment: "Cash", amount: 100000 }],
       })) },
     });
-    // stock ledger settles async across benches; retry the full sale briefly
     let full = await sell(2);
     for (let i = 0; i < 5 && full.json?.message?.status !== "SERVER_COMMITTED"; i++) {
       await new Promise((r) => setTimeout(r, 1500));

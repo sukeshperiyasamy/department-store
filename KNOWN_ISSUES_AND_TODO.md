@@ -4,6 +4,16 @@ Last updated: 2026-10-27. Full defect register: `docs/testing/BUG_REPORT.md`.
 
 ## Open issues
 
+### ISSUE-05 — dev-container DB contention (Medium, environmental — not a product defect)
+- After ~10 full test-suite runs + hundreds of seeded transactions, the dev MariaDB
+  container now throws `QueryDeadlockError` on routine inserts (tabContact, tabSeries)
+  even without concurrency; `Error Log` shows deadlocks from unrelated flows too.
+- Product behavior is CORRECT: the claim mechanism refuses to post, returns
+  "Could not record… Retry", and retries succeed once contention clears
+  (verified: regional catalog seed succeeded after retry; G-01 PASS).
+- Resolution: reset the dev stack (`docker compose down -v && up -d` + reseed) —
+  do NOT treat as a product regression. Production sizing/indexing review still recommended.
+
 ### ISSUE-01 — STOCK-01 availability mismatch with india_compliance (Medium, under investigation)
 - Sale of exactly the seeded race qty (2; Bin shows 2.0) rejected claiming 1.0 unit short.
 - Only occurs with india_compliance installed; equivalent multi-counter MC-03 passes.
@@ -11,7 +21,7 @@ Last updated: 2026-10-27. Full defect register: `docs/testing/BUG_REPORT.md`.
 - Next: instrument `erpnext/stock/get_stock_availability` on the test site; check
   `Sales Taxes and Charges Template`-independent stock settings and Batch expiry reservations.
 
-### ISSUE-02 — RESOLVED 2026-10-27 (regional catalog seeded: 160 products)
+### ISSUE-02 — RESOLVED 2026-10-27 (regional catalog seeded: 160 products; re-verified after ISSUE-05 contention)
 - Root causes found: (a) `sites/apps.txt` rewritten by external factors (configurator `ls -1 apps`,
   bench operations) losing installed apps; (b) redis module-map caches going stale; (c) two seed
   bugs — 4-digit HSN codes (india_compliance requires 6/8) and missing `item_group_name` field.

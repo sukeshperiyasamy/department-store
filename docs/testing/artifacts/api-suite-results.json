@@ -1,18 +1,18 @@
 {
   "base": "http://localhost:8080",
-  "startedAt": "2026-10-26T21:52:29.248Z",
+  "startedAt": "2026-10-26T22:05:12.885Z",
   "tests": [
     {
       "id": "FIXTURES",
       "name": "seed cashier/manager tokens and race items",
       "status": "PASS",
-      "detail": "cashier=true raceA=RACE-ITEM-91579C raceB=RACE-ITEM-D47A90"
+      "detail": "cashier=true raceA=RACE-ITEM-68AC4E raceB=RACE-ITEM-64B6D6"
     },
     {
       "id": "HEALTH-01",
       "name": "ERP responds /api/method/ping",
       "status": "PASS",
-      "detail": "status=200 47ms"
+      "detail": "status=200 41ms"
     },
     {
       "id": "AUTH-01",
@@ -46,7 +46,7 @@
     },
     {
       "id": "CATALOG-01",
-      "name": "snapshot schema + content (538 items)",
+      "name": "snapshot schema + content (544 items)",
       "status": "PASS",
       "detail": ""
     },
@@ -130,13 +130,13 @@
     },
     {
       "id": "PERF-01",
-      "name": "full catalog snapshot (305 items) p50=40ms p95=45ms (n=15)",
+      "name": "full catalog snapshot (305 items) p50=31ms p95=42ms (n=15)",
       "status": "PASS",
       "detail": "provisional target: p95 < 2000ms on dev container"
     },
     {
       "id": "PERF-02",
-      "name": "incremental snapshot after 1 price change: p50=29ms, items=1",
+      "name": "incremental snapshot after 1 price change: p50=16ms, items=3",
       "status": "PASS",
       "detail": "incremental must return ~1 item (QA-0001 fix)"
     },
@@ -148,15 +148,15 @@
     }
   ],
   "perf": {
-    "catalog_full_ms_p50": "40",
-    "catalog_full_ms_p95": "45",
+    "catalog_full_ms_p50": "31",
+    "catalog_full_ms_p95": "42",
     "catalog_full_samples": 15,
     "catalog_full_items": 305,
-    "catalog_incremental_ms_p50": "29",
-    "catalog_incremental_items": 1,
+    "catalog_incremental_ms_p50": "16",
+    "catalog_incremental_items": 3,
     "sale_submit_n": 0
   },
-  "finishedAt": "2026-10-26T21:52:42.718Z",
+  "finishedAt": "2026-10-26T22:05:26.457Z",
   "summary": {
     "pass": 17,
     "fail": 7,
