@@ -16,24 +16,23 @@ Completion is calculated against the 84 granular features cataloged in [`docs/au
 
 | Primary Status | Feature Count | Percentage of Scope | Description / Criteria |
 | :--- | :---: | :---: | :--- |
-| **`COMPLETE_VERIFIED`** | **70** | **83.3%** | Implementation, expected workflow, authorization, persistence, integration, and relevant tests all pass with empirical evidence. |
+| **`COMPLETE_VERIFIED`** | **71** | **84.5%** | Implementation, expected workflow, authorization, persistence, integration, and relevant tests all pass with empirical evidence. |
 | **`BLOCKED_EXTERNAL`** | **9** | **10.7%** | Code is complete and unit-tested, but validation is strictly blocked by missing physical hardware, live merchant KYC, statutory accountant sign-off, or external cloud infrastructure. |
 | **`IMPLEMENTED_UNVERIFIED`** | **3** | **3.6%** | Software implementation complete; unexercised on physical store terminal PC or mobile simulator. |
-| **`BACKEND_ONLY`** | **1** | **1.2%** | Backend/database implementation complete and unit-tested; user-facing visual UI screen is absent (`POS-13`). |
+| **`BACKEND_ONLY`** | **0** | **0.0%** | All backend capabilities now possess corresponding user-facing UI screens. |
 | **`MISSING`** | **1** | **1.2%** | Speculative feature documented as an idea, but has zero client or server implementation (`POS-16`). |
 | **`PARTIAL`** | **0** | **0.0%** | Zero partially implemented features. |
 | **`UI_ONLY`** | **0** | **0.0%** | Zero mock-only or disconnected UI screens. |
-| **`BROKEN`** | **0** | **0.0%** | Zero confirmed broken features (1 identified caching defect was remediated and verified in commit `d09db02`). |
+| **`BROKEN`** | **0** | **0.0%** | Zero confirmed broken features (all defects remediated and verified). |
 | **`NOT_APPLICABLE`** | **0** | **0.0%** | All 84 tracked features belong to the approved product scope. |
 | **TOTAL** | **84** | **100.0%** | **Denominator = 84 Independently Testable Capabilities** |
 
 ```
 Feature Status Breakdown (Total: 84)
 ========================================================================================
-[███████████████████████████████████████████████████████████░░░░░░░░░░░░░░░░] 83.3% COMPLETE_VERIFIED (70)
+[████████████████████████████████████████████████████████████░░░░░░░░░░░░░░░] 84.5% COMPLETE_VERIFIED (71)
 [████████] 10.7% BLOCKED_EXTERNAL (9)
 [██] 3.6% IMPLEMENTED_UNVERIFIED (3)
-[█] 1.2% BACKEND_ONLY (1)
 [█] 1.2% MISSING (1)
 ```
 
@@ -62,9 +61,11 @@ Feature Status Breakdown (Total: 84)
 ### C. Defect & Severity Register
 - **Critical Defects:** **0**
 - **High Defects:** **0**
-- **Medium Defects:** **1** (`POS-13`: Cashier Shift Management visual UI modal missing in POS).
+- **Medium Defects:** **0**
 - **Low Defects:** **0**
-- **Resolved Defects During Audit:** **1** (Domain-scoped Redis cache invalidation on custom domain deletion resolved in commit `d09db02`).
+- **Resolved Defects During Audit:** **2**
+  1. DEF-01: Domain-scoped Redis cache invalidation on custom domain deletion (resolved in commit `d09db02`).
+  2. DEF-02: Cashier Shift Management visual UI modal & SQLite state tracking (resolved in commit `4bd25f4`).
 
 ---
 
@@ -97,7 +98,7 @@ Each feature is evaluated across the 9 required dimensions:
 | **POS-10** | Customer Returns & Reversal Screen| F | C | C | D | E | W | U, Int | Unv | C | **`IMPLEMENTED_UNVERIFIED`** |
 | **POS-11** | ESC/POS Thermal Receipt Spooler | F | C | C | D | E | W | U | Blk | C | **`BLOCKED_EXTERNAL`** |
 | **POS-12** | ZPL / TSPL Shelf Label Generator | F | C | C | N | E | W | U | Blk | C | **`BLOCKED_EXTERNAL`** |
-| **POS-13** | Cashier Shift Management | F | A | C | D | E | I | U | Unv | C | **`BACKEND_ONLY`** |
+| **POS-13** | Cashier Shift Management | F | C | C | D | E | W | U, Int | V | C | **`COMPLETE_VERIFIED`** |
 | **POS-14** | Device Token Auth & Session Header| F | C | C | D | E | W | U, Int | V | C | **`COMPLETE_VERIFIED`** |
 | **POS-15** | Native Windows x64 Desktop Shell | F | C | C | D | E | W | Int | Unv | C | **`IMPLEMENTED_UNVERIFIED`** |
 | **POS-16** | Tamil Voice Assistant & Camera OCR| N | A | A | N | N | A | N | N | P | **`MISSING`** |

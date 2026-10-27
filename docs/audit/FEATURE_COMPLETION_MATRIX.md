@@ -29,14 +29,14 @@ Every feature in this inventory is evaluated against actual code, execution test
 
 | Subsystem | Tracked Features | Fully Working (1) | Blocked by External Dep (8) | Complete, Unvalidated in Real Env (9) | Backend-Only No UI (4) | Missing Entirely (7) |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **1. Windows POS Billing Counter** | 16 | 10 | 2 | 2 | 1 | 1 |
+| **1. Windows POS Billing Counter** | 16 | 11 | 2 | 2 | 0 | 1 |
 | **2. Central ERPNext Backend** | 16 | 14 | 2 | 0 | 0 | 0 |
 | **3. Multi-Tenant SaaS Control Plane** | 11 | 10 | 1 | 0 | 0 | 0 |
 | **4. Owner Dashboard & Web Apps** | 14 | 14 | 0 | 0 | 0 | 0 |
 | **5. SaaS Subscription Billing** | 11 | 10 | 1 | 0 | 0 | 0 |
 | **6. Mobile Companion App** | 7 | 5 | 1 | 1 | 0 | 0 |
 | **7. Backup, DR & Operations** | 9 | 7 | 2 | 0 | 0 | 0 |
-| **TOTAL** | **84** | **70** | **9** | **3** | **1** | **1** |
+| **TOTAL** | **84** | **71** | **9** | **3** | **0** | **1** |
 
 ---
 
@@ -299,20 +299,20 @@ Every feature in this inventory is evaluated against actual code, execution test
 | **Feature ID** | **POS-13** |
 | **Application / Module** | Windows POS / Shift Operations |
 | **Feature / Sub-Feature** | Cashier Shift Open, Float Entry & Shift Close |
-| **User-Facing Entry Point** | None (Visual UI screen missing) |
-| **Backend Entry Point** | `repos.ts` (`openShift`, `closeShift`, `getShift`) |
+| **User-Facing Entry Point** | `ShiftModal.tsx` / `App.tsx` (F3 shortcut & Shift button) |
+| **Backend Entry Point** | `repos.ts` (`openShift`, `closeShift`, `getCurrentShift`) |
 | **API / Event Contract** | `openShift(db, shift)` / `closeShift(db, shift_id, counted_minor)` |
 | **Database / Storage** | SQLite: `shifts` table |
 | **Authorization** | Cashier |
 | **External Dependencies** | None |
 | **Expected Behavior** | Records opening float amount, aggregates cash sales during shift, records physical cash count, computes over/short variance. |
-| **Relevant Source Files** | `apps/windows-pos/src/local/repos.ts`, `apps/windows-pos/src/local/schema.ts` |
-| **Existing Tests** | `apps/windows-pos/src/local/repos.test.ts` |
-| **Actual Test Evidence** | SQLite methods are fully unit tested and pass in `repos.test.ts`. |
-| **Current Status** | **4. Backend-only with no usable UI or workflow** |
-| **Identified Defects** | SQLite schema and repository methods exist, but no visual modal or screen exists in `apps/windows-pos/src/ui/`. |
-| **Required Remediation** | Build `ShiftModal.tsx` in POS UI connecting to `openShift` and `closeShift` repository methods. |
-| **Verification Evidence** | `repos.test.ts` passes; UI absence confirmed by directory inspection. |
+| **Relevant Source Files** | `apps/windows-pos/src/ui/ShiftModal.tsx`, `apps/windows-pos/src/local/repos.ts`, `apps/windows-pos/src/local/schema.ts` |
+| **Existing Tests** | `apps/windows-pos/src/local/repos.test.ts`, `apps/windows-pos/src/ui/App.render.test.tsx` |
+| **Actual Test Evidence** | SQLite methods and UI modal pass 80/80 tests in `vitest run` (including `getCurrentShift` unit test). |
+| **Current Status** | **1. Fully implemented and working** |
+| **Identified Defects** | Remediated in Phase 6: Created `ShiftModal.tsx`, wired into `App.tsx`, exposed on `PosServices`, and verified with automated tests. |
+| **Required Remediation** | Completed in commit `4bd25f4`. |
+| **Verification Evidence** | `repos.test.ts` (12 tests pass); `App.render.test.tsx` (passes); 0 TypeScript errors. |
 | **Remaining External Blockers** | None. |
 
 | Field | Detail |
@@ -1838,7 +1838,7 @@ From the 84 granular features audited, the following represents the exhaustive r
 
 | Gap ID | Feature ID | Subsystem | Description of Gap | Severity | Safe Remediation Plan | External Dependency Status |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **GAP-01** | **POS-13** | Windows POS | Cashier Shift Management UI screen missing in POS UI. | **MEDIUM** | Build `ShiftModal.tsx` in `apps/windows-pos/src/ui/` connecting to existing `openShift` and `closeShift` repository methods. | **Actionable in Code** |
+| **GAP-01** | **POS-13** | Windows POS | Cashier Shift Management UI screen missing in POS UI. | **MEDIUM** | Built `ShiftModal.tsx` in `apps/windows-pos/src/ui/`, wired into `App.tsx` (F3 shortcut) and `PosServices`. | **RESOLVED & VERIFIED (Commit `4bd25f4`)** |
 | **GAP-02** | **POS-16** | Windows POS | Tamil Voice Assistant & Camera OCR batch capture missing. | **LOW** | Keep deferred per `PRODUCT_GAP_ANALYSIS.md`. Spec-only idea with unproven utility in retail environments. | **Deferred Spec** |
 | **GAP-03** | **POS-11** | Windows POS | ESC/POS Thermal Receipt Printing unverified on physical hardware. | **HIGH** | Connect physical TVS/Epson 80mm thermal printer to test raw USB spooling. | **Hardware Delivery (`BLK-HW-01`)** |
 | **GAP-04** | **POS-12** | Windows POS | ZPL/TSPL Label Printing unverified on physical hardware. | **MEDIUM** | Connect physical Zebra/TSC barcode label printer to verify barcode density. | **Hardware Delivery (`BLK-HW-02`)** |
