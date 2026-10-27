@@ -47,9 +47,23 @@ A departmental-store ERP for a single store with 2–3 Windows POS counters:
     - Automated integration suite `tests/integration/ingress_routing_check.mjs` (26/26 PASS).
   * Phase 4C: Staging Deployment and Real-World Acceptance Testing:
     - Preflight audit and compose verification: `tests/integration/staging_preflight_check.mjs` (13/13 PASS).
-    - Port exposure verification: public ports strictly 80 & 443; MariaDB (3306), Redis (6379), and Frappe (8000) not exposed publicly.
     - Deployment prerequisite gate: external cloud deployment stopped pending owner-controlled staging domain, authoritative DNS, and DNS-01 API token; exact checklist documented in `STAGING_ACCEPTANCE_RUNBOOK.md`.
     - Status marked `BLOCKED (Missing Staging Prerequisites)`.
+  * Phase 5: Shared Multi-Tenant Mobile App for Departmental Store SaaS:
+    - New workspace app created in `apps/mobile` (Expo SDK 52, React Native 0.76.6, TypeScript strict mode).
+    - Native Frappe session auth (`POST /api/method/login`), token storage in `expo-secure-store`.
+    - Tenant discovery: `list_user_tenants` and `get_current_user_profile` in `tenant.py`.
+    - Tenant-bound session: dynamic header injection (`Host`, `X-Tenant-Id`) and strict in-memory cache purging on shop switch.
+    - 7 screen modules: Splash, SignIn, TenantSelect, StoreOverview, Catalog, SalesActivity, Settings. Read-only safety guard preserving Windows POS as sole checkout billing engine.
+    - 11 mobile vitest tests PASS, 9 live Docker integration checks PASS.
+  * Phase 6: SaaS Subscription Billing and Customer Self-Service Portal:
+    - Strict architectural boundary: SaaS subscription billing (B2B platform revenue, SAC 998315 @ 18% GST) is completely separate from tenant retail store sales, inventory, and local GST accounting.
+    - Subscription data model & state machine: versioned plans, 6 lifecycle states (`TRIALING`, `ACTIVE`, `PAST_DUE`, `SUSPENDED`, `CANCELLED`, `EXPIRED`) in `packages/shared-types/src/billing.ts` and `tabSaaS ...` MariaDB tables.
+    - Payment provider integration (Razorpay Sandbox): server-side checkout session creation, HMAC-SHA256 signature verification, event deduplication, and idempotent webhook processing.
+    - Server-enforced entitlements: `devices.py` enforces plan `max_counters` limit upon POS counter registration; non-disruption of live checkout sales.
+    - Customer self-service portal: Next.js routes (`/billing`, `/billing/plans`, `/billing/invoices`, `/billing/usage`, `/billing/cancel`); 90-day data retention guarantee.
+    - Platform-admin billing console: protected console `/admin/billing`, subscription search, audited manual corrections, webhook replay pipeline.
+    - 10 Frappe backend tests PASS, 9 integration checks PASS, 44 dashboard vitest tests PASS, Next.js build PASS (19 routes). Status: `SANDBOX READY`.
 - Pushed to `https://github.com/sukeshperiyasamy/department-store` (origin/main). **Never force-push.**
 
 ## 3. Module map (where things live)

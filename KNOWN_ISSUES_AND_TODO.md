@@ -148,8 +148,11 @@ Last updated: 2026-10-27 (fresh-stack validation pass). Full defect register: `d
 
 ### SaaS Evolution Status & Next Modules
 1. **Shared Multi-Tenant Mobile App (Phase 5) — COMPLETED**: Expo SDK 52 + React Native 0.76 client in `apps/mobile`; multi-tenant discovery, secure storage, tenant-bound session, role-based screens, offline cache; 11 vitest tests PASS, 9 live integration checks PASS.
-2. **Staging Domain Live Deployment**: Execute `docs/operations/STAGING_ACCEPTANCE_RUNBOOK.md` once owner supplies staging domain and DNS credentials.
-3. **Mobile Physical Device Builds**: Generate Android APK via EAS / local Gradle, and configure iOS TestFlight build on macOS CI runner.
+2. **SaaS Subscription Billing & Customer Portal (Phase 6) — COMPLETED (`SANDBOX READY`)**: Complete commercial control plane in `packages/shared-types/src/billing.ts`, Frappe `billing.py`, Razorpay Sandbox integration, HMAC-SHA256 signature verification, idempotent webhook deduplication, customer self-service portal (`/billing`, `/billing/plans`, `/billing/invoices`, `/billing/usage`, `/billing/cancel`), platform-admin billing console (`/admin/billing`), and server-side counter limits in `devices.py`. 10 Frappe backend tests PASS, 9 integration checks PASS, 44 dashboard vitest tests PASS, Next.js build PASS (19 routes).
+3. **Live Payment Gateway Activation (Blocker for Live Billing)**: Production Razorpay Merchant account KYC, production webhook secret configuration.
+4. **Legal & Tax Sign-Off (Blocker for Live Billing)**: Commercial approval of pricing tiers (Starter ₹1,499 / Growth ₹3,499 / Enterprise ₹9,999); legal counsel review of Terms of Service & refund policy; CA sign-off on SAC 998315 and operator GSTIN.
+5. **Staging Domain Live Deployment**: Execute `docs/operations/STAGING_ACCEPTANCE_RUNBOOK.md` once owner supplies staging domain and DNS credentials.
+6. **Mobile Physical Device Builds**: Generate Android APK via EAS / local Gradle, and configure iOS TestFlight build on macOS CI runner.
 
 ### Core Store Operations
 3. **Accountant GST sign-off** → real GSTIN/HSN data; then evaluate e-invoicing/e-waybill.

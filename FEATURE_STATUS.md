@@ -81,6 +81,11 @@ Evidence pointers: docs/testing/, docs/artifacts/. Date of last verification: 20
 | Hostname Verification & Tenant Activation Lifecycle (Phase 4B) | ✅ | Explicit separation of site provisioning (`PROVISIONED`), hostname verification (`VERIFIED`), and commercial activation (`ACTIVE`); server-side guards in `provisioning.py` & `tenant.py`, 78 Frappe tests PASS |
 | Staging Deployment & Real-World Acceptance (Phase 4C) | 🟡 BLOCKED (Prerequisites) | Preflight validated (13 checks PASS); exact prerequisites checklist documented in `STAGING_ACCEPTANCE_RUNBOOK.md`; external cloud deployment stopped pending owner domain & credentials |
 | Shared Multi-Tenant Mobile App & Auth Flow (Phase 5) | ✅ | Expo SDK 52 + React Native 0.76 client in `apps/mobile`; multi-tenant discovery, secure storage, tenant-bound session, role-based screens, offline cache; 11 vitest tests PASS, 9 live integration checks PASS |
+| SaaS Subscription Billing Data Model & State Machine (Phase 6) | ✅ | `packages/shared-types/src/billing.ts`, MariaDB tables (`tabSaaS Subscription`, `tabSaaS Invoice`, etc.), 6-state lifecycle machine, 10 Frappe backend tests PASS |
+| Payment Provider Integration & HMAC Webhooks (Phase 6) | ✅ | Razorpay Sandbox checkout creation, HMAC-SHA256 signature verification, deduplication, idempotent delivery, zero secret leakage, 9 integration checks PASS |
+| Customer Self-Service Billing Portal (Phase 6) | ✅ | Next.js routes (`/billing`, `/billing/plans`, `/billing/invoices`, `/billing/usage`, `/billing/cancel`); 90-day data retention guarantee, Next.js build PASS (19 routes) |
+| Platform-Admin Billing Console & Oversight (Phase 6) | ✅ | Protected console `/admin/billing`, subscription search, audited manual corrections, webhook replay pipeline, 44 vitest tests PASS |
+| Server-Enforced Entitlements & Counter Limits (Phase 6) | ✅ | `devices.py` enforces plan `max_counters` limit during POS terminal registration; zero disruption of live checkout sales |
 | Production deployment checklist | ✅ | docs/release/PRODUCTION_DEPLOYMENT_CHECKLIST.md |
 | e-invoicing / e-waybill | ⬜ disabled pending legal determination | settings UI verified |
 | Tamil voice speech engine | ⬜ | spec only |

@@ -462,6 +462,87 @@ export async function setPlatformTenantStatus(
   );
 }
 
+export async function getBillingOverview(tenantId: string): Promise<any> {
+  return callFrappe(
+    "departmental_store.api.billing.get_billing_overview",
+    { tenant_id: tenantId },
+    z.any(),
+  );
+}
+
+export async function getAvailablePlans(): Promise<any> {
+  return callFrappe(
+    "departmental_store.api.billing.get_available_plans",
+    {},
+    z.any(),
+  );
+}
+
+export async function createCheckoutSession(
+  tenantId: string,
+  planId: string,
+  billingInterval: string = "MONTHLY",
+): Promise<any> {
+  return callFrappe(
+    "departmental_store.api.billing.create_checkout_session",
+    { tenant_id: tenantId, plan_id: planId, billing_interval: billingInterval },
+    z.any(),
+  );
+}
+
+export async function cancelSubscription(
+  tenantId: string,
+  reason: string,
+  immediate: boolean = false,
+): Promise<any> {
+  return callFrappe(
+    "departmental_store.api.billing.cancel_subscription",
+    { tenant_id: tenantId, reason, immediate },
+    z.any(),
+  );
+}
+
+export async function adminListSubscriptions(
+  status?: string,
+  query?: string,
+  limit: number = 50,
+): Promise<any> {
+  return callFrappe(
+    "departmental_store.api.billing.admin_list_subscriptions",
+    { status: status || null, query: query || null, limit },
+    z.any(),
+  );
+}
+
+export async function adminManualBillingCorrection(
+  subscriptionId: string,
+  targetStatus: string,
+  reason: string,
+  extendDays: number = 0,
+): Promise<any> {
+  return callFrappe(
+    "departmental_store.api.billing.admin_manual_billing_correction",
+    { subscription_id: subscriptionId, target_status: targetStatus, reason, extend_days: extendDays },
+    z.any(),
+  );
+}
+
+export async function adminListWebhookEvents(limit: number = 50): Promise<any> {
+  return callFrappe(
+    "departmental_store.api.billing.admin_list_webhook_events",
+    { limit },
+    z.any(),
+  );
+}
+
+export async function adminRetryWebhookEvent(eventId: string): Promise<any> {
+  return callFrappe(
+    "departmental_store.api.billing.admin_retry_webhook_event",
+    { event_id: eventId },
+    z.any(),
+  );
+}
+
 export const zod = z;
 
 

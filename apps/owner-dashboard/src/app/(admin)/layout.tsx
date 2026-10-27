@@ -63,6 +63,19 @@ export default async function PlatformAdminLayout({
             Onboarding Requests
           </Link>
           <Link
+            href="/admin/billing"
+            style={{
+              color: "#ffffff",
+              fontSize: 14,
+              fontWeight: 600,
+              textDecoration: "none",
+              borderBottom: "2px solid #2dd4bf",
+              paddingBottom: 4,
+            }}
+          >
+            Subscriptions & Billing
+          </Link>
+          <Link
             href="/app"
             style={{
               color: "#99f6e4",

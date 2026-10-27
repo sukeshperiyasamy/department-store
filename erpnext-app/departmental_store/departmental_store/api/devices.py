@@ -27,6 +27,25 @@ def register_device(device_id: str | None = None, counter_name: str | None = Non
         doc.save(ignore_permissions=True)
         action = "updated"
     else:
+        # Enforce SaaS subscription counter entitlement if active subscription exists
+        if frappe.db.table_exists("SaaS Subscription"):
+            active_sub = frappe.db.sql(
+                """SELECT p.max_counters
+                   FROM `tabSaaS Subscription` s
+                   JOIN `tabSaaS Subscription Plan` p ON s.plan_id = p.name
+                   WHERE s.status IN ('ACTIVE', 'TRIALING')
+                   LIMIT 1""",
+                as_dict=True,
+            )
+            if active_sub:
+                max_counters = active_sub[0]["max_counters"]
+                current_count = frappe.db.count("POS Device", filters={"status": "Enabled"})
+                if current_count >= max_counters:
+                    frappe.throw(
+                        f"Counter registration limit ({max_counters}) reached for current subscription plan. Upgrade plan in Manager Console -> Billing.",
+                        frappe.ValidationError,
+                    )
+
         doc = frappe.get_doc({
             "doctype": "POS Device",
             "device_id": device_id,
