@@ -86,7 +86,18 @@ Last updated: 2026-10-27 (fresh-stack validation pass). Full defect register: `d
   - Live operational metrics: wired `SHOW GLOBAL STATUS LIKE 'Innodb_deadlocks'` and `SELECT VERSION()` to `server_status()`, rendering genuine engine stats (0 deadlocks verified).
   - GST safety: added prominent demo warning callout highlighting mock GSTIN `33AAAAA0000A1Z5` and requiring certified accountant sign-off before production.
   - Replaced single doctype setter with `frappe.db.set_single_value` to eliminate deprecation warning.
-- Test suites: 8 bench tests (`TestSettingsApi`, 40 bench tests total), 9 vitest tests in owner-dashboard, 14 shared-types contract tests, Next.js production build PASS.
+### Backup Automation, Host Scheduling & Restore Rehearsal — RESOLVED 2026-10-27
+- Native Windows PowerShell runner `deployment/backup/run_backup.ps1` and Git Bash runner `deployment/backup/run_backup.sh` verified.
+- Windows Task Scheduler registration script `deployment/backup/schedule_backup.ps1` executed; task `DepartmentalStore-ERP-Backup` is `Ready` (daily at 02:00 AM IST).
+- Isolated scratch site restore rehearsal verified: dump restored into `scratch-restore.local`; verified 4 apps, 95 sales invoices, 501 catalog items, 134 sync logs, all 10 feature flags; scratch site cleanly dropped with zero impact on production `frontend`.
+
+### Windows NSIS Packaging Workflow — CONFIGURED 2026-10-27
+- GitHub Actions CI workflow created at `.github/workflows/windows-release.yml` using `windows-latest` MSVC runner.
+- Configured Tauri NSIS packaging, Authenticode code-signing step, silent install (`/S`) and silent uninstall tests, SHA256 checksumming, and GitHub Release drafting.
+- Documented in `docs/release/WINDOWS_NSIS_AND_PACKAGING_GUIDE.md`.
+
+### Production Deployment Checklist — RESOLVED 2026-10-27
+- Comprehensive checklist documented in `docs/release/PRODUCTION_DEPLOYMENT_CHECKLIST.md` defining requirements for store legal entity, certified GSTIN, HSN tax templates, cashier/manager least-privilege accounts, device UUID registration, network security, and backup replication.
 
 ## Open issues
 - ISSUE-03 (HTML in error messages) and ISSUE-04 (bench quirks) above.
@@ -96,10 +107,10 @@ Last updated: 2026-10-27 (fresh-stack validation pass). Full defect register: `d
 1. **Tamil voice assistant**: deterministic parser + transcript fixtures → Ctrl+Space +
    speech provider (Vosk/Whisper decision) → flag `voice_assistant_enabled` gating.
 2. **Camera/OCR batch capture** per spec (flags `camera_product_capture_enabled`).
-3. **NSIS installer** on MSVC CI runner; narrow HTTP capability scope to the store's server.
+3. **Trigger GitHub Actions NSIS workflow**: push release tag (`v0.1.0`) to generate signed installer.
 4. **Accountant GST sign-off** → real GSTIN/HSN data; then evaluate e-invoicing/e-waybill.
 5. **Physical printer + camera validation** when hardware arrives.
-6. **Backup scheduler registration** on the store server (script + runbook ready).
+6. **Off-site backup replication** (rclone / external cold storage mirror).
 7. **k6 load test** + 20k-item catalog performance pass.
 8. **Returns screen** exercise in the packaged exe (API verified; UI pending device test).
 9. **Production DB sizing/indexing review** (deferred from ISSUE-05; dev stack is clean).

@@ -39,7 +39,7 @@ Evidence pointers: docs/testing/, docs/artifacts/. Date of last verification: 20
 | Tamil voice assistant (Ctrl+Space, parser) | 🚧 | parser spec'd; engine unselected; not started |
 | Camera/OCR batch capture | ⬜ | spec only |
 | Shift open/close UI | 🚧 | SQLite repo exists, no screen |
-| NSIS installer | ⛔ | MSVC CI runner needed |
+| NSIS installer | 🟡 | .github/workflows/windows-release.yml (GitHub Actions MSVC CI workflow configured) |
 
 ## Manager Console (Next.js)
 
@@ -51,13 +51,14 @@ Evidence pointers: docs/testing/, docs/artifacts/. Date of last verification: 20
 | Settings page (feature flags UI, 9 sections, live DB health, GST guard) | ✅ | /settings live, 10 flags persisted via set_flag, live MariaDB status, 9 vitest tests, 8 bench tests, WCAG switch accessible |
 | Mobile responsive light theme | ✅ | 390/768/1366/1920 screenshots, settings layout tested |
 
-## Backend platform
+## Backend platform & operations
 
-| Feature | Status |
-| --- | --- |
-| ERPNext v16 docker stack + seeds + self-heal | ✅ |
-| India Compliance v16 + GST templates + POS-path GST | ✅ math / 🟡 accountant sign-off |
-| Backup script + DR rehearsal | ✅ / scheduler registration pending |
-| e-invoicing / e-waybill | ⬜ disabled pending legal determination |
-| Tamil voice speech engine | ⬜ |
-| MCP adapter (typed tool boundary only) | 🚧 |
+| Feature | Status | Evidence |
+| --- | --- | --- |
+| ERPNext v16 docker stack + seeds + self-heal | ✅ | live Docker stack (9 containers) |
+| India Compliance v16 + GST templates + POS-path GST | ✅ math / 🟡 accountant sign-off | bench suite tests |
+| Backup script + Host scheduling + DR rehearsal | ✅ | run_backup.ps1 / run_backup.sh; Task Scheduler registered ('Ready'); scratch site restore PASS |
+| Production deployment checklist | ✅ | docs/release/PRODUCTION_DEPLOYMENT_CHECKLIST.md |
+| e-invoicing / e-waybill | ⬜ disabled pending legal determination | settings UI verified |
+| Tamil voice speech engine | ⬜ | spec only |
+| MCP adapter (typed tool boundary only) | 🚧 | boundary typed |

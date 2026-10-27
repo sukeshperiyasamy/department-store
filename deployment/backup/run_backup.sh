@@ -9,7 +9,8 @@ set -euo pipefail
 
 COMPOSE_FILE="${COMPOSE_FILE:-deployment/erpnext/pwd.yml}"
 PROJECT="${PROJECT:-departmental-erp}"
-BACKUP_ROOT="${BACKUP_ROOT:-$USERPROFILE/departmental-backups}"
+DEFAULT_BASE="${USERPROFILE:-${HOME:-/tmp}}"
+BACKUP_ROOT="${BACKUP_ROOT:-$DEFAULT_BASE/departmental-backups}"
 RETENTION_DAYS="${RETENTION_DAYS:-14}"
 
 STAMP="$(date +%Y%m%d_%H%M%S)"

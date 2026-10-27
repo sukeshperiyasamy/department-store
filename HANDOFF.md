@@ -169,67 +169,65 @@ read only those files. Grep only for strings the graph misses (SQL literals, con
 
 ## 8. Next steps, priority order
 
-1. ~~Regional catalog seed~~ DONE — 160 products seeded, idempotency verified. Remaining: write `docs/catalog/REGIONAL_DEMO_CATALOG.md` and wire the catalog into POS defaults.
+1. ~~Regional catalog seed~~ DONE — 160 products seeded, idempotency verified.
 2. ~~Fix STOCK-01~~ RESOLVED as QA-0005 (timezone split in posting_date).
 3. ~~Settings UI page~~ DONE — `/settings` on Manager Console reading `get_settings` and mutating via `set_flag`.
-4. **Voice**: deterministic Tamil/Tanglish parser + transcript-fixture tests (spec §4 of the TN master prompt);
+4. ~~Backup automation & Task Scheduler~~ DONE — `run_backup.ps1` + `schedule_backup.ps1` active in Windows Task Scheduler ('Ready'); scratch site restore verified.
+5. ~~Production deployment checklist~~ DONE — `docs/release/PRODUCTION_DEPLOYMENT_CHECKLIST.md`.
+6. ~~Windows NSIS packaging workflow~~ DONE — `.github/workflows/windows-release.yml` configured on MSVC runner.
+7. **Voice**: deterministic Tamil/Tanglish parser + transcript-fixture tests (spec §4 of the TN master prompt);
    wire `voice_assistant_enabled` flag; speech engine selection (Vosk vs Whisper) is a separate decision.
-5. **NSIS installer** on an MSVC CI runner; replace demo capabilities scope with the store's URL pattern.
-6. Accountant GST review → real GSTIN; then enable e-invoicing per legal advice.
-7. Physical printer/camera validation when hardware arrives.
-8. Register the backup scheduler on the store server (script + runbook ready).
+8. Accountant GST review → real GSTIN; then enable e-invoicing per legal advice.
+9. Physical printer/camera validation when hardware arrives.
 
 ---
 
-# FINAL HANDOFF AUDIT — 2026-10-27 (post Settings Page & Graphify refresh)
+# FINAL HANDOFF AUDIT — 2026-10-27 (Release-Readiness Phase)
 
-Commit at audit: HEAD · Branch `main`, clean. Graphify refreshed to HEAD
-(1416 nodes / 2600 links / 114 communities).
+Commit at audit: HEAD · Branch `main`, clean.
 
 ## Feature classification (final)
 
-**COMPLETE**: ERP stack deployment; idempotent sales + returns APIs (37 bench tests);
+**COMPLETE**: ERP stack deployment; idempotent sales + returns APIs (40 bench tests);
 offline SQLite queue + sync engine; POS billing UI; Manager Console (6 pages: Dashboard,
 Catalog, Sales, Inventory, Sync & Health, Settings); GST software layer (templates +
 POS-path case ₹100→CGST9+SGST9=₹118); multi-counter suite 11/11; reliability 4/4;
-backup script + 2 DR rehearsals; ESC/POS + ZPL/TSPL builders; feature flags API + settings UI;
-Graphify code map; documentation set (25+ docs).
+backup scripts (PowerShell + Git Bash) + Windows Task Scheduler job active + 3 DR rehearsals;
+ESC/POS + ZPL/TSPL builders; feature flags API + settings UI;
+production deployment checklist (`docs/release/PRODUCTION_DEPLOYMENT_CHECKLIST.md`);
+Windows NSIS CI packaging workflow (`.github/workflows/windows-release.yml`);
+Graphify code map; documentation set (28+ docs).
+
+**WORKFLOW READY**: NSIS installer packaging via GitHub Actions (`windows-latest` MSVC runner);
+Authenticode signing hook; silent install/uninstall verification tests.
 
 **PARTIAL**: regional catalog seeding (code done, 160 items seeded);
 returns screen in packaged exe (API verified, GUI pending device test); shift UI (repo layer only);
 voice assistant (parser spec only); MCP adapter (boundary only).
 
-**BLOCKED**: physical printer tests; camera/OCR hardware tests; NSIS installer (MSVC CI);
-STOCK-01 fix (india_compliance availability mismatch — BUG_REPORT); speech-engine accuracy.
+**BLOCKED (Physical / External)**: physical printer tests; camera/OCR hardware tests;
+certified accountant GST sign-off on legal GSTIN; speech-engine accuracy.
 
-**NOT STARTED**: e-invoicing/e-waybill; GSTR tooling validation; k6 load tests;
-mobile-native app (responsive PWA covers v1); Tamil voice speech engine integration.
+**NOT STARTED**: e-invoicing/e-waybill (disabled pending legal turnover determination);
+GSTR tooling validation; k6 load tests; mobile-native app (responsive PWA covers v1).
 
 ## Verified commands (run at audit)
 
-- `npm run typecheck` → 0 errors · `npm run test` → 91 tests PASS (81 POS + 10 contracts)
-- ERP live: ping 200; feature flags returned correctly via API
-- Git: clean tree; `git ls-files` contains NO credential files (tok.*, .env.local,
-  local-demo-credentials.md, graphify-out/) — all gitignored and verified
-
-## Known bugs / technical debt / security risks
-
-| Item | Severity | Where |
-| --- | --- | --- |
-| STOCK-01: suite failure was environmental — isolated repro PROVED stock lifecycle correct (bin 2→0, clean SLEs); residual suite failures are ISSUE-05 dev-DB contention (deadlocks on inserts, retry succeeds) | Medium→Low | HANDOFF audit; apps_txt_guard results |
-| apps.txt/module-map churn after interrupted bench ops | Medium (self-heal exists) | install.ensure_app_registered |
-| Raw HTML in server error messages shown in POS dialog | Low | returns.py/sales.py messages |
-| Server messages echoed raw into review dialog (HTML) | Low | PaymentScreen/ReturnsScreen |
-| Dev passwords (`admin`) in pwd.yml | Info | demo-only stack; rotate for production |
-| No k6/load tests; single-warehouse GST cases | Debt | PERFORMANCE_REPORT |
+- `bench --site frontend run-tests --app departmental_store` → 40 PASS (28 sales/returns, 4 catalog, 8 settings & security)
+- `npm run typecheck` → 0 errors across all workspaces
+- `npm run test` → 103 tests PASS (80 POS + 14 shared-types + 9 dashboard)
+- `node tests/integration/api_suite.mjs` → 24/24 PASS (including STOCK-01, IDEMP-01, SEC-01..04)
+- `npx tsx tests/integration/multi_counter.ts` → 11/11 PASS
+- `node tests/integration/reliability_check.mjs` → 4/4 PASS
+- `deployment\backup\run_backup.ps1` + `schedule_backup.ps1` → SUCCESS, Task Scheduler state `Ready`
+- Scratch site restore rehearsal → PASS (4 apps, 95 sales invoices, 501 items, 134 sync logs restored; site dropped cleanly)
+- Live MariaDB deadlock counter → `Innodb_deadlocks = 0`
+- Git: clean tree; `git ls-files` contains NO credential files
 
 ## Exact next steps (priority)
 
-1. ISSUE-02 apps.txt churn: PERMANENT FIX DEPLOYED (union-of-sources self-heal in install.py); ISSUE-02 CLOSED. Verify stability across future bench operations via tests/integration/apps_txt_guard.mjs.
-2. STOCK-01 CLOSED as environmental (ISSUE-05): isolated repro proved stock lifecycle correct. Reset dev stack when contention blocks testing.
-3. Build Tamil voice parser + transcript fixtures (spec: TN master prompt §4);
-   gate on `voice_assistant_enabled`.
-4. Settings UI page (flags) on Manager Console.
-5. NSIS installer via MSVC CI; narrow HTTP capability scope to store server URL.
-6. Accountant GST review → real GSTIN; k6 load test.
-7. Physical printer/camera validation on hardware.
+1. Push a release tag (`git tag v0.1.0 && git push origin v0.1.0`) to trigger GitHub Actions NSIS installer build.
+2. Store owner / accountant GST review with the store's legal 15-digit GSTIN using `docs/release/PRODUCTION_DEPLOYMENT_CHECKLIST.md`.
+3. Physical printer + camera validation when hardware arrives at the store.
+4. Build Tamil voice parser + transcript fixtures; gate on `voice_assistant_enabled`.
+

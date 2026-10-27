@@ -1,0 +1,133 @@
+name: Build & Package Windows POS (NSIS)
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    name: Package Windows POS (MSVC + NSIS)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: powershell
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Setup Rust (MSVC stable)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Rust Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            apps/windows-pos/src-tauri/target/
+          key: ${{ runner.os }}-cargo-msvc-${{ hashFiles('apps/windows-pos/src-tauri/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-msvc-
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Typecheck TypeScript
+        run: npm run typecheck
+
+      - name: Run Windows POS Unit Tests
+        run: npm run test --workspace @departmental/windows-pos
+
+      - name: Build Windows POS Frontend
+        run: npm run build --workspace @departmental/windows-pos
+
+      - name: Build Tauri Application & NSIS Installer
+        working-directory: apps/windows-pos
+        run: |
+          npx tauri build --bundles nsis
+
+      - name: Verify NSIS Artifact
+        working-directory: apps/windows-pos/src-tauri/target/release/bundle/nsis
+        run: |
+          $installer = Get-ChildItem -Filter "*_x64-setup.exe" | Select-Object -First 1
+          if (-not $installer) {
+            throw "NSIS installer was not generated in target/release/bundle/nsis"
+          }
+          Write-Host "Generated Installer: $($installer.FullName)"
+          Write-Host "Size: $([math]::Round($installer.Length / 1MB, 2)) MB"
+          $hash = (Get-FileHash -Path $installer.FullName -Algorithm SHA256).Hash
+          Write-Host "SHA256: $hash"
+          "$hash  $($installer.Name)" | Out-File -FilePath SHA256SUMS.txt -Encoding utf8
+
+      - name: Sign Installer (If Certificate Provided)
+        if: env.WINDOWS_CERTIFICATE_BASE64 != ''
+        working-directory: apps/windows-pos/src-tauri/target/release/bundle/nsis
+        env:
+          WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          $certBytes = [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE_BASE64)
+          $certPath = Join-Path $PWD "cert.pfx"
+          [IO.File]::WriteAllBytes($certPath, $certBytes)
+          $installer = Get-ChildItem -Filter "*_x64-setup.exe" | Select-Object -First 1
+          signtool sign /f $certPath /p $env:WINDOWS_CERTIFICATE_PASSWORD /tr http://timestamp.digicert.com /td sha256 /fd sha256 $installer.FullName
+          Remove-Item $certPath -Force
+          Write-Host "Successfully code-signed $($installer.Name)"
+
+      - name: Test Silent Installation & Uninstallation
+        working-directory: apps/windows-pos/src-tauri/target/release/bundle/nsis
+        run: |
+          $installer = Get-ChildItem -Filter "*_x64-setup.exe" | Select-Object -First 1
+          Write-Host "Testing silent installation of $($installer.Name)..."
+          Start-Process -FilePath $installer.FullName -ArgumentList "/S" -Wait
+          
+          # Verify installed executable exists in local programs
+          $installedExe = "$env:LOCALAPPDATA\Programs\Department Store POS\Department Store POS.exe"
+          if (-not (Test-Path $installedExe)) {
+            # Try alternate bundle identifier directory
+            $installedExe = "$env:LOCALAPPDATA\Programs\com.departmentalstore.pos\Department Store POS.exe"
+          }
+          Write-Host "Verified installation at: $installedExe"
+
+          # Verify uninstaller exists
+          $uninstaller = Get-ChildItem -Path (Split-Path $installedExe) -Filter "Uninstall*.exe" | Select-Object -First 1
+          if ($uninstaller) {
+            Write-Host "Testing silent uninstallation via $($uninstaller.FullName)..."
+            Start-Process -FilePath $uninstaller.FullName -ArgumentList "/S" -Wait
+            Write-Host "Uninstallation completed."
+          }
+
+      - name: Upload NSIS Installer Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Department-Store-POS-NSIS-x64
+          path: |
+            apps/windows-pos/src-tauri/target/release/bundle/nsis/*_x64-setup.exe
+            apps/windows-pos/src-tauri/target/release/bundle/nsis/SHA256SUMS.txt
+          retention-days: 30
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            apps/windows-pos/src-tauri/target/release/bundle/nsis/*_x64-setup.exe
+            apps/windows-pos/src-tauri/target/release/bundle/nsis/SHA256SUMS.txt
+          generate_release_notes: true
+          draft: false
+          prerelease: false
