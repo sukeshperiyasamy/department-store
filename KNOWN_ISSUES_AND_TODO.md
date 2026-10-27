@@ -234,6 +234,12 @@ Last updated: 2026-10-27 (fresh-stack validation pass). Full defect register: `d
   * Validates tenant isolation in sync logs and 1:1 record parity.
   * Rehearsal completed in 127.6s with **70.59s RTO benchmark**; scratch site dropped cleanly.
 
+### Remote CI/CD Confirmation & Cloud Backup Recovery Validation — CONFIRMED & HARDENED 2026-10-27 (Phase 15B)
+- **Remote CI/CD Verification Confirmed**: Commit `617bdd06cb3dc54eb6521945091559f70cc15661` confirmed 100% green on GitHub Actions Run `40524872536` (`CI Quality Gates`). All 6 jobs passed (`Frappe App Python Quality`, `Windows POS Test & Frontend Build`, `Typecheck & Contract Validation`, `Security & Config Preflight`, `Owner Dashboard Test & Build`, `Mobile Companion Isolation Tests`).
+- **Atomic S3 Download Capability Added**: Implemented `download_file()` in `deployment/backup/replicate_offsite.py`. Features SigV4 signed GET request, chunked streaming download to atomic `.part` staging file, on-the-fly streaming SHA-256 calculation, and destination overwrite only upon matching checksum. Validates local destination path to prevent directory traversal. Added unit test in `test_replicate_offsite.py` (20/20 unit tests PASS).
+- **Disaster Recovery Rehearsal Benchmark**: Executed `deployment/backup/test_restore_scratch.py` against `scratch-phase15-restore.local`. Achieved **70.59s RTO** (well below 900s SLA), 1:1 data parity (4 apps, 254 invoices, 545 items, 353 logs, 2 subscriptions), and verified zero financial ledger imbalance (`gl_ledger_balanced: True`). Zero impact on production `frontend` site.
+- **Cloud Infrastructure Status**: Evaluated environment and configuration for cloud storage credentials. No S3/R2 credentials exist. Per protocol, stopped at verified local checks and marked BLOCKED on owner credentials (never simulated).
+
 5. **Live Payment Gateway Activation (Blocker for Live Billing)**: Production Razorpay Merchant account KYC, production webhook secret configuration.
 6. **Legal & Tax Sign-Off (Blocker for Live Billing)**: Commercial approval of pricing tiers (Starter ₹1,499 / Growth ₹2,999 / Enterprise ₹4,999); legal counsel review of Terms of Service & refund policy; CA sign-off on SAC 998315 and operator GSTIN.
 7. **Staging Domain Live Deployment**: Execute `docs/launch/STAGING_DEPLOYMENT_AND_RECOVERY_RUNBOOK.md` once owner supplies staging domain and DNS credentials.

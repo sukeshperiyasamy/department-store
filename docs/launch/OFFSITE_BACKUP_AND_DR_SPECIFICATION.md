@@ -20,12 +20,13 @@ A robust departmental-store SaaS management system requires strict separation be
 > A local backup copy is **NEVER** proof of successful off-site disaster recovery. Off-site replication requires verifiable transmission across a distinct failure domain to encrypted object storage.
 
 ### Disaster Recovery Verdict
-**`CONDITIONAL — Local preparation complete; external staging or storage checks remain`**
+**`CONDITIONAL — Local preparation and remote CI verified; external cloud storage bucket unprovisioned`**
 
+- **Remote CI/CD Quality Gates:** **PASS** (Commit `617bdd0` verified green on GitHub Actions run `40524872536`, all 6 jobs passed)
 - **Local Backup Generation & Checksum Validation:** **PASS** (12 files verified with SHA-256)
-- **Isolated Scratch Site Restoration Drill:** **PASS** (Restored in 36.6s with 1:1 data parity)
-- **Provider-Independent Replication Tool:** **PASS** (AWS SigV4, AES256, SHA-256 dry-run verified)
-- **Live Cloud Object Storage Replication:** **NOT TESTED / BLOCKED** (Awaiting Owner provisioned S3 / Cloudflare R2 bucket)
+- **Isolated Scratch Site Restoration Drill:** **PASS** (Restored in 70.59s with balanced GL entries and 1:1 data parity)
+- **Provider-Independent Replication & Retrieval Tool:** **PASS** (AWS SigV4, AES256, SHA-256 dry-run and atomic download verified; 20 unit tests PASS)
+- **Live Cloud Object Storage Replication:** **NOT TESTED / BLOCKED** (Awaiting Owner provisioned S3 / Cloudflare R2 bucket credentials)
 
 ---
 
@@ -34,7 +35,7 @@ A robust departmental-store SaaS management system requires strict separation be
 | Metric | Target Specification | Measured Benchmark | Verification Methodology |
 | :--- | :--- | :--- | :--- |
 | **Recovery Point Objective (RPO)** | **Central ERP Database:** <= 24 hours (Nightly snapshot).<br>**Billing Counters:** **0 data loss** (buffered in counter SQLite outbox). | Confirmed architectural invariant | Counter SQLite outbox queues offline sales atomically; sync engine drains upon server reconnection. |
-| **Recovery Time Objective (RTO)** | **Site Database Restore:** < 15 minutes (900 seconds).<br>**Complete Bare-Metal Host Rebuild:** < 60 minutes. | **36.6 seconds** (database restore into isolated scratch environment) | Automated drill via `deployment/backup/test_restore_scratch.py` executing `bench restore`. |
+| **Recovery Time Objective (RTO)** | **Site Database Restore:** < 15 minutes (900 seconds).<br>**Complete Bare-Metal Host Rebuild:** < 60 minutes. | **70.59 seconds** (database restore into isolated scratch environment) | Automated drill via `deployment/backup/test_restore_scratch.py` executing `bench restore`. |
 
 ---
 
@@ -47,20 +48,22 @@ Implemented in [`deployment/backup/replicate_offsite.py`](file:///c:/Users/COMPU
    - Fully compatible with Amazon S3, Cloudflare R2, MinIO, Wasabi, and Backblaze B2.
    - Requires zero heavy third-party CLI binaries (`rclone` or `aws-cli` optional, not mandatory).
 2. **Encryption in Transit & at Rest:**
-   - **In Transit:** Forced HTTPS / TLS 1.3 encryption across all network transfers.
-   - **At Rest:** Enforces server-side encryption via `x-amz-server-side-encryption: AES256` (or `aws:kms`).
-3. **Immutable Timestamped Keying:**
-   - Remote destination path: `{S3_PREFIX}/{timestamp}/{filename}` (e.g. `department-store-backups/20261027_102247/20261027_102247-frontend-database.sql.gz`).
-   - Prevents accidental overwrites of existing valid backups.
-4. **Pre-Upload & Post-Upload Integrity:**
-   - Verifies `SHA256SUMS.txt` against local files prior to transmission. If any file hash fails to match, replication aborts immediately with exit code 1.
+   - **In Transit:** Mandatory HTTPS / TLS encryption across all network transfers (plain HTTP strictly blocked except `localhost` / `127.0.0.1`).
+   - **At Rest:** Enforces server-side encryption via `x-amz-server-side-encryption: AES256` (or `aws:kms`). Note: Client-side pre-encryption is not configured.
+3. **Immutable Timestamped Keying & Path Traversal Guards:**
+   - Remote destination path: `{S3_PREFIX}/{timestamp}/{filename}`.
+   - Strict bucket naming, region, and object key validation rejects path traversal (`..`, `\`, null bytes, or leading slashes).
+4. **Pre-Upload, Post-Upload & Download Integrity:**
+   - Verifies `SHA256SUMS.txt` against local files prior to transmission.
    - Injects SHA-256 digest into S3 object metadata (`x-amz-meta-sha256: <hash>`).
+   - Distinguishes `UPLOAD_ACKNOWLEDGED` (HTTP 200 on PUT) from `REMOTE_VERIFIED` (post-upload `HEAD` probe confirms existence, byte count, and SHA-256 metadata).
+   - `download_file()` streams S3 objects to `.part` files with real-time SHA-256 checksumming, renaming atomically only upon verified match.
 5. **Credential Masking & Privacy:**
-   - Access keys are masked in logs (e.g. `AKIA***`).
+   - Access keys and tokens are masked in logs (e.g. `AKIA***`).
    - Secret keys and authorization signatures are **NEVER** logged or included in reports.
 6. **Safe Pruning & Retention Guard:**
-   - Supports 30-day (configurable via `RETENTION_DAYS`) retention pruning.
-   - **Safety Invariant:** The retention manager will **NEVER** delete a backup if it is the only remaining backup in the remote bucket.
+   - Supports configurable retention pruning via `evaluate_retention_pruning()`.
+   - **Safety Invariant:** Guarantees that the newest backup set and minimum retained backups (at least 1) can **NEVER** be deleted, even if older than the retention cutoff.
 
 ### 3.2 Configuration Reference
 
@@ -74,6 +77,7 @@ S3_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
 S3_PREFIX=department-store-backups/
 S3_STORAGE_CLASS=STANDARD_IA
 S3_SSE_ALGORITHM=AES256
+S3_RETENTION_DAYS=30
 ```
 
 ---
@@ -86,13 +90,14 @@ To guarantee that backup archives are genuinely recoverable without risking live
 ```mermaid
 flowchart TD
     A[Locate Latest Local Backup] --> B[Verify SHA-256 Checksums in SHA256SUMS.txt]
-    B --> C[Copy Database Dump to Backend Container /tmp]
-    C --> D[Create Isolated Scratch Site: scratch-phase15-restore.local]
-    D --> E[Execute bench restore Database Dump]
-    E --> F[Measure RTO Duration: 36.6s]
-    F --> G[Query Restored Parity: Apps, Invoices, Items, Tenants, Subscriptions]
-    G --> H[Drop Scratch Site Cleanly: bench drop-site --force]
-    H --> I[Confirm Production Site 'frontend' Remained Untouched]
+    B --> C[Verify Scratch Site Non-Existence Collision Guard]
+    C --> D[Copy Database Dump to Backend Container /tmp]
+    D --> E[Create Isolated Scratch Site: scratch-phase15-restore.local]
+    E --> F[Execute bench restore Database Dump]
+    F --> G[Measure RTO Duration: 70.59s]
+    G --> H[Query Restored Parity & GL Ledger Balance]
+    H --> I[Drop Scratch Site Cleanly: bench drop-site --force]
+    I --> J[Confirm Production Site 'frontend' Remained Untouched]
 ```
 
 ### 4.2 Rehearsal Evidence (Executed 2026-10-27)
@@ -102,15 +107,16 @@ flowchart TD
 DISASTER RECOVERY SCRATCH RESTORATION DRILL SUMMARY
 ================================================================================
 Test Classification: LOCAL_RESTORE_TEST
-Description:         Local Backup Volume Disaster Recovery Rehearsal
+Description:         Local Backup Volume Disaster Recovery Rehearsal (Non-Destructive)
 Status:              PASS
 Backup Directory:    C:\Users\COMPUTER\departmental-backups\20261027_102247
 Checksum Verified:   True
-RTO Measured:        36.6s (Target: <900.0s)
+RTO Measured:        70.59s (Target: <900.0s)
 RPO Target:          24 hours for central ERP database; 0 data loss for counter sales (buffered in SQLite)
-Total Duration:      84.77s
+Total Duration:      127.6s
 
-Restored Data Parity Metrics:
+Restored Data Parity & Financial Integrity:
+  - app_availability: PONG
   - installed_apps: ['frappe', 'erpnext', 'departmental_store', 'india_compliance']
   - sales_invoices: 254 (exact match)
   - catalog_items: 545 (exact match)
@@ -118,6 +124,10 @@ Restored Data Parity Metrics:
   - saas_tenants: 0
   - saas_subscriptions: 2 (exact match)
   - saas_invoices: 2 (exact match)
+  - gl_ledger_balanced: True (GL Entry debit - credit = 0.0)
+  - gl_imbalance_amount: 0.0
+
+Cleanup Status: Cleaned up automatically.
 ================================================================================
 ```
 

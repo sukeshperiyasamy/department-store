@@ -193,3 +193,12 @@ Evidence pointers: docs/testing/, docs/artifacts/. Date of last verification: 20
 | Hardened S3 Off-Site Replication Tool | ✅ Script Verified / ⛔ Cloud Bucket Pending | `deployment/backup/replicate_offsite.py` hardened with strict bucket, region, prefix traversal guards, mandatory HTTPS, remote HEAD verification, and safe retention pruning; 19 unit tests in `test_replicate_offsite.py` PASS |
 | Enhanced Non-Destructive DR Scratch Site Drill | ✅ Local Verified | `deployment/backup/test_restore_scratch.py` hardened with site collision guards, financial GL balance validation (`gl_ledger_balanced: True`), application ping availability, and automatic teardown; 70.59s RTO benchmark verified |
 | Full Workspace Regression Suite | ✅ | 80 Windows POS, 80 shared-types, 68 owner-dashboard, 11 mobile, 120 Frappe backend, 19 off-site backup tests PASS (378 automated tests total); 25 preflight checks PASS; 0 secrets detected |
+
+## Remote CI/CD Confirmation & Cloud Backup Recovery Validation (Phase 15B)
+
+| Feature | Status | Evidence |
+| --- | --- | --- |
+| Remote GitHub Actions CI Verification | ✅ | Verified commit `617bdd06cb3dc54eb6521945091559f70cc15661` on Run ID `40524872536`; 6/6 jobs PASS (`Frappe App Python Quality`, `Windows POS Test & Frontend Build`, `Typecheck & Contract Validation`, `Security & Config Preflight`, `Owner Dashboard Test & Build`, `Mobile Companion Isolation Tests`) |
+| S3 Atomic Download & SHA-256 Verification | ✅ Script Verified / ⛔ Cloud Bucket Pending | Added `download_file` with AWS SigV4, streaming chunk hashing, atomic `.part` staging, and SHA-256 integrity validation; 20 unit tests in `test_replicate_offsite.py` PASS |
+| Non-Destructive DR Scratch Site Drill Parity | ✅ Local Verified | `deployment/backup/test_restore_scratch.py` verified 70.59s RTO, `gl_ledger_balanced: True` (0.0 imbalance), 4 apps, 254 invoices, 545 catalog items, clean teardown |
+| Cloud Storage Infrastructure Audit | ⛔ Blocked on Cloud Credentials | Verified local checks; halted at live S3 upload due to absent owner-provided credentials (never simulated) |

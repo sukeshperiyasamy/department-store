@@ -284,6 +284,36 @@ class TestReplicateOffsiteSafety(unittest.TestCase):
         self.assertEqual(replicate_offsite.mask_secret("abc"), "***")
         self.assertEqual(replicate_offsite.mask_secret("  secret_token_value  "), "secr***")
 
+    # -------------------------------------------------------------------------
+    # 8. S3 Download Verification
+    # -------------------------------------------------------------------------
+
+    def test_download_file_dry_run_and_path_validation(self):
+        client = replicate_offsite.S3ReplicationClient(
+            bucket_name="valid-backup-bucket",
+            access_key_id="AKIA_TEST_KEY",
+            secret_access_key="SECRET_TEST_123",
+            region_name="ap-south-1",
+        )
+        dest_file = self.test_dir / "restored.sql.gz"
+        res = client.download_file(
+            remote_key="department-store-backups/20261027_102247/db.sql.gz",
+            local_path=dest_file,
+            expected_sha256="abc123hash",
+            dry_run=True,
+        )
+        self.assertEqual(res["status"], "DRY_RUN_DOWNLOAD_OK")
+        self.assertTrue(res["download_verified"])
+        self.assertEqual(res["expected_sha256"], "abc123hash")
+
+        # Unsafe path traversal in download key must be rejected
+        with self.assertRaises(ValueError):
+            client.download_file(
+                remote_key="../../etc/passwd",
+                local_path=dest_file,
+                dry_run=True,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

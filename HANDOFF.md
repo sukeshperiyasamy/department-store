@@ -456,3 +456,49 @@ Phase 15 focused on staging deployment reproducibility, disaster-recovery automa
 - `bench --site frontend run-tests --app departmental_store` → 120/120 PASS (exit code 0)
 - `python scripts/ci/secret_scan.py` → 380 tracked files, 0 secrets (exit code 0)
 - `git diff --check` → 0 whitespace errors (exit code 0)
+
+---
+
+# PHASE 15B HANDOFF AUDIT — 2026-10-27 (Remote CI/CD Confirmation & Cloud Backup Recovery Validation)
+
+## Remote GitHub Actions CI Verification
+- **Verified Commit SHA:** `617bdd06cb3dc54eb6521945091559f70cc15661` (`617bdd0`)
+- **Remote Run URL:** [`https://github.com/sukeshperiyasamy/department-store/actions/runs/40524872536`](https://github.com/sukeshperiyasamy/department-store/actions/runs/40524872536)
+- **Workflow:** `CI Quality Gates`
+- **Conclusion:** `success` (100% GREEN)
+- **Job Status Breakdown (6/6 PASS):**
+  * `Frappe App Python Quality` (Job `122261577551`): **success** (remediated the 54 Ruff lint errors from Phase 15A)
+  * `Windows POS Test & Frontend Build` (Job `122261577533`): **success**
+  * `Typecheck & Contract Validation` (Job `122261577466`): **success**
+  * `Security & Config Preflight` (Job `122261577372`): **success**
+  * `Owner Dashboard Test & Build` (Job `122261577339`): **success**
+  * `Mobile Companion Isolation Tests` (Job `122261577129`): **success**
+
+## S3 Round-Trip Disaster Recovery Capability
+- **Atomic Download (`download_file`)**: Added SigV4 authenticated S3 download to `deployment/backup/replicate_offsite.py`. Streams object chunks directly into a `.part` temporary file, computes SHA-256 on-the-fly, validates hash against expected hash, and atomically replaces target destination only on checksum match.
+- **Path Traversal Protection**: Ensures target local file path resolves strictly within the intended destination directory.
+- **Unit Test Coverage**: Added `test_download_file_dry_run_and_path_validation` to `tests/integration/test_replicate_offsite.py`. All 20 tests pass cleanly.
+- **Cloud Infrastructure Status**: Halted at verified local tests; S3 bucket credentials (`S3_BUCKET_NAME`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`) remain unconfigured by platform owner. Per policy, stopped and marked as blocked dependency rather than simulating cloud operations.
+
+## Disaster Recovery Scratch Site Rehearsal Benchmark
+- **Target Site**: `scratch-phase15-restore.local`
+- **Restored Archive**: `20261027_102247-frontend-database.sql.gz` (1.7 MB gzipped MariaDB dump)
+- **RTO Benchmark Measured**: **70.59s** (Target SLA: <900s)
+- **Parity Verified**: `frappe.ping` -> `PONG`, 4 installed apps, 254 sales invoices, 545 catalog items, 353 POS sync logs, 2 subscriptions, 2 invoices
+- **Financial Ledger Integrity**: `gl_ledger_balanced: True` (`gl_imbalance_amount: 0.0`)
+- **Isolation & Cleanup**: Scratch site cleanly dropped; zero side effects on production `frontend` site.
+
+## Full Workspace Regression Verification (All Tests Run & Verified)
+- `ruff check departmental_store` → PASS (0 errors, exit code 0)
+- `python -m ruff check deployment/backup tests/integration/test_replicate_offsite.py` → PASS (0 errors, exit code 0)
+- `npm --prefix apps/windows-pos test` → 80/80 PASS (exit code 0)
+- `python -m unittest tests/integration/test_replicate_offsite.py` → 20/20 PASS (exit code 0)
+- `node tests/integration/staging_preflight_check.mjs` → 25 PASS, 6 BLOCKED (exit code 0)
+- `python deployment/backup/test_restore_scratch.py` → 70.59s RTO, balanced GL, 1:1 parity PASS (exit code 0)
+- `python deployment/backup/replicate_offsite.py --dry-run` → 13 files, 5.12 MB verified PASS (exit code 0)
+- `npm --prefix packages/shared-types test` → 80/80 PASS (exit code 0)
+- `npm --prefix apps/owner-dashboard test` → 68/68 PASS (exit code 0)
+- `npm --prefix apps/mobile test` → 11/11 PASS (exit code 0)
+- `bench --site frontend run-tests --app departmental_store` → 120/120 PASS (exit code 0)
+- `python scripts/ci/secret_scan.py` → 380 tracked files, 0 secrets (exit code 0)
+- `git diff --check` → 0 whitespace errors (exit code 0)

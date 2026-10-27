@@ -383,6 +383,91 @@ class S3ReplicationClient:
             "status": "REMOTE_VERIFIED",
         }
 
+    def download_file(
+        self,
+        remote_key: str,
+        local_path: Path,
+        expected_sha256: str | None = None,
+        dry_run: bool = False,
+    ) -> dict[str, Any]:
+        """Download a file from S3 with SHA-256 integrity verification and atomic write."""
+        clean_key = remote_key.lstrip("/")
+        validate_object_key(clean_key)
+
+        if self.endpoint_url_custom():
+            canonical_uri = f"/{self.bucket}/{clean_key}"
+            target_url = f"{self.endpoint}/{self.bucket}/{clean_key}"
+        else:
+            canonical_uri = f"/{clean_key}"
+            target_url = f"{self.url_base}/{clean_key}"
+
+        empty_hash = hashlib.sha256(b"").hexdigest()
+        headers = self.build_sigv4_headers(
+            method="GET",
+            canonical_uri=canonical_uri,
+            query_params={},
+            payload_hash=empty_hash,
+        )
+
+        if dry_run:
+            return {
+                "remote_key": clean_key,
+                "local_path": str(local_path),
+                "expected_sha256": expected_sha256,
+                "download_verified": True,
+                "status": "DRY_RUN_DOWNLOAD_OK",
+            }
+
+        local_path.parent.mkdir(parents=True, exist_ok=True)
+        part_path = local_path.with_suffix(local_path.suffix + ".part")
+        hasher = hashlib.sha256()
+        total_downloaded = 0
+
+        try:
+            if requests:
+                resp = requests.get(target_url, headers=headers, stream=True, timeout=60, verify=True)
+                if resp.status_code != 200:
+                    raise RuntimeError(f"S3 download failed for {clean_key} (HTTP {resp.status_code})")
+                with open(part_path, "wb") as f:
+                    for chunk in resp.iter_content(chunk_size=65536):
+                        if chunk:
+                            f.write(chunk)
+                            hasher.update(chunk)
+                            total_downloaded += len(chunk)
+            else:
+                req = urllib.request.Request(target_url, headers=headers, method="GET")
+                with urllib.request.urlopen(req, timeout=60) as resp:
+                    if resp.status != 200:
+                        raise RuntimeError(f"S3 download failed for {clean_key} (HTTP {resp.status})")
+                    with open(part_path, "wb") as f:
+                        while chunk := resp.read(65536):
+                            f.write(chunk)
+                            hasher.update(chunk)
+                            total_downloaded += len(chunk)
+
+            actual_sha = hasher.hexdigest().lower()
+            if expected_sha256 and actual_sha != expected_sha256.lower():
+                part_path.unlink(missing_ok=True)
+                raise RuntimeError(
+                    f"Integrity check failed on downloaded object '{clean_key}': expected {expected_sha256}, got {actual_sha}"
+                )
+
+            if local_path.exists():
+                local_path.unlink()
+            part_path.rename(local_path)
+
+            return {
+                "remote_key": clean_key,
+                "local_path": str(local_path),
+                "bytes_downloaded": total_downloaded,
+                "sha256": actual_sha,
+                "download_verified": True,
+                "status": "DOWNLOAD_VERIFIED",
+            }
+        except (RuntimeError, ValueError, OSError):
+            part_path.unlink(missing_ok=True)
+            raise
+
     def endpoint_url_custom(self) -> bool:
         """Check if custom endpoint URL is in use."""
         return hasattr(self, "endpoint") and bool(self.endpoint)
