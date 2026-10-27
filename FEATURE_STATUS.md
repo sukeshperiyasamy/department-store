@@ -146,3 +146,18 @@ Evidence pointers: docs/testing/, docs/artifacts/. Date of last verification: 20
 | Customer Support & Self-Service Diagnostics (Phase 7) | ✅ | Store owner troubleshooting runbooks, escalation SLAs, incident response workflows in `docs/product/CUSTOMER_SUPPORT_AND_SELF_SERVICE.md` |
 | Repeatable Product Feedback Loop SOP (Phase 8) | ✅ | 9-stage standard operating procedure (intake, triage, criteria, targeted change, regression, verification, release, measurement, verdict) in `docs/product/PRODUCT_FEEDBACK_LOOP_SOP.md` |
 | Product Roadmap & Architecture Decision Record (Phase 9) | ✅ | Near-term roadmap (Releases 0.2.0 to 0.4.0), deferred items, ADR-012 through ADR-014, and risk register in `docs/product/PRODUCT_ROADMAP_AND_DECISION_RECORD.md` |
+
+## Launch Blocker Closure & Independent Release Verification (Phase 13)
+
+| Feature | Status | Evidence |
+| --- | --- | --- |
+| Launch Blocker Register (Phase 0) | ✅ | Comprehensive register auditing 12 launch blockers across Technical, Operational, Legal, and Physical categories in `docs/launch/LAUNCH_BLOCKER_REGISTER.md` |
+| Payment Gateway Mode Guard & KYC Barrier (Phase 1) | ✅ | `validate_payment_gateway_mode()` fails closed if `rzp_live_` without `RAZORPAY_LIVE_MODE=true` or without `RAZORPAY_KYC_VERIFIED=true`; 15 backend bench tests PASS |
+| Out-of-Order Webhook Replay & Refund/Dispute Handling (Phase 1) | ✅ | State guard in `handle_payment_failed()`; `refund.created` and `payment.disputed` handlers; programmatic reconciliation API in `billing.py`; unit tests PASS |
+| External Legal & CA Review Package (Phase 2) | ✅ Review Package / ⛔ Owner Sign-off | Prepared review package in `docs/launch/LEGAL_AND_TAX_REVIEW_PACKAGE.md` covering SAC 998315 / 997331, 18% GST, Rule 46 invoices, ToS, and DPDPA 2023 |
+| Production Ingress, DNS & Wildcard TLS Audit (Phase 3) | ✅ Config / 🟡 Real DNS Pending | Traefik v3 templates verified (13/13 preflight checks PASS); zero public database exposure; documented in `docs/launch/PRODUCTION_INGRESS_AND_TLS_AUDIT.md` |
+| Independent Tenant Isolation & Financial Integrity Review (Phase 4) | ✅ | Verified cross-tenant denial, RBAC boundaries, POS idempotency, and ERPNext GL/SLE lifecycle adherence in `docs/launch/TENANT_ISOLATION_AND_FINANCIAL_INTEGRITY.md` |
+| Backup & Disaster Recovery Readiness Audit (Phase 5) | ✅ Local / ⛔ Offsite Pending | Complete archive integrity & 21s scratch-site restore verified; off-site cloud replication documented as blocker in `docs/launch/BACKUP_AND_RESTORE_AUDIT.md` |
+| Real Deployment Capacity Assessment (Phase 6) | ✅ | Empirical benchmarks (68 req/s, 1.93ms DB, 3.26x sync speedup, 0 collisions) strictly separated from mathematical models in `docs/launch/DEPLOYMENT_CAPACITY_ASSESSMENT.md` |
+| Commercial Release Gates Matrix (Phase 7) | ✅ | 20 release gates evaluated (11 PASS, 5 BLOCKED, 4 NOT TESTED) in `docs/launch/COMMERCIAL_RELEASE_GATES.md` |
+| Final Multi-Tier Release Decision (Phase 8) | ✅ | Local Validation: GO; Staging: CONDITIONAL GO; Supervised Pilot: CONDITIONAL GO (1-3 shops); Public Commercial Launch: NO-GO in `docs/launch/FINAL_RELEASE_DECISION.md` |

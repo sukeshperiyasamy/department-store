@@ -609,11 +609,55 @@ def get_billing_overview(tenant_id: str) -> dict:
     }
 
 
+def validate_payment_gateway_mode() -> dict:
+    """Validate payment gateway configuration and enforce strict fail-closed safety guards.
+
+    Prevents accidental enablement of live mode and ensures test/live consistency:
+    - If key starts with 'rzp_live_', RAZORPAY_LIVE_MODE must be explicitly True.
+    - If key starts with 'rzp_live_', RAZORPAY_KYC_VERIFIED must be explicitly True.
+    - If RAZORPAY_LIVE_MODE is True, key cannot start with 'rzp_test_'.
+    - If live mode is not verified, operation defaults cleanly to sandbox.
+    """
+    key_id = os.environ.get("RAZORPAY_KEY_ID", "rzp_test_deptstore_sandbox")
+    live_flag = os.environ.get("RAZORPAY_LIVE_MODE", "false").strip().lower() in ("1", "true", "yes")
+    kyc_verified = os.environ.get("RAZORPAY_KYC_VERIFIED", "false").strip().lower() in ("1", "true", "yes")
+
+    is_live_key = key_id.startswith("rzp_live_")
+    is_test_key = key_id.startswith("rzp_test_")
+
+    if is_live_key and not live_flag:
+        frappe.throw(
+            _("Payment gateway configuration error: Live key provided but RAZORPAY_LIVE_MODE is not enabled. Fail-closed to prevent accidental production billing."),
+            frappe.ValidationError,
+        )
+
+    if live_flag and is_test_key:
+        frappe.throw(
+            _("Payment gateway configuration error: RAZORPAY_LIVE_MODE is enabled but test key ('rzp_test_...') is supplied."),
+            frappe.ValidationError,
+        )
+
+    if is_live_key and not kyc_verified:
+        frappe.throw(
+            _("Commercial live mode BLOCKED: External merchant KYC review and legal tax sign-off incomplete. Set RAZORPAY_KYC_VERIFIED=true only after formal commercial clearance."),
+            frappe.PermissionError,
+        )
+
+    mode = "LIVE" if (is_live_key and live_flag and kyc_verified) else "SANDBOX"
+    return {
+        "mode": mode,
+        "key_id": key_id[:12] + "..." if len(key_id) > 12 else key_id,
+        "is_live": mode == "LIVE",
+        "kyc_verified": kyc_verified,
+    }
+
+
 @frappe.whitelist()
 def create_checkout_session(tenant_id: str, plan_id: str, billing_interval: str = "MONTHLY") -> dict:
     """Create a verified checkout session for plan upgrade or activation."""
     caller = require_tenant_billing_access(tenant_id)
     ensure_saas_billing_tables()
+    gw_status = validate_payment_gateway_mode()
 
     plan_row = frappe.db.sql(
         """SELECT name as plan_id, version, plan_name, price_paise, currency, max_counters
@@ -796,8 +840,22 @@ def process_billing_webhook(provider: str = "razorpay_sandbox",
     ensure_saas_billing_tables()
 
     # In production, signature comes from request header; allow explicit argument for test harness
-    sig = signature or frappe.get_request_header("X-Razorpay-Signature") or ""
-    body = raw_payload or (frappe.request.get_data(as_text=True) if frappe.request else "")
+    req = getattr(frappe, "request", None)
+    sig = signature
+    if sig is None and req:
+        try:
+            sig = frappe.get_request_header("X-Razorpay-Signature") or ""
+        except Exception:
+            sig = ""
+    sig = sig or ""
+
+    body = raw_payload
+    if body is None and req:
+        try:
+            body = frappe.request.get_data(as_text=True)
+        except Exception:
+            body = ""
+    body = body or ""
 
     if not body:
         frappe.throw(_("Missing webhook request body"), frappe.ValidationError)
@@ -845,6 +903,10 @@ def process_billing_webhook(provider: str = "razorpay_sandbox",
             handle_payment_success(data, evt_id)
         elif event_type in ["payment.failed"]:
             handle_payment_failed(data, evt_id)
+        elif event_type in ["refund.created", "refund.processed"]:
+            handle_payment_refunded(data, evt_id)
+        elif event_type in ["payment.disputed"]:
+            handle_payment_disputed(data, evt_id)
         elif event_type in ["subscription.cancelled"]:
             handle_subscription_cancelled(data, evt_id)
         else:
@@ -1024,7 +1086,7 @@ def handle_payment_failed(data: dict, event_id: str):
     tx = None
     if order_id:
         tx_rows = frappe.db.sql(
-            "SELECT name as transaction_id, subscription_id FROM `tabSaaS Payment Transaction` WHERE provider_order_id = %s",
+            "SELECT name as transaction_id, subscription_id, status FROM `tabSaaS Payment Transaction` WHERE provider_order_id = %s",
             (order_id,),
             as_dict=True,
         )
@@ -1032,6 +1094,11 @@ def handle_payment_failed(data: dict, event_id: str):
             tx = tx_rows[0]
 
     if tx:
+        # Out-of-order replay guard: Do not overwrite an already successful payment with a stale failure
+        if tx.get("status") == "SUCCESS":
+            frappe.log_error(f"Out-of-order webhook ignored: payment for order {order_id} is already SUCCESS", "Billing Webhook")
+            return
+
         frappe.db.sql(
             """UPDATE `tabSaaS Payment Transaction`
                SET status = 'FAILED', failure_reason = %s, modified = NOW()
@@ -1061,6 +1128,67 @@ def handle_payment_failed(data: dict, event_id: str):
         )
 
 
+def handle_payment_refunded(data: dict, event_id: str):
+    """Process refund event: mark transaction REFUNDED, record audit, update invoice."""
+    payload = data.get("payload", {})
+    refund = payload.get("refund", {}).get("entity", {}) if "refund" in payload else data
+    payment_id = refund.get("payment_id") or data.get("payment_id")
+    refund_id = refund.get("id") or f"rfnd_{uuid.uuid4().hex[:12]}"
+    amount_paise = refund.get("amount") or data.get("amount") or 0
+
+    tx_rows = frappe.db.sql(
+        "SELECT name as transaction_id, subscription_id, customer_id FROM `tabSaaS Payment Transaction` WHERE provider_payment_id = %s",
+        (payment_id,),
+        as_dict=True,
+    )
+    if tx_rows:
+        tx = tx_rows[0]
+        frappe.db.sql(
+            """UPDATE `tabSaaS Payment Transaction`
+               SET status = 'REFUNDED', failure_reason = %s, modified = NOW()
+               WHERE name = %s""",
+            (f"Refund {refund_id} processed for {amount_paise / 100} INR", tx["transaction_id"]),
+        )
+        record_billing_audit(
+            actor="billing_webhook",
+            action="payment_refunded",
+            entity_type="subscription",
+            entity_id=tx["subscription_id"],
+            new_state="REFUNDED",
+            reason=f"Refund {refund_id} recorded ({amount_paise / 100} INR)",
+        )
+
+
+def handle_payment_disputed(data: dict, event_id: str):
+    """Process dispute / chargeback event: flag transaction DISPUTED and record audit."""
+    payload = data.get("payload", {})
+    dispute = payload.get("dispute", {}).get("entity", {}) if "dispute" in payload else data
+    payment_id = dispute.get("payment_id") or data.get("payment_id")
+    dispute_id = dispute.get("id") or f"disp_{uuid.uuid4().hex[:12]}"
+
+    tx_rows = frappe.db.sql(
+        "SELECT name as transaction_id, subscription_id, customer_id FROM `tabSaaS Payment Transaction` WHERE provider_payment_id = %s",
+        (payment_id,),
+        as_dict=True,
+    )
+    if tx_rows:
+        tx = tx_rows[0]
+        frappe.db.sql(
+            """UPDATE `tabSaaS Payment Transaction`
+               SET status = 'DISPUTED', failure_reason = %s, modified = NOW()
+               WHERE name = %s""",
+            (f"Dispute {dispute_id} lodged", tx["transaction_id"]),
+        )
+        record_billing_audit(
+            actor="billing_webhook",
+            action="payment_disputed",
+            entity_type="subscription",
+            entity_id=tx["subscription_id"],
+            new_state="DISPUTED",
+            reason=f"Payment dispute {dispute_id} received from card network",
+        )
+
+
 def handle_subscription_cancelled(data: dict, event_id: str):
     """Process cancellation webhook."""
     sub_id = data.get("subscription_id")
@@ -1077,6 +1205,7 @@ def handle_subscription_cancelled(data: dict, event_id: str):
             new_state="CANCELLED",
             reason="Cancellation event received from payment provider",
         )
+
 
 
 # -------------------------------------------------------------------------
@@ -1296,4 +1425,60 @@ def admin_retry_webhook_event(event_id: str) -> dict:
         "api_version": API_VERSION,
         "event_id": event_id,
         "result": result,
+    }
+
+
+@frappe.whitelist()
+def reconcile_subscription_payments(tenant_id: str = None) -> dict:
+    """Audit and reconcile subscription payments, invoices, and lifecycle state."""
+    require_platform_admin()
+    ensure_saas_billing_tables()
+
+    discrepancies = []
+
+    # 1. Successful payments without PAID invoice
+    tenant_cond = "AND t.customer_id IN (SELECT customer_id FROM `tabSaaS Subscription` WHERE tenant_id = %s)" if tenant_id else ""
+    params = [tenant_id] if tenant_id else []
+
+    unmatched_tx = frappe.db.sql(
+        f"""SELECT t.name as tx_id, t.subscription_id, t.provider_order_id, t.amount_paise
+           FROM `tabSaaS Payment Transaction` t
+           LEFT JOIN `tabSaaS Invoice` i ON t.subscription_id = i.subscription_id AND i.payment_status = 'PAID'
+           WHERE t.status = 'SUCCESS' AND i.name IS NULL {tenant_cond}""",
+        tuple(params),
+        as_dict=True,
+    )
+    for row in unmatched_tx:
+        discrepancies.append({
+            "type": "MISSING_INVOICE",
+            "subscription_id": row["subscription_id"],
+            "transaction_id": row["tx_id"],
+            "detail": f"Transaction {row['tx_id']} is SUCCESS but no matching PAID invoice exists",
+            "severity": "HIGH",
+        })
+
+    # 2. Expired periods still marked ACTIVE
+    t_sub_cond = "AND tenant_id = %s" if tenant_id else ""
+    overdue_subs = frappe.db.sql(
+        f"""SELECT name as subscription_id, tenant_id, current_period_end, status
+           FROM `tabSaaS Subscription`
+           WHERE status = 'ACTIVE' AND current_period_end < NOW() {t_sub_cond}""",
+        tuple(params),
+        as_dict=True,
+    )
+    for sub in overdue_subs:
+        discrepancies.append({
+            "type": "EXPIRED_PERIOD_ACTIVE",
+            "subscription_id": sub["subscription_id"],
+            "tenant_id": sub["tenant_id"],
+            "detail": f"Subscription {sub['subscription_id']} is marked ACTIVE but period ended at {sub['current_period_end']}",
+            "severity": "MEDIUM",
+        })
+
+    return {
+        "api_version": API_VERSION,
+        "reconciled_at": now_datetime().isoformat(),
+        "total_discrepancies": len(discrepancies),
+        "status": "CLEAN" if not discrepancies else "DISCREPANCIES_FOUND",
+        "discrepancies": discrepancies,
     }
