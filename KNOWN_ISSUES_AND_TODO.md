@@ -16,6 +16,19 @@ Last updated: 2026-10-27 (fresh-stack validation pass). Full defect register: `d
 - The MC-D1 single-retry safety net stays in `submit_pos_sale` as defense in depth.
 - Production sizing/indexing review remains a TODO before go-live.
 
+### Payment Reconciliation Security & Webhook Integrity — HARDENED & VERIFIED 2026-10-27 (Phase 14)
+- **Payment Gateway Mode Guard**: Hardened `validate_payment_gateway_mode()`: key must be non-empty and start with `rzp_test_` or `rzp_live_`; live key without `RAZORPAY_LIVE_MODE=true` fails closed; test key with `RAZORPAY_LIVE_MODE=true` fails closed; live key without `RAZORPAY_KYC_VERIFIED=true` raises `PermissionError` citing formal commercial clearance block.
+- **Reconciliation Authorization RBAC**: Multi-tier security on `reconcile_subscription_payments()`: Guests and Cashiers rejected with `PermissionError`; Store Managers can only reconcile their own shop (`require_tenant_billing_access`); platform-wide reconciliation and `auto_heal=True` strictly restricted to `Platform Admin`.
+- **Distributed Concurrency Lock**: Distributed cache lock `reconcile_payments_{tenant_id or 'global'}` prevents race conditions; concurrent attempts return `status: "LOCKED"`.
+- **Webhook Order Match & Fail-Closed Guard**: Removed dangerous subscription fallback; unknown `order_id` in webhook raises `ValidationError` and rolls back database transaction; mismatched tenant ID in payload raises `PermissionError`.
+- **Duplicate Capture & Refund/Dispute State Transitions**:
+  * Duplicate captures (`payment.captured` + `order.paid`) deduplicated: exactly 1 invoice generated, period end not double-extended.
+  * Partial refund: marks transaction and invoice `PARTIALLY_REFUNDED`; subscription and tenant remain active.
+  * Full refund: marks transaction and invoice `REFUNDED`; subscription cancelled; tenant suspended.
+  * Dispute: marks transaction `DISPUTED`; subscription placed `PAST_DUE`.
+- **Daily Scheduled Runner**: Added cron `0 3 * * *` in `hooks.py` invoking `scheduled_subscription_reconciliation()` under `Administrator` context.
+- **Test Evidence**: 21 passing automated tests in `test_billing_api.py`; 350 automated tests pass cleanly across all repository workspaces.
+
 ### ISSUE-01 / STOCK-01 — RESOLVED as QA-0005 (real product defect, not environment)
 - True root cause found during the fresh-stack run: `_posting_date` converted tz-aware
   `occurred_at` with Python `datetime.astimezone()`, which follows the **container TZ (UTC)**,

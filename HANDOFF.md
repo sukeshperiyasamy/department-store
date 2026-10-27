@@ -135,6 +135,14 @@ A departmental-store ERP for a single store with 2–3 Windows POS counters:
     - Deployment Capacity Assessment: Documented empirical performance benchmarks (68 req/s, 1.93ms DB latency, 3.26x sync speedup, 0 collisions) while strictly separating mathematical multi-store cost projections (50 shops at ₹50,400/mo) and untested assumptions in `docs/launch/DEPLOYMENT_CAPACITY_ASSESSMENT.md`.
     - Commercial Release Gates Matrix: 20 release criteria evaluated across Technical (11 PASS), Operational (4 PASS, 1 BLOCKED, 1 NOT TESTED), Business (2 PASS, 4 BLOCKED), and Physical Validation (4 NOT TESTED) in `docs/launch/COMMERCIAL_RELEASE_GATES.md`.
     - Multi-Tier Release Decision: Separate decisions issued for Local Technical Validation (GO), Staging Readiness (CONDITIONAL GO), Supervised Real-Shop Pilot (CONDITIONAL GO for 1–3 stores with documented limits), and Public Commercial Launch (NO-GO / BLOCKED pending external approvals) in `docs/launch/FINAL_RELEASE_DECISION.md`.
+  * Phase 14: Payment Reconciliation Security, Webhook Integrity & Reproducible Release Evidence:
+    - Gateway Mode Validation: Hardened `validate_payment_gateway_mode()` to fail closed on empty/missing keys, malformed key prefixes (`rzp_test_` or `rzp_live_` required), mismatched live/test flags, and blocks live mode without explicit `RAZORPAY_KYC_VERIFIED=true`.
+    - Webhook Order Matching & Atomic Rollback: Removed dangerous arbitrary subscription fallback; unknown orders in webhooks fail closed with `ValidationError`; mismatched tenant IDs raise `PermissionError`; transaction rollback on exceptions marks event `FAILED`.
+    - Webhook Deduplication & Event Ordering: Deduplicated capture events (`payment.captured` + `order.paid`) preventing double-invoicing or multi-month period extension; explicit full vs partial refund handling; disputes transition subscription to `PAST_DUE`.
+    - Reconciliation Authorization & Concurrency Model: Reconcile endpoint enforces multi-tier RBAC (Guests and Cashiers rejected; Store Managers restricted to their own shop; Platform Admin required for platform-wide reconciliation and `auto_heal=True`); distributed cache lock `reconcile_payments_{tenant_id or 'global'}` prevents race conditions.
+    - Background Subscription Reconciliation: Registered daily cron `0 3 * * *` in `hooks.py` invoking `scheduled_subscription_reconciliation()` under `Administrator` context.
+    - Invariant Verification: Formally verified all 9 payment and subscription invariants; documented in `docs/launch/PAYMENT_RECONCILIATION_AND_WEBHOOK_AUDIT.md`.
+    - Full-Suite Test Execution: 350 tests executed across 8 backend suites and 4 frontend/app packages (all 350 PASS, 0 FAIL, 0 SKIPPED).
 - Pushed to `https://github.com/sukeshperiyasamy/department-store` (origin/main). **Never force-push.**
 
 ## 3. Module map (where things live)

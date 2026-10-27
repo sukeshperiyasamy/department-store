@@ -613,17 +613,32 @@ def validate_payment_gateway_mode() -> dict:
     """Validate payment gateway configuration and enforce strict fail-closed safety guards.
 
     Prevents accidental enablement of live mode and ensures test/live consistency:
+    - RAZORPAY_KEY_ID cannot be empty.
+    - Key must explicitly begin with 'rzp_test_' or 'rzp_live_'.
     - If key starts with 'rzp_live_', RAZORPAY_LIVE_MODE must be explicitly True.
     - If key starts with 'rzp_live_', RAZORPAY_KYC_VERIFIED must be explicitly True.
     - If RAZORPAY_LIVE_MODE is True, key cannot start with 'rzp_test_'.
-    - If live mode is not verified, operation defaults cleanly to sandbox.
+    - Secrets are never returned or logged.
     """
     key_id = os.environ.get("RAZORPAY_KEY_ID", "rzp_test_deptstore_sandbox")
-    live_flag = os.environ.get("RAZORPAY_LIVE_MODE", "false").strip().lower() in ("1", "true", "yes")
-    kyc_verified = os.environ.get("RAZORPAY_KYC_VERIFIED", "false").strip().lower() in ("1", "true", "yes")
+    if not key_id or not isinstance(key_id, str) or not key_id.strip():
+        frappe.throw(
+            _("Payment gateway configuration error: RAZORPAY_KEY_ID cannot be empty."),
+            frappe.ValidationError,
+        )
+    key_id = key_id.strip()
 
     is_live_key = key_id.startswith("rzp_live_")
     is_test_key = key_id.startswith("rzp_test_")
+
+    if not is_live_key and not is_test_key:
+        frappe.throw(
+            _("Payment gateway configuration error: Invalid RAZORPAY_KEY_ID format. Key must begin with 'rzp_test_' or 'rzp_live_'."),
+            frappe.ValidationError,
+        )
+
+    live_flag = os.environ.get("RAZORPAY_LIVE_MODE", "false").strip().lower() in ("1", "true", "yes")
+    kyc_verified = os.environ.get("RAZORPAY_KYC_VERIFIED", "false").strip().lower() in ("1", "true", "yes")
 
     if is_live_key and not live_flag:
         frappe.throw(
@@ -650,6 +665,7 @@ def validate_payment_gateway_mode() -> dict:
         "is_live": mode == "LIVE",
         "kyc_verified": kyc_verified,
     }
+
 
 
 @frappe.whitelist()
@@ -838,6 +854,10 @@ def process_billing_webhook(provider: str = "razorpay_sandbox",
                             event_id: str = None) -> dict:
     """Process incoming billing webhook with signature validation, deduplication, and atomic settlement."""
     ensure_saas_billing_tables()
+    gw_mode = validate_payment_gateway_mode()
+
+    if not gw_mode["is_live"] and provider == "razorpay_live":
+        frappe.throw(_("Live webhook received but gateway is configured in SANDBOX mode."), frappe.ValidationError)
 
     # In production, signature comes from request header; allow explicit argument for test harness
     req = getattr(frappe, "request", None)
@@ -867,7 +887,7 @@ def process_billing_webhook(provider: str = "razorpay_sandbox",
 
     try:
         data = json.loads(body)
-    except Exception as e:
+    except Exception:
         frappe.throw(_("Malformed JSON payload in webhook body"), frappe.ValidationError)
 
     evt_id = event_id or data.get("event_id") or data.get("id") or f"evt_{uuid.uuid4().hex[:16]}"
@@ -897,7 +917,7 @@ def process_billing_webhook(provider: str = "razorpay_sandbox",
         )
         frappe.db.commit()
 
-    # Process by Event Type
+    # Process by Event Type with transaction rollback safety
     try:
         if event_type in ["payment.captured", "order.paid", "subscription.activated"]:
             handle_payment_success(data, evt_id)
@@ -936,7 +956,8 @@ def process_billing_webhook(provider: str = "razorpay_sandbox",
         }
 
     except Exception as exc:
-        err_msg = str(exc)
+        frappe.db.rollback()
+        err_msg = str(exc)[:500]
         frappe.db.sql(
             """UPDATE `tabSaaS Webhook Event`
                SET status = 'FAILED', error_message = %s, processed_at = NOW()
@@ -954,72 +975,73 @@ def handle_payment_success(data: dict, event_id: str):
     payment = payload.get("payment", {}).get("entity", {}) if "payment" in payload else data
     order_id = payment.get("order_id") or data.get("order_id")
     payment_id = payment.get("id") or data.get("payment_id") or f"pay_{uuid.uuid4().hex[:12]}"
-    amount_paise = payment.get("amount") or data.get("amount") or 176882
+    amount_paise = int(payment.get("amount") or data.get("amount") or 176882)
 
-    # Find matching payment transaction
-    tx = None
-    if order_id:
-        tx_rows = frappe.db.sql(
-            """SELECT name as transaction_id, subscription_id, customer_id
-               FROM `tabSaaS Payment Transaction`
-               WHERE provider_order_id = %s""",
-            (order_id,),
-            as_dict=True,
+    if not order_id:
+        frappe.throw(_("Payment success webhook missing order_id"), frappe.ValidationError)
+
+    tx_rows = frappe.db.sql(
+        """SELECT name as transaction_id, subscription_id, customer_id, status, amount_paise
+           FROM `tabSaaS Payment Transaction`
+           WHERE provider_order_id = %s FOR UPDATE""",
+        (order_id,),
+        as_dict=True,
+    )
+    if not tx_rows:
+        frappe.throw(
+            _("Payment transaction for provider order '{0}' not found. Unrecognized payments cannot be processed without a matching checkout record.").format(order_id),
+            frappe.ValidationError,
         )
-        if tx_rows:
-            tx = tx_rows[0]
 
-    subscription_id = tx["subscription_id"] if tx else data.get("subscription_id")
+    tx = tx_rows[0]
+    subscription_id = tx["subscription_id"]
 
-    if not subscription_id:
-        # Fallback: find most recent active or trialing subscription
-        any_sub = frappe.db.sql(
-            "SELECT name as subscription_id, customer_id, tenant_id FROM `tabSaaS Subscription` ORDER BY creation DESC LIMIT 1",
-            as_dict=True,
+    sub_rows = frappe.db.sql(
+        "SELECT customer_id, tenant_id, status FROM `tabSaaS Subscription` WHERE name = %s FOR UPDATE",
+        (subscription_id,),
+        as_dict=True,
+    )
+    if not sub_rows:
+        frappe.throw(_("Subscription '{0}' does not exist").format(subscription_id), frappe.ValidationError)
+
+    customer_id = sub_rows[0]["customer_id"]
+    tenant_id = sub_rows[0]["tenant_id"]
+
+    # Cross-tenant payload validation
+    payload_tenant = data.get("tenant_id") or payload.get("tenant_id")
+    if payload_tenant and payload_tenant != tenant_id:
+        frappe.throw(
+            _("Security error: Webhook tenant_id '{0}' does not match subscription tenant_id '{1}'").format(payload_tenant, tenant_id),
+            frappe.PermissionError,
         )
-        if any_sub:
-            subscription_id = any_sub[0]["subscription_id"]
-            customer_id = any_sub[0]["customer_id"]
-            tenant_id = any_sub[0]["tenant_id"]
-        else:
-            frappe.throw(_("No subscription found to apply payment"), frappe.ValidationError)
-    else:
-        sub_row = frappe.db.sql(
-            "SELECT customer_id, tenant_id, status FROM `tabSaaS Subscription` WHERE name = %s",
+
+    # Idempotent replay guard: if transaction already SUCCESS and has paid invoice, return early
+    if tx["status"] == "SUCCESS":
+        existing_inv = frappe.db.sql(
+            "SELECT name, invoice_number FROM `tabSaaS Invoice` WHERE subscription_id = %s AND payment_status = 'PAID'",
             (subscription_id,),
             as_dict=True,
         )
-        if not sub_row:
-            frappe.throw(_(f"Subscription '{subscription_id}' does not exist"), frappe.ValidationError)
-        customer_id = sub_row[0]["customer_id"]
-        tenant_id = sub_row[0]["tenant_id"]
+        if existing_inv:
+            frappe.logger("billing").info(f"Duplicate payment.captured for order {order_id}; payment and invoice already settled.")
+            return
 
-    # 1. Update Payment Transaction
-    if tx:
-        frappe.db.sql(
-            """UPDATE `tabSaaS Payment Transaction`
-               SET status = 'SUCCESS', provider_payment_id = %s, modified = NOW()
-               WHERE name = %s""",
-            (payment_id, tx["transaction_id"]),
-        )
-    else:
-        tx_id = str(uuid.uuid4())
-        frappe.db.sql(
-            """INSERT INTO `tabSaaS Payment Transaction`
-               (name, subscription_id, customer_id, amount_paise, currency, status,
-                provider_payment_id, provider_order_id)
-               VALUES (%s, %s, %s, %s, 'INR', 'SUCCESS', %s, %s)""",
-            (tx_id, subscription_id, customer_id, amount_paise, payment_id, order_id),
-        )
+    # 1. Update Payment Transaction to SUCCESS
+    frappe.db.sql(
+        """UPDATE `tabSaaS Payment Transaction`
+           SET status = 'SUCCESS', provider_payment_id = %s, modified = NOW()
+           WHERE name = %s""",
+        (payment_id, tx["transaction_id"]),
+    )
 
     # 2. Transition Subscription to ACTIVE & Extend Period
     new_start = now_datetime()
     new_end = add_days(new_start, 30)
     frappe.db.sql(
         """UPDATE `tabSaaS Subscription`
-               SET status = 'ACTIVE', current_period_start = %s, current_period_end = %s,
-                   cancel_at_period_end = 0, grace_period_end = NULL, modified = NOW()
-               WHERE name = %s""",
+           SET status = 'ACTIVE', current_period_start = %s, current_period_end = %s,
+               cancel_at_period_end = 0, grace_period_end = NULL, modified = NOW()
+           WHERE name = %s""",
         (new_start, new_end, subscription_id),
     )
 
@@ -1083,115 +1105,192 @@ def handle_payment_failed(data: dict, event_id: str):
     order_id = payment.get("order_id") or data.get("order_id")
     failure_reason = payment.get("error_description") or data.get("reason") or "Card declined or insufficient funds"
 
-    tx = None
-    if order_id:
-        tx_rows = frappe.db.sql(
-            "SELECT name as transaction_id, subscription_id, status FROM `tabSaaS Payment Transaction` WHERE provider_order_id = %s",
-            (order_id,),
-            as_dict=True,
-        )
-        if tx_rows:
-            tx = tx_rows[0]
+    if not order_id:
+        frappe.throw(_("Payment failed webhook missing order_id"), frappe.ValidationError)
 
-    if tx:
-        # Out-of-order replay guard: Do not overwrite an already successful payment with a stale failure
-        if tx.get("status") == "SUCCESS":
-            frappe.log_error(f"Out-of-order webhook ignored: payment for order {order_id} is already SUCCESS", "Billing Webhook")
-            return
+    tx_rows = frappe.db.sql(
+        "SELECT name as transaction_id, subscription_id, status FROM `tabSaaS Payment Transaction` WHERE provider_order_id = %s FOR UPDATE",
+        (order_id,),
+        as_dict=True,
+    )
+    if not tx_rows:
+        frappe.throw(_("Payment transaction for order '{0}' not found").format(order_id), frappe.ValidationError)
 
-        frappe.db.sql(
-            """UPDATE `tabSaaS Payment Transaction`
-               SET status = 'FAILED', failure_reason = %s, modified = NOW()
-               WHERE name = %s""",
-            (failure_reason, tx["transaction_id"]),
-        )
-        subscription_id = tx["subscription_id"]
-    else:
-        any_sub = frappe.db.sql("SELECT name FROM `tabSaaS Subscription` ORDER BY creation DESC LIMIT 1", as_dict=True)
-        subscription_id = any_sub[0]["name"] if any_sub else None
+    tx = tx_rows[0]
 
-    if subscription_id:
-        grace_end = add_days(now_datetime(), 7)  # 7-day grace period
-        frappe.db.sql(
-            """UPDATE `tabSaaS Subscription`
-               SET status = 'PAST_DUE', grace_period_end = %s, modified = NOW()
-               WHERE name = %s""",
-            (grace_end, subscription_id),
-        )
-        record_billing_audit(
-            actor="billing_webhook",
-            action="payment_failed",
-            entity_type="subscription",
-            entity_id=subscription_id,
-            new_state="PAST_DUE",
-            reason=f"Payment failure ({failure_reason}). Grace period until {grace_end}.",
-        )
+    # Out-of-order replay guard: Do not overwrite an already successful payment with a stale failure
+    if tx.get("status") == "SUCCESS":
+        frappe.logger("billing").warning(f"Out-of-order webhook ignored: payment for order {order_id} is already SUCCESS")
+        return
+
+    # Do not overwrite a refunded or disputed transaction with payment.failed
+    if tx.get("status") in ("REFUNDED", "DISPUTED"):
+        frappe.logger("billing").warning(f"Stale failure webhook ignored for {tx['status']} transaction {tx['transaction_id']}")
+        return
+
+    frappe.db.sql(
+        """UPDATE `tabSaaS Payment Transaction`
+           SET status = 'FAILED', failure_reason = %s, modified = NOW()
+           WHERE name = %s""",
+        (failure_reason, tx["transaction_id"]),
+    )
+    subscription_id = tx["subscription_id"]
+
+    grace_end = add_days(now_datetime(), 7)  # 7-day grace period
+    frappe.db.sql(
+        """UPDATE `tabSaaS Subscription`
+           SET status = 'PAST_DUE', grace_period_end = %s, modified = NOW()
+           WHERE name = %s AND status != 'CANCELLED'""",
+        (grace_end, subscription_id),
+    )
+    record_billing_audit(
+        actor="billing_webhook",
+        action="payment_failed",
+        entity_type="subscription",
+        entity_id=subscription_id,
+        new_state="PAST_DUE",
+        reason=f"Payment failure ({failure_reason}). Grace period until {grace_end}.",
+    )
 
 
 def handle_payment_refunded(data: dict, event_id: str):
-    """Process refund event: mark transaction REFUNDED, record audit, update invoice."""
+    """Process refund event: distinguish full vs partial refund, update subscription & invoice."""
     payload = data.get("payload", {})
     refund = payload.get("refund", {}).get("entity", {}) if "refund" in payload else data
     payment_id = refund.get("payment_id") or data.get("payment_id")
     refund_id = refund.get("id") or f"rfnd_{uuid.uuid4().hex[:12]}"
-    amount_paise = refund.get("amount") or data.get("amount") or 0
+    amount_paise = int(refund.get("amount") or data.get("amount") or 0)
+
+    if not payment_id:
+        frappe.throw(_("Refund webhook missing payment_id"), frappe.ValidationError)
 
     tx_rows = frappe.db.sql(
-        "SELECT name as transaction_id, subscription_id, customer_id FROM `tabSaaS Payment Transaction` WHERE provider_payment_id = %s",
+        """SELECT name as transaction_id, subscription_id, customer_id, status, amount_paise
+           FROM `tabSaaS Payment Transaction`
+           WHERE provider_payment_id = %s FOR UPDATE""",
         (payment_id,),
         as_dict=True,
     )
-    if tx_rows:
-        tx = tx_rows[0]
+    if not tx_rows:
+        frappe.throw(_("Payment transaction for payment ID '{0}' not found").format(payment_id), frappe.ValidationError)
+
+    tx = tx_rows[0]
+    is_full_refund = (amount_paise >= tx["amount_paise"]) or (amount_paise == 0)
+
+    if is_full_refund:
+        new_tx_status = "REFUNDED"
+        sub_status = "CANCELLED"
+        inv_status = "REFUNDED"
+    else:
+        new_tx_status = "PARTIALLY_REFUNDED"
+        sub_status = None
+        inv_status = "PARTIALLY_REFUNDED"
+
+    frappe.db.sql(
+        """UPDATE `tabSaaS Payment Transaction`
+           SET status = %s, failure_reason = %s, modified = NOW()
+           WHERE name = %s""",
+        (new_tx_status, f"Refund {refund_id} for {amount_paise / 100} INR", tx["transaction_id"]),
+    )
+
+    if is_full_refund:
         frappe.db.sql(
-            """UPDATE `tabSaaS Payment Transaction`
-               SET status = 'REFUNDED', failure_reason = %s, modified = NOW()
+            """UPDATE `tabSaaS Subscription`
+               SET status = %s, cancel_at_period_end = 0, modified = NOW()
                WHERE name = %s""",
-            (f"Refund {refund_id} processed for {amount_paise / 100} INR", tx["transaction_id"]),
+            (sub_status, tx["subscription_id"]),
         )
-        record_billing_audit(
-            actor="billing_webhook",
-            action="payment_refunded",
-            entity_type="subscription",
-            entity_id=tx["subscription_id"],
-            new_state="REFUNDED",
-            reason=f"Refund {refund_id} recorded ({amount_paise / 100} INR)",
-        )
+        sub_info = frappe.db.sql("SELECT tenant_id FROM `tabSaaS Subscription` WHERE name = %s", (tx["subscription_id"],), as_dict=True)
+        if sub_info:
+            t_id = sub_info[0]["tenant_id"]
+            frappe.db.sql("UPDATE `tabSaaS Tenant Registry` SET lifecycle_status = 'SUSPENDED', updated_at = NOW() WHERE tenant_id = %s", (t_id,))
+
+    frappe.db.sql(
+        """UPDATE `tabSaaS Invoice`
+           SET payment_status = %s, modified = NOW()
+           WHERE subscription_id = %s""",
+        (inv_status, tx["subscription_id"]),
+    )
+
+    record_billing_audit(
+        actor="billing_webhook",
+        action="payment_refunded" if is_full_refund else "payment_partially_refunded",
+        entity_type="subscription",
+        entity_id=tx["subscription_id"],
+        new_state=new_tx_status,
+        reason=f"Refund {refund_id} processed ({amount_paise / 100} INR). Full={is_full_refund}.",
+    )
 
 
 def handle_payment_disputed(data: dict, event_id: str):
-    """Process dispute / chargeback event: flag transaction DISPUTED and record audit."""
+    """Process dispute / chargeback event: flag transaction DISPUTED, place subscription in PAST_DUE."""
     payload = data.get("payload", {})
     dispute = payload.get("dispute", {}).get("entity", {}) if "dispute" in payload else data
     payment_id = dispute.get("payment_id") or data.get("payment_id")
     dispute_id = dispute.get("id") or f"disp_{uuid.uuid4().hex[:12]}"
 
+    if not payment_id:
+        frappe.throw(_("Dispute webhook missing payment_id"), frappe.ValidationError)
+
     tx_rows = frappe.db.sql(
-        "SELECT name as transaction_id, subscription_id, customer_id FROM `tabSaaS Payment Transaction` WHERE provider_payment_id = %s",
+        """SELECT name as transaction_id, subscription_id, customer_id, status
+           FROM `tabSaaS Payment Transaction`
+           WHERE provider_payment_id = %s FOR UPDATE""",
         (payment_id,),
         as_dict=True,
     )
-    if tx_rows:
-        tx = tx_rows[0]
-        frappe.db.sql(
-            """UPDATE `tabSaaS Payment Transaction`
-               SET status = 'DISPUTED', failure_reason = %s, modified = NOW()
-               WHERE name = %s""",
-            (f"Dispute {dispute_id} lodged", tx["transaction_id"]),
-        )
-        record_billing_audit(
-            actor="billing_webhook",
-            action="payment_disputed",
-            entity_type="subscription",
-            entity_id=tx["subscription_id"],
-            new_state="DISPUTED",
-            reason=f"Payment dispute {dispute_id} received from card network",
-        )
+    if not tx_rows:
+        frappe.throw(_("Payment transaction for payment ID '{0}' not found").format(payment_id), frappe.ValidationError)
+
+    tx = tx_rows[0]
+    frappe.db.sql(
+        """UPDATE `tabSaaS Payment Transaction`
+           SET status = 'DISPUTED', failure_reason = %s, modified = NOW()
+           WHERE name = %s""",
+        (f"Dispute {dispute_id} lodged", tx["transaction_id"]),
+    )
+
+    frappe.db.sql(
+        """UPDATE `tabSaaS Subscription`
+           SET status = 'PAST_DUE', modified = NOW()
+           WHERE name = %s AND status = 'ACTIVE'""",
+        (tx["subscription_id"],),
+    )
+
+    record_billing_audit(
+        actor="billing_webhook",
+        action="payment_disputed",
+        entity_type="subscription",
+        entity_id=tx["subscription_id"],
+        new_state="DISPUTED",
+        reason=f"Payment dispute {dispute_id} received from card network for payment {payment_id}.",
+    )
 
 
 def handle_subscription_cancelled(data: dict, event_id: str):
     """Process cancellation webhook."""
     sub_id = data.get("subscription_id")
+    if not sub_id:
+        return
+    sub_rows = frappe.db.sql("SELECT tenant_id FROM `tabSaaS Subscription` WHERE name = %s", (sub_id,), as_dict=True)
+    if not sub_rows:
+        return
+
+    frappe.db.sql(
+        "UPDATE `tabSaaS Subscription` SET status = 'CANCELLED', cancelled_at = NOW() WHERE name = %s",
+        (sub_id,),
+    )
+    t_id = sub_rows[0]["tenant_id"]
+    frappe.db.sql("UPDATE `tabSaaS Tenant Registry` SET lifecycle_status = 'SUSPENDED', updated_at = NOW() WHERE tenant_id = %s", (t_id,))
+
+    record_billing_audit(
+        actor="billing_webhook",
+        action="subscription_cancelled",
+        entity_type="subscription",
+        entity_id=sub_id,
+        new_state="CANCELLED",
+        reason="Cancellation event received from payment provider",
+    )
     if sub_id:
         frappe.db.sql(
             "UPDATE `tabSaaS Subscription` SET status = 'CANCELLED', cancelled_at = NOW() WHERE name = %s",
@@ -1429,56 +1528,239 @@ def admin_retry_webhook_event(event_id: str) -> dict:
 
 
 @frappe.whitelist()
-def reconcile_subscription_payments(tenant_id: str = None) -> dict:
-    """Audit and reconcile subscription payments, invoices, and lifecycle state."""
-    require_platform_admin()
+def reconcile_subscription_payments(tenant_id: str = None, auto_heal: bool = False) -> dict:
+    """Audit and reconcile subscription payments, invoices, and lifecycle state.
+
+    Authorization Model:
+    - Platform-wide reconciliation (tenant_id=None): strictly requires Platform Admin or Administrator.
+    - Tenant-scoped reconciliation (tenant_id provided): verified through require_tenant_billing_access(tenant_id).
+    - Guest and Cashier accounts are rejected server-side with PermissionError.
+    - auto_heal=True strictly requires Platform Admin or Administrator privileges.
+    """
     ensure_saas_billing_tables()
+    validate_payment_gateway_mode()
 
-    discrepancies = []
+    user = frappe.session.user
+    if not user or user == "Guest":
+        frappe.throw(_("Authentication required"), frappe.PermissionError)
 
-    # 1. Successful payments without PAID invoice
-    tenant_cond = "AND t.customer_id IN (SELECT customer_id FROM `tabSaaS Subscription` WHERE tenant_id = %s)" if tenant_id else ""
-    params = [tenant_id] if tenant_id else []
+    is_admin = (user == "Administrator") or ("Platform Admin" in frappe.get_roles(user))
 
-    unmatched_tx = frappe.db.sql(
-        f"""SELECT t.name as tx_id, t.subscription_id, t.provider_order_id, t.amount_paise
-           FROM `tabSaaS Payment Transaction` t
-           LEFT JOIN `tabSaaS Invoice` i ON t.subscription_id = i.subscription_id AND i.payment_status = 'PAID'
-           WHERE t.status = 'SUCCESS' AND i.name IS NULL {tenant_cond}""",
-        tuple(params),
-        as_dict=True,
-    )
-    for row in unmatched_tx:
-        discrepancies.append({
-            "type": "MISSING_INVOICE",
-            "subscription_id": row["subscription_id"],
-            "transaction_id": row["tx_id"],
-            "detail": f"Transaction {row['tx_id']} is SUCCESS but no matching PAID invoice exists",
-            "severity": "HIGH",
+    if not tenant_id:
+        if not is_admin:
+            frappe.throw(
+                _("Platform-wide reconciliation requires Platform Admin privileges. Specify tenant_id for tenant-scoped reconciliation."),
+                frappe.PermissionError,
+            )
+    else:
+        # Validate that tenant_id exists
+        t_exists = frappe.db.sql(
+            "SELECT name FROM `tabSaaS Tenant Registry` WHERE tenant_id = %s",
+            (tenant_id,),
+            as_dict=True,
+        )
+        if not t_exists:
+            frappe.throw(_("Tenant '{0}' does not exist").format(tenant_id), frappe.DoesNotExistError)
+
+        # Enforce tenant billing access
+        require_tenant_billing_access(tenant_id)
+
+    auto_heal_bool = bool(auto_heal) and (auto_heal in (True, 1, "1", "true", "True"))
+    if auto_heal_bool and not is_admin:
+        frappe.throw(
+            _("Automatic discrepancy repair requires Platform Admin privileges."),
+            frappe.PermissionError,
+        )
+
+    # Concurrency / distributed locking
+    lock_name = f"reconcile_payments_{tenant_id or 'global'}"
+    if hasattr(frappe, "cache") and frappe.cache():
+        if frappe.cache().get_value(lock_name):
+            return {
+                "api_version": API_VERSION,
+                "reconciled_at": now_datetime().isoformat(),
+                "scope": "TENANT" if tenant_id else "PLATFORM",
+                "tenant_id": tenant_id,
+                "status": "LOCKED",
+                "message": "Reconciliation already in progress for this scope. Please wait.",
+                "discrepancies": [],
+                "total_discrepancies": 0,
+                "auto_healed": 0,
+            }
+        frappe.cache().set_value(lock_name, "1", expires_in_sec=120)
+
+    try:
+        discrepancies = []
+        healed_count = 0
+
+        # 1. Unmatched successful payments without PAID invoice
+        tenant_tx_cond = "AND s.tenant_id = %s" if tenant_id else ""
+        params_tx = (tenant_id,) if tenant_id else ()
+
+        unmatched_tx = frappe.db.sql(
+            f"""SELECT t.name as tx_id, t.subscription_id, t.customer_id, t.provider_order_id,
+                       t.provider_payment_id, t.amount_paise, s.tenant_id
+               FROM `tabSaaS Payment Transaction` t
+               INNER JOIN `tabSaaS Subscription` s ON t.subscription_id = s.name
+               LEFT JOIN `tabSaaS Invoice` i ON t.subscription_id = i.subscription_id AND i.payment_status = 'PAID'
+               WHERE t.status = 'SUCCESS' AND i.name IS NULL {tenant_tx_cond}""",
+            params_tx,
+            as_dict=True,
+        )
+        for row in unmatched_tx:
+            disc = {
+                "type": "MISSING_INVOICE",
+                "subscription_id": row["subscription_id"],
+                "tenant_id": row["tenant_id"],
+                "transaction_id": row["tx_id"],
+                "detail": f"Transaction {row['tx_id']} is SUCCESS but no matching PAID invoice exists",
+                "severity": "HIGH",
+            }
+            discrepancies.append(disc)
+
+            if auto_heal_bool and is_admin:
+                # Idempotent repair: check if invoice was already generated
+                already_inv = frappe.db.sql(
+                    "SELECT name FROM `tabSaaS Invoice` WHERE subscription_id = %s AND payment_status = 'PAID'",
+                    (row["subscription_id"],),
+                    as_dict=True,
+                )
+                if not already_inv:
+                    inv_id = str(uuid.uuid4())
+                    now_dt = now_datetime()
+                    year = now_dt.year
+                    seq_res = frappe.db.sql("SELECT COUNT(*) as cnt FROM `tabSaaS Invoice`", as_dict=True)
+                    seq_count = (seq_res[0]["cnt"] if seq_res else 0) + 1
+                    inv_num = f"SAAS-INV-{year}-{seq_count:05d}"
+                    amount_paise = row["amount_paise"] or 176882
+                    subtotal = int(amount_paise / 1.18)
+                    tax = amount_paise - subtotal
+
+                    frappe.db.sql(
+                        """INSERT INTO `tabSaaS Invoice`
+                           (name, invoice_number, subscription_id, customer_id, tenant_id,
+                            period_start, period_end, subtotal_paise, tax_paise, total_paise,
+                            currency, payment_status, paid_at, pdf_url)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'INR', 'PAID', NOW(), %s)""",
+                        (
+                            inv_id, inv_num, row["subscription_id"], row["customer_id"], row["tenant_id"],
+                            now_dt, add_days(now_dt, 30), subtotal, tax, amount_paise,
+                            f"/api/billing/invoices/{inv_id}/download",
+                        ),
+                    )
+                    record_billing_audit(
+                        actor=user,
+                        action="reconcile_auto_heal",
+                        entity_type="invoice",
+                        entity_id=inv_id,
+                        new_state="PAID",
+                        reason=f"Repaired missing invoice {inv_num} for verified transaction {row['tx_id']}",
+                    )
+                    disc["healed"] = "HEALED_GENERATED_INVOICE"
+                    healed_count += 1
+
+        # 2. Expired periods still marked ACTIVE
+        tenant_sub_cond = "AND tenant_id = %s" if tenant_id else ""
+        params_sub = (tenant_id,) if tenant_id else ()
+
+        overdue_subs = frappe.db.sql(
+            f"""SELECT name as subscription_id, tenant_id, current_period_end, status
+               FROM `tabSaaS Subscription`
+               WHERE status = 'ACTIVE' AND current_period_end < NOW() {tenant_sub_cond}""",
+            params_sub,
+            as_dict=True,
+        )
+        for sub in overdue_subs:
+            disc = {
+                "type": "EXPIRED_PERIOD_ACTIVE",
+                "subscription_id": sub["subscription_id"],
+                "tenant_id": sub["tenant_id"],
+                "detail": f"Subscription {sub['subscription_id']} is marked ACTIVE but period ended at {sub['current_period_end']}",
+                "severity": "MEDIUM",
+            }
+            discrepancies.append(disc)
+
+            if auto_heal_bool and is_admin:
+                grace_end = add_days(now_datetime(), 7)
+                frappe.db.sql(
+                    """UPDATE `tabSaaS Subscription`
+                       SET status = 'PAST_DUE', grace_period_end = %s, modified = NOW()
+                       WHERE name = %s AND status = 'ACTIVE'""",
+                    (grace_end, sub["subscription_id"]),
+                )
+                record_billing_audit(
+                    actor=user,
+                    action="reconcile_auto_heal",
+                    entity_type="subscription",
+                    entity_id=sub["subscription_id"],
+                    new_state="PAST_DUE",
+                    reason=f"Transitioned expired subscription {sub['subscription_id']} to PAST_DUE (grace until {grace_end})",
+                )
+                disc["healed"] = "HEALED_MARKED_PAST_DUE"
+                healed_count += 1
+
+        # 3. Disputed transactions requiring review
+        disputed_tx = frappe.db.sql(
+            f"""SELECT t.name as tx_id, t.subscription_id, s.tenant_id, t.failure_reason
+               FROM `tabSaaS Payment Transaction` t
+               INNER JOIN `tabSaaS Subscription` s ON t.subscription_id = s.name
+               WHERE t.status = 'DISPUTED' {tenant_tx_cond}""",
+            params_tx,
+            as_dict=True,
+        )
+        for d in disputed_tx:
+            discrepancies.append({
+                "type": "PAYMENT_DISPUTED",
+                "subscription_id": d["subscription_id"],
+                "tenant_id": d["tenant_id"],
+                "transaction_id": d["tx_id"],
+                "detail": f"Transaction {d['tx_id']} is under dispute: {d['failure_reason']}",
+                "severity": "HIGH",
+            })
+
+        # 4. Stale webhooks stuck in RECEIVED state (Platform Admin only)
+        if not tenant_id and is_admin:
+            stale_webhooks = frappe.db.sql(
+                """SELECT name as event_id, event_type, creation
+                   FROM `tabSaaS Webhook Event`
+                   WHERE status = 'RECEIVED' AND creation < NOW() - INTERVAL 10 MINUTE""",
+                as_dict=True,
+            )
+            for w in stale_webhooks:
+                discrepancies.append({
+                    "type": "STALE_WEBHOOK_EVENT",
+                    "event_id": w["event_id"],
+                    "detail": f"Webhook event {w['event_id']} ({w['event_type']}) stuck in RECEIVED state since {w['creation']}",
+                    "severity": "MEDIUM",
+                })
+
+        if auto_heal_bool and healed_count > 0:
+            frappe.db.commit()
+
+        return {
+            "api_version": API_VERSION,
+            "reconciled_at": now_datetime().isoformat(),
+            "scope": "TENANT" if tenant_id else "PLATFORM",
+            "tenant_id": tenant_id,
+            "total_discrepancies": len(discrepancies),
+            "status": "CLEAN" if not discrepancies else "DISCREPANCIES_FOUND",
+            "discrepancies": discrepancies,
+            "auto_healed": healed_count,
+        }
+    finally:
+        if hasattr(frappe, "cache") and frappe.cache():
+            frappe.cache().delete_value(lock_name)
+
+
+def scheduled_subscription_reconciliation():
+    """Background scheduled job for daily platform-wide subscription reconciliation."""
+    frappe.set_user("Administrator")
+    try:
+        report = reconcile_subscription_payments(tenant_id=None, auto_heal=True)
+        frappe.logger("billing").info({
+            "event": "scheduled_reconciliation_complete",
+            "total_discrepancies": report["total_discrepancies"],
+            "auto_healed": report.get("auto_healed", 0),
         })
-
-    # 2. Expired periods still marked ACTIVE
-    t_sub_cond = "AND tenant_id = %s" if tenant_id else ""
-    overdue_subs = frappe.db.sql(
-        f"""SELECT name as subscription_id, tenant_id, current_period_end, status
-           FROM `tabSaaS Subscription`
-           WHERE status = 'ACTIVE' AND current_period_end < NOW() {t_sub_cond}""",
-        tuple(params),
-        as_dict=True,
-    )
-    for sub in overdue_subs:
-        discrepancies.append({
-            "type": "EXPIRED_PERIOD_ACTIVE",
-            "subscription_id": sub["subscription_id"],
-            "tenant_id": sub["tenant_id"],
-            "detail": f"Subscription {sub['subscription_id']} is marked ACTIVE but period ended at {sub['current_period_end']}",
-            "severity": "MEDIUM",
-        })
-
-    return {
-        "api_version": API_VERSION,
-        "reconciled_at": now_datetime().isoformat(),
-        "total_discrepancies": len(discrepancies),
-        "status": "CLEAN" if not discrepancies else "DISCREPANCIES_FOUND",
-        "discrepancies": discrepancies,
-    }
+    except Exception as exc:
+        frappe.log_error(f"Scheduled reconciliation error: {str(exc)}", "Subscription Reconciliation")

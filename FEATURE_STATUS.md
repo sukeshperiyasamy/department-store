@@ -161,3 +161,15 @@ Evidence pointers: docs/testing/, docs/artifacts/. Date of last verification: 20
 | Real Deployment Capacity Assessment (Phase 6) | ✅ | Empirical benchmarks (68 req/s, 1.93ms DB, 3.26x sync speedup, 0 collisions) strictly separated from mathematical models in `docs/launch/DEPLOYMENT_CAPACITY_ASSESSMENT.md` |
 | Commercial Release Gates Matrix (Phase 7) | ✅ | 20 release gates evaluated (11 PASS, 5 BLOCKED, 4 NOT TESTED) in `docs/launch/COMMERCIAL_RELEASE_GATES.md` |
 | Final Multi-Tier Release Decision (Phase 8) | ✅ | Local Validation: GO; Staging: CONDITIONAL GO; Supervised Pilot: CONDITIONAL GO (1-3 shops); Public Commercial Launch: NO-GO in `docs/launch/FINAL_RELEASE_DECISION.md` |
+
+## Payment Reconciliation Security & Webhook Integrity (Phase 14)
+
+| Feature | Status | Evidence |
+| --- | --- | --- |
+| Reconciliation Authorization & Concurrency Model | ✅ | Multi-tier RBAC (Guest/Cashier rejected, Store Manager self-tenant only, Platform Admin for platform-wide/auto-heal), distributed concurrency lock via cache, 8 bench tests in `test_billing_api.py` PASS |
+| Background Subscription Reconciliation Scheduler | ✅ | Registered cron job `0 3 * * *` in `hooks.py`, automated discrepancy detection (`MISSING_INVOICE`, `EXPIRED_PERIOD_ACTIVE`, `PAYMENT_DISPUTED`) without fabricating payment evidence |
+| Webhook Order Fail-Closed & Idempotent Rollback | ✅ | Order matching with `FOR UPDATE`; removed unsafe subscription fallback; transaction rollback on exceptions, recording `FAILED` events; unit tests PASS |
+| Duplicate Capture & Multi-Event Invoice Deduplication | ✅ | Idempotent invoice deduplication preventing multi-extension of subscriptions or duplicate `SAAS-INV-...` invoices on repeated capture/paid webhooks |
+| Full vs Partial Refund & Dispute State Transitions | ✅ | Explicit transition semantics: partial refund keeps subscription active; full refund cancels subscription and suspends tenant; dispute transitions subscription to `PAST_DUE` |
+| Fail-Closed Gateway Mode & Key Format Verification | ✅ | Fails closed on missing/empty keys, malformed prefixes (`rzp_test_` or `rzp_live_` required), test key with live mode, or live key without `RAZORPAY_KYC_VERIFIED=true` |
+| Reproducible Full-Suite Regression Verification | ✅ | 350 total automated tests PASS (110 Frappe backend tests, 80 shared-types, 68 owner-dashboard, 11 mobile, 80 Windows POS, 13 preflight checks, 0 secret leaks) in `docs/launch/PAYMENT_RECONCILIATION_AND_WEBHOOK_AUDIT.md` |

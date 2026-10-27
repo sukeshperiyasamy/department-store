@@ -23,9 +23,9 @@ This Blocker Register establishes the ground-truth status of all architectural, 
 
 | Blocker ID | Category | Description | Severity | Owner | Required Evidence | Status | Closure Criteria |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **BLK-TECH-01** | Technical | Accidental live payment gateway activation or unvalidated webhook delivery. | **CRITICAL** | Lead Engineer | Sandbox/Live isolation guard, raw body HMAC verification, replay protection, refund/dispute handling. | **CLOSED** | Verified in `billing.py` with 15 passing automated backend tests (`test_billing_api.py`). Live mode strictly fails closed if KYC unverified. |
-| **BLK-TECH-02** | Technical | Stale out-of-order webhook events downgrading confirmed transactions. | **HIGH** | Lead Engineer | Unit test simulating `payment.failed` event arriving after `payment.captured` for same order. | **CLOSED** | Added state guard in `handle_payment_failed()`; existing `SUCCESS` state cannot be overwritten by stale failure events. |
-| **BLK-TECH-03** | Technical | Discrepancies between payment gateway transactions and local subscription ledger. | **HIGH** | Lead Engineer | Programmatic reconciliation API identifying unmatched successful payments or missing invoices. | **CLOSED** | Implemented `reconcile_subscription_payments()` in `billing.py` with test coverage in `test_billing_api.py`. |
+| **BLK-TECH-01** | Technical | Accidental live payment gateway activation or unvalidated webhook delivery. | **CRITICAL** | Lead Engineer | Sandbox/Live isolation guard, malformed key prefix check, raw body HMAC verification, replay protection, full/partial refund, dispute handling. | **CLOSED** | Verified in `billing.py` with 21 passing automated backend tests (`test_billing_api.py`). Live mode strictly fails closed if KYC unverified or key format invalid. |
+| **BLK-TECH-02** | Technical | Stale out-of-order webhook events downgrading confirmed transactions or duplicate capture events duplicating invoices. | **HIGH** | Lead Engineer | Unit test simulating `payment.failed` event arriving after `payment.captured` and duplicate capture / `order.paid` events. | **CLOSED** | Added state guards in `handle_payment_failed()` and invoice deduplication in `handle_payment_success()`. Stale events ignored; duplicate events create exactly 1 invoice. |
+| **BLK-TECH-03** | Technical | Discrepancies between payment gateway transactions and local subscription ledger, unauthorized reconciliation, or concurrent race conditions. | **HIGH** | Lead Engineer | Programmatic reconciliation API with strict RBAC, auto-healing, distributed concurrency lock, and daily scheduler cron. | **CLOSED** | Implemented `reconcile_subscription_payments(tenant_id, auto_heal)` and `scheduled_subscription_reconciliation()` with test coverage across 8 authorization and concurrency checks in `test_billing_api.py`. |
 | **BLK-OPS-01** | Operational | Off-site disaster recovery backup replication to isolated cloud storage. | **CRITICAL** | DevOps / System Admin | Configured rclone / AWS S3 / Cloudflare R2 bucket with automated replication and cryptographic key isolation. | **BLOCKED** | Project owner provisioned off-site cold storage bucket and credentials; automated replication cron verified. |
 | **BLK-OPS-02** | Operational | Staging domain DNS and Let's Encrypt Wildcard TLS issuance in live environment. | **HIGH** | Platform Owner / DevOps | Public staging VM with ports 80/443, authoritative DNS delegation (`*.staging.departmentstore.in`), and ACME DNS-01 challenge completion. | **BLOCKED** | Execution of `docs/operations/STAGING_ACCEPTANCE_RUNBOOK.md` on real public infrastructure with verified TLS handshake. |
 | **BLK-OPS-03** | Operational | Production SMTP / SMS provider configuration for tenant notification delivery. | **MEDIUM** | Platform Admin | Live SendGrid / AWS SES / Twilio API keys configured with SPF/DKIM verification. | **BLOCKED** | Verified email delivery to test address with zero spam flagging and verified bounce handling. |
@@ -44,22 +44,30 @@ This Blocker Register establishes the ground-truth status of all architectural, 
 
 #### BLK-TECH-01: Payment Gateway Mode Isolation & Live Accident Prevention
 - **Issue:** Previous code relied on environment variables without fail-closed validation between live and test keys, allowing potential accidental configuration of live keys during local testing.
-- **Remediation in Phase 13:** Implemented `validate_payment_gateway_mode()` in [`erpnext-app/departmental_store/departmental_store/api/billing.py`](file:///c:/Users/COMPUTER/Downloads/sukesh/departmental/erpnext-app/departmental_store/departmental_store/api/billing.py):
-  1. If `RAZORPAY_KEY_ID` begins with `rzp_live_` and `RAZORPAY_LIVE_MODE` is not explicitly `"true"`, execution fails closed with `frappe.ValidationError`.
-  2. If `RAZORPAY_LIVE_MODE` is `"true"` but a test key `rzp_test_...` is provided, execution fails closed.
-  3. If `RAZORPAY_KEY_ID` begins with `rzp_live_` but `RAZORPAY_KYC_VERIFIED` is not `"true"`, execution raises `frappe.PermissionError` explicitly citing: *"Commercial live mode BLOCKED: External merchant KYC review and legal tax sign-off incomplete"*.
-- **Test Evidence:** 15 automated backend tests pass cleanly in `test_billing_api.py`.
+- **Remediation in Phase 13 & 14:** Hardened `validate_payment_gateway_mode()` in [`erpnext-app/departmental_store/departmental_store/api/billing.py`](file:///c:/Users/COMPUTER/Downloads/sukesh/departmental/erpnext-app/departmental_store/departmental_store/api/billing.py):
+  1. Key must be non-empty and start with `rzp_test_` or `rzp_live_`. Malformed prefixes raise `frappe.ValidationError`.
+  2. If `RAZORPAY_KEY_ID` begins with `rzp_live_` and `RAZORPAY_LIVE_MODE` is not explicitly `"true"`, execution fails closed with `frappe.ValidationError`.
+  3. If `RAZORPAY_LIVE_MODE` is `"true"` but a test key `rzp_test_...` is provided, execution fails closed.
+  4. If `RAZORPAY_KEY_ID` begins with `rzp_live_` but `RAZORPAY_KYC_VERIFIED` is not `"true"`, execution raises `frappe.PermissionError` explicitly citing: *"Commercial live mode BLOCKED: External merchant KYC review and legal tax sign-off incomplete"*.
+- **Test Evidence:** 21 automated backend tests pass cleanly in `test_billing_api.py`.
 
-#### BLK-TECH-02: Stale Webhook Replay & Out-of-Order Handling
-- **Issue:** An out-of-order webhook delivery where a delayed `payment.failed` arrives after a successful `payment.captured` could theoretically mark a paid subscription as failed.
-- **Remediation in Phase 13:** In `handle_payment_failed()`, the transaction status is inspected first. If the transaction already has `status == "SUCCESS"`, the incoming failure webhook is rejected with:
-  `frappe.logger("billing").warning(f"Ignoring payment.failed for already successful transaction {txn_id}")`
-- **Test Evidence:** Unit test `test_webhook_out_of_order_payment_failed_after_success()` verified that the transaction remains `SUCCESS` and the subscription remains `ACTIVE`.
+#### BLK-TECH-02: Stale Webhook Replay, Order Matching & Duplicate Capture Guards
+- **Issue:** An out-of-order webhook delivery where a delayed `payment.failed` arrives after a successful `payment.captured` could mark a paid subscription as failed, or duplicate captures could duplicate invoices.
+- **Remediation in Phase 13 & 14:**
+  1. Removed dangerous subscription fallback; order lookups fail closed if unmatched.
+  2. If a transaction is already `SUCCESS`, incoming `payment.failed` webhooks are safely ignored.
+  3. Duplicate capture events (`payment.captured` and `order.paid` for the same order) reuse existing invoices without creating duplicates or double-extending the subscription.
+  4. Full vs partial refunds are explicitly distinguished: partial keeps subscription active; full cancels subscription and suspends tenant.
+- **Test Evidence:** Unit tests `test_webhook_out_of_order_replay_guard`, `test_webhook_duplicate_capture_no_duplicate_invoice`, and `test_webhook_full_vs_partial_refund_distinction` in `test_billing_api.py`.
 
-#### BLK-TECH-03: Provider vs Local Ledger Reconciliation
+#### BLK-TECH-03: Provider vs Local Ledger Reconciliation & Safe Background Jobs
 - **Issue:** If network failure drops an incoming webhook, a store's payment might succeed at the provider while their local subscription remains pending.
-- **Remediation in Phase 13:** Implemented `@frappe.whitelist() reconcile_subscription_payments(tenant_id=None)` in `billing.py`. It inspects all transactions from the past 30 days, cross-references with `tabSaaS Subscription` and `tabSaaS Invoice`, and identifies discrepancies (unmatched transactions, missing invoices, expired active subscriptions).
-- **Test Evidence:** Unit test `test_reconcile_subscription_payments()` verified detection of anomalous subscription states.
+- **Remediation in Phase 13 & 14:**
+  1. Implemented `@frappe.whitelist() reconcile_subscription_payments(tenant_id=None, auto_heal=False)` in `billing.py` with multi-tier authorization (Platform Admin for platform-wide/auto-heal; Store Manager/Owner for tenant-scoped).
+  2. Distributed concurrency locking prevents race conditions.
+  3. Auto-healing creates missing invoices idempotently and marks expired active subscriptions as `PAST_DUE` without fabricating payment evidence.
+  4. Registered daily `0 3 * * *` scheduled cron runner in `hooks.py`.
+- **Test Evidence:** Unit tests `test_reconciliation_authorization_boundaries`, `test_reconciliation_concurrency_lock`, and `test_reconciliation_auto_heal_discrepancy_handling` in `test_billing_api.py`.
 
 ---
 

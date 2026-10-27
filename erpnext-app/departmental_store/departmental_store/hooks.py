@@ -12,7 +12,10 @@ scheduler_events = {
     "cron": {
         "*/5 * * * *": [
             "departmental_store.api.provisioning.process_stale_jobs_and_queue"
-        ]
+        ],
+        "0 3 * * *": [
+            "departmental_store.api.billing.scheduled_subscription_reconciliation"
+        ],
     }
 }
 
