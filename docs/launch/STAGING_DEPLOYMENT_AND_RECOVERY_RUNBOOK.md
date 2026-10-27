@@ -291,3 +291,48 @@ If a database migration fails during an update:
    ```bash
    docker exec departmental-erp-backend-1 bench --site frontend execute departmental_store.api.health.get_liveness
    ```
+
+---
+
+## 7. External Staging Acceptance Sequence & Owner Action Checklist
+
+Prior to initiating live staging deployment or provisioning cloud infrastructure, the Platform Owner must authorize and supply the following 7 prerequisite items:
+
+```mermaid
+flowchart TD
+    subgraph OwnerChecklist["7-Item Owner Staging Prerequisite Checklist"]
+        O1["1. Cloud Storage Bucket: AWS S3 or Cloudflare R2 bucket credentials"]
+        O2["2. Staging Linux VM: Ubuntu 24.04, 4 vCPUs, 12GB RAM, static IPv4"]
+        O3["3. DNS Zone Access: Delegation of *.staging.departmentstore.in + ACME DNS-01 API token"]
+        O4["4. Ingress Topology Sign-Off: Approved hostnames & trusted proxy CIDRs"]
+        O5["5. Test Notifications: SendGrid / AWS SES sandbox API credentials"]
+        O6["6. Test Gateway: Razorpay Sandbox (rzp_test_...) & webhook secret"]
+        O7["7. Hardware Delivery: Physical 80mm ESC/POS printer & barcode scanner"]
+    end
+
+    OwnerChecklist --> Deploy["Staging Deployment Execution"]
+    Deploy --> V1["Verify ACME Wildcard TLS Issuance"]
+    Deploy --> V2["Verify Multi-Tenant Subdomain Routing & Isolation"]
+    Deploy --> V3["Execute Real Cloud Backup Replication & Scratch Restore"]
+    Deploy --> V4["Validate Deployment Rollback Runbook"]
+```
+
+### Actionable Prerequisite Details
+
+| # | Prerequisite Item | Environment Variable / Config Key | Delivery Format & Safety Boundaries |
+| :--- | :--- | :--- | :--- |
+| **1** | **Cloud Backup Bucket** | `S3_BUCKET_NAME`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_REGION_NAME` | Dedicated, isolated bucket or prefix (e.g. `department-store-staging-backups`). Principle of least privilege: `s3:PutObject`, `s3:GetObject`, `s3:ListBucket` only. |
+| **2** | **Staging Linux VM** | Static IPv4, SSH deploy key | Dedicated host meeting 4 vCPU / 12GB RAM sizing. Ports 80 and 443 open to internet; port 22 restricted to admin/deployer IP. |
+| **3** | **DNS Zone Delegation** | `CF_DNS_API_TOKEN` / `AWS_HOSTED_ZONE_ID` | Scoped API token permitting TXT record creation under `_acme-challenge.staging.departmentstore.in`. Zero access to production root records. |
+| **4** | **Ingress & Proxy Topology**| `BASE_DOMAIN`, `TRUSTED_PROXY_IPS` | Sign-off on staging subdomain scheme (`*.staging.departmentstore.in`). Explicit CIDRs of any intermediate cloud load balancers or CDNs. |
+| **5** | **Test Notification Provider** | `SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD` | Sandbox credentials restricted to sending only to authorized test emails/phone numbers. |
+| **6** | **Test Payment Gateway** | `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` | Test mode credentials (`rzp_test_` prefix strictly required). `RAZORPAY_LIVE_MODE` remains `false`. |
+| **7** | **Physical POS Hardware** | Retail Store Pilot Bench | ESC/POS 80mm thermal receipt printer (USB/Ethernet) and 1D/2D handheld barcode scanner for in-store checkout validation. |
+
+### Post-Prerequisite Acceptance Validation Protocol
+Once the owner supplies prerequisites 1–6:
+1. Deploy Traefik v3 and ERPNext stack using `deployment/ingress/docker-compose.traefik.yml` and `deployment/erpnext/pwd.yml`.
+2. Issue wildcard TLS certificate via Let's Encrypt Staging resolver (`letsencrypt-staging`) to confirm ACME DNS-01 challenge completion without rate-limit risk.
+3. Verify live tenant routing: `shop-a.staging.departmentstore.in` and `shop-b.staging.departmentstore.in` route to distinct isolated tenant workspaces with zero cross-tenant leakage.
+4. Execute `python deployment/backup/replicate_offsite.py` against the real test bucket, verify remote SHA-256 metadata via S3 HEAD, download the archive via `download_file()`, and restore into a disposable scratch site (`deployment/backup/test_restore_scratch.py`).
+5. Exercise Step 6.2 rollback runbook to confirm database restore and zero-downtime recovery in the staging environment.

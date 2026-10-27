@@ -246,6 +246,12 @@ Last updated: 2026-10-27 (fresh-stack validation pass). Full defect register: `d
 - **Provider Architecture Documented**: Multi-cloud compatibility matrix (AWS S3 vs Cloudflare R2 vs MinIO) documented in `docs/launch/OFFSITE_BACKUP_AND_DR_SPECIFICATION.md`, detailing endpoint formats, path styles, SigV4 region parameters, and zero-egress considerations.
 - **Staging & Cloud Blocker Distinction**: Software and local preflight checks verified; public staging and cloud DR replication remain strictly blocked on external cloud credentials and infrastructure.
 
+### Staging Deployment Gate & Release Evidence Reconciliation — RECONCILED & AUDITED 2026-10-27 (Phase 16)
+- **Full Test Suite Reconciliation**: Reconciled test metrics from raw command output. Total automated test cases across repository: **388 tests** (80 POS, 80 shared-types, 68 owner-dashboard, 11 mobile, 29 off-site backup & download, 120 Frappe backend). Clarified distinction from 25 preflight assertions, 380-file secret scan, and 2 Ruff lint suites.
+- **Latest Remote CI Verified**: Commit `8f90158b60d7571fbb63602fee0877ac00b14cec` confirmed 100% GREEN on GitHub Actions Run `40529474846` (`CI Quality Gates`, 6/6 jobs PASS).
+- **Staging Deployment Prerequisites Matrix**: Authored actionable 7-item prerequisite checklist in `STAGING_DEPLOYMENT_AND_RECOVERY_RUNBOOK.md` covering cloud storage bucket, public Linux VM, DNS zone delegation, trusted proxy topology, notification credentials, payment gateway keys, and POS hardware.
+- **Port Exposure & Isolation Verified**: Traefik ingress exposes strictly ports 80/443; MariaDB 3306 and Redis 6379 remain isolated on internal bridge networks with zero host interface bindings.
+
 5. **Live Payment Gateway Activation (Blocker for Live Billing)**: Production Razorpay Merchant account KYC, production webhook secret configuration.
 6. **Legal & Tax Sign-Off (Blocker for Live Billing)**: Commercial approval of pricing tiers (Starter ₹1,499 / Growth ₹2,999 / Enterprise ₹4,999); legal counsel review of Terms of Service & refund policy; CA sign-off on SAC 998315 and operator GSTIN.
 7. **Staging Domain Live Deployment**: Execute `docs/launch/STAGING_DEPLOYMENT_AND_RECOVERY_RUNBOOK.md` once owner supplies staging domain and DNS credentials.

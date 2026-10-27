@@ -211,3 +211,12 @@ Evidence pointers: docs/testing/, docs/artifacts/. Date of last verification: 20
 | S3 Download Security & Error Resilience Suite | ✅ | 29 automated tests in `tests/integration/test_replicate_offsite.py` exercising 10 security/fault scenarios (streamed GET, SHA-256 match, checksum mismatch preserving destination, mid-stream network drop, HTTP 500, malformed hex check, directory & path traversal, atomic replacement, secret redaction, and Windows handle cleanup) |
 | Multi-Cloud Provider Architecture Specification | ✅ | S3/R2/MinIO compatibility matrix, SigV4 path-style vs virtual-host, region `auto`, and zero-egress assumptions documented in `OFFSITE_BACKUP_AND_DR_SPECIFICATION.md` |
 | Cloud Storage & Public Staging Readiness | ⛔ Blocked on Cloud Credentials & Owner Infra | Automated preflight valid (25 PASS); real cloud replication and public staging deployment remain strictly blocked on external credentials and domain delegation |
+
+## Staging Deployment Gate & Release Evidence Reconciliation (Phase 16)
+
+| Feature | Status | Evidence |
+| --- | --- | --- |
+| Release Evidence Mathematical Reconciliation | ✅ | 388 total automated test cases verified from command outputs (80 POS, 80 shared-types, 68 owner-dashboard, 11 mobile, 29 backup/download, 120 Frappe backend across all 10 modules); strictly distinguished from 25 environment preflight checks, 380-file secret scan, and 2 Ruff lint audits |
+| Remote CI/CD Full Suite Verification | ✅ | Commit `8f90158` verified 100% GREEN on GitHub Actions Run `40529474846` (6/6 jobs PASS: Mobile, Dashboard, Frappe Python Quality, Windows POS, Security Preflight, Shared Contracts) |
+| Staging Deployment Architecture Audit | ✅ | Traefik v3 reverse proxy syntax verified; zero public database exposure (MariaDB 3306 & Redis 6379 internal only); strict tenant fail-closed routing verified in `middleware.ts` and `TestTenantIsolation` |
+| 7-Item External Staging Acceptance Sequence | ✅ Spec / ⛔ Owner Action | Documented actionable owner prerequisite checklist in `STAGING_DEPLOYMENT_AND_RECOVERY_RUNBOOK.md` covering cloud storage bucket, public Linux VM, DNS delegation, proxy topology, notification credentials, payment gateway keys, and POS hardware |

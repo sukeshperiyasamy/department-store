@@ -554,3 +554,47 @@ Phase 15 focused on staging deployment reproducibility, disaster-recovery automa
 - `bench --site frontend run-tests --app departmental_store --module departmental_store.tests.test_billing_api` → 21/21 PASS (exit code 0)
 - `python scripts/ci/secret_scan.py` → 380 tracked files, 0 secrets (exit code 0)
 - `git diff --check` → 0 whitespace errors (exit code 0)
+
+---
+
+# PHASE 16 HANDOFF AUDIT — 2026-10-27 (Staging Deployment Gate & Release Evidence Reconciliation)
+
+## Baseline & Remote GitHub Actions CI Verification
+- **Verified Commit SHA:** `8f90158b60d7571fbb63602fee0877ac00b14cec` (`8f90158`)
+- **Remote Run URL:** [`https://github.com/sukeshperiyasamy/department-store/actions/runs/40529474846`](https://github.com/sukeshperiyasamy/department-store/actions/runs/40529474846)
+- **Workflow:** `CI Quality Gates`
+- **Conclusion:** `success` (100% GREEN)
+- **Job Status Breakdown (6/6 PASS):**
+  * `Mobile Companion Isolation Tests` (Job `122278012458`): **success**
+  * `Owner Dashboard Test & Build` (Job `122278012938`): **success**
+  * `Frappe App Python Quality` (Job `122278013001`): **success**
+  * `Windows POS Test & Frontend Build` (Job `122278013012`): **success**
+  * `Security & Config Preflight` (Job `122278013116`): **success**
+  * `Typecheck & Contract Validation` (Job `122278013174`): **success**
+
+## Full Release Evidence Reconciliation (388 Automated Tests)
+Raw command execution confirms exactly **388 automated test cases** across the repository, reconciling the historical 378 (Phase 15A) and 379 (Phase 15B) counts with the 10 new download test cases added in Phase 15C:
+
+1. **Client / Frontend Test Suites (239 tests - Vitest)**:
+   - `apps/windows-pos`: **80 tests passed** (12 test files)
+   - `packages/shared-types`: **80 tests passed** (4 test files)
+   - `apps/owner-dashboard`: **68 tests passed** (12 test files)
+   - `apps/mobile`: **11 tests passed** (1 test file)
+2. **Infrastructure & Disaster Recovery Suite (29 tests - Python unittest)**:
+   - `tests/integration/test_replicate_offsite.py`: **29 tests passed** (10 S3 download scenarios + 19 upload/prune/auth tests)
+3. **Frappe Backend Core Business Suites (120 tests - Frappe Bench runner)**:
+   - Unspecified test category (55 tests passed): `test_sales_api`, `test_provisioning_api`, `test_health_api`, `test_tenant_isolation`, `test_returns_api`
+   - Old-category test category (65 tests passed): `test_catalog_api`, `test_settings_api`, `test_onboarding_api`, `test_billing_api`, `test_tenant_api`
+   - *(Note: When executing only `test_billing_api` during focused iterations, 21 tests are run)*
+4. **Preflight, Security & Quality Audits (Non-Test Assertion Checks)**:
+   - `staging_preflight_check.mjs`: **25 PASSED**, 0 FAILED, 6 BLOCKED external dependencies
+   - `secret_scan.py`: 380 tracked files scanned, 0 secrets detected
+   - `ruff check departmental_store`: 0 errors
+   - `ruff check deployment/backup tests/integration/test_replicate_offsite.py`: 0 errors
+   - `git diff --check`: 0 formatting/whitespace errors
+
+## Staging Deployment Architecture & Ingress Verification
+- **Network Isolation**: Ingress (`saas-edge-ingress`) binds solely to ports 80 and 443. MariaDB (3306), Redis (6379), and Frappe Gunicorn (8000) are unmapped to host interfaces.
+- **Tenant Fail-Closed Routing**: Next.js `middleware.ts` enforces RFC 1123 hostname validation; malformed or unmapped subdomains fail closed with 404; tenant `/admin` attempts are blocked with 403.
+- **Trusted Proxy Inspection**: Forwarded headers (`x-forwarded-host`, `x-forwarded-for`) are accepted only from explicitly matched trusted proxy CIDRs (`TRUSTED_PROXY_IPS`).
+- **7-Item External Staging Acceptance Sequence**: Formally documented in `STAGING_DEPLOYMENT_AND_RECOVERY_RUNBOOK.md` detailing exact owner actions required before initiating public deployment.
