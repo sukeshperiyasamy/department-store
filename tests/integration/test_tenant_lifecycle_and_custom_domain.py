@@ -517,6 +517,7 @@ from departmental_store.api import provisioning
 frappe.db.sql("UPDATE `tabSaaS Tenant Registry` SET lifecycle_status = 'ACTIVE' WHERE tenant_id = '{TID_A}'")
 frappe.db.commit()
 frappe.cache().delete_value("saas_tenant_lifecycle:{SITE_A}", shared=True)
+frappe.cache().delete_value("saas_tenant_lifecycle:{CUSTOM_DOMAIN_VERIFIED_A}", shared=True)
 provisioning._manage_custom_domain_symlink("{SITE_A}", "{CUSTOM_DOMAIN_VERIFIED_A}", action="create")
 """
         subprocess.run(seed_cmd, input=reactivate_cmd, text=True, check=True)
@@ -584,6 +585,7 @@ frappe.connect()
 from departmental_store.api import provisioning
 frappe.set_user("Administrator")
 provisioning.verify_tenant_hostname("{TID_A}")
+frappe.cache().delete_value("saas_tenant_lifecycle:{CUSTOM_DOMAIN_VERIFIED_A}", shared=True)
 provisioning._manage_custom_domain_symlink("{SITE_A}", "{CUSTOM_DOMAIN_VERIFIED_A}", action="create")
 """
         subprocess.run(seed_cmd, input=reset_ver_cmd, text=True, check=True)

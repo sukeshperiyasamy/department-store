@@ -664,6 +664,8 @@ def set_tenant_status(tenant_id: str, new_status: str, reason: str) -> dict:
         }
         try:
             frappe.cache().set_value(f"saas_tenant_lifecycle:{site_name}", cached_meta, expires_in_sec=300, shared=True)
+            for cd in c_domains:
+                frappe.cache().set_value(f"saas_tenant_lifecycle:{cd}", cached_meta, expires_in_sec=300, shared=True)
         except Exception:
             pass
 
@@ -742,6 +744,10 @@ def verify_tenant_hostname(tenant_id: str, hostname: str = None) -> dict:
     if site_name:
         try:
             frappe.cache().delete_value(f"saas_tenant_lifecycle:{site_name}", shared=True)
+            if t.get("custom_domains"):
+                cds = json.loads(t["custom_domains"]) if isinstance(t["custom_domains"], str) else t["custom_domains"]
+                for cd in cds:
+                    frappe.cache().delete_value(f"saas_tenant_lifecycle:{cd}", shared=True)
         except Exception:
             pass
 
@@ -889,9 +895,10 @@ def verify_custom_domain(tenant_id: str, custom_domain: str) -> dict:
     if not symlink_ok:
         frappe.log_error(f"Failed to create domain symlink for {norm} -> {site_name}")
 
-    # Invalidate Redis cache
+    # Invalidate Redis cache for both site name and custom domain
     try:
         frappe.cache().delete_value(f"saas_tenant_lifecycle:{site_name}", shared=True)
+        frappe.cache().delete_value(f"saas_tenant_lifecycle:{norm}", shared=True)
     except Exception:
         pass
 
@@ -953,11 +960,12 @@ def remove_custom_domain(tenant_id: str, custom_domain: str) -> dict:
         (json.dumps(c_domains), tenant_id),
     )
 
-    # Remove symlink if exists
+    # Remove symlink and invalidate Redis cache for both site name and custom domain
     if site_name:
         _manage_custom_domain_symlink(site_name, norm, action="remove")
         try:
             frappe.cache().delete_value(f"saas_tenant_lifecycle:{site_name}", shared=True)
+            frappe.cache().delete_value(f"saas_tenant_lifecycle:{norm}", shared=True)
         except Exception:
             pass
 

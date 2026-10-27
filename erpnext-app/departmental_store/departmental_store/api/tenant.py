@@ -212,8 +212,10 @@ def get_tenant_lifecycle_for_site(site_name: str, host: str = None) -> dict:
                 "custom_domains": [],
             }
         else:
+            has_registry = frappe.db and hasattr(frappe.db, "table_exists") and frappe.db.table_exists("SaaS Tenant Registry")
+            default_host_status = "UNVERIFIED" if has_registry else "VERIFIED"
             conf_status = (getattr(frappe.local, "conf", {}) or {}).get("lifecycle_status", "ACTIVE")
-            conf_host_status = (getattr(frappe.local, "conf", {}) or {}).get("hostname_status", "VERIFIED")
+            conf_host_status = (getattr(frappe.local, "conf", {}) or {}).get("hostname_status", default_host_status)
             record = {
                 "tenant_id": f"TID-{site_name}",
                 "slug": site_name.split(".")[0],

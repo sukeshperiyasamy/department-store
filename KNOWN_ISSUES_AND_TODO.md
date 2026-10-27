@@ -313,7 +313,7 @@ Last updated: 2026-10-27 (fresh-stack validation pass). Full defect register: `d
   * Rejects missing or inactive memberships with HTTP 403 `MembershipInactiveError`.
 - **Zero-Lock Redis Caching & Instant Invalidation**:
   * Cached in Redis `saas_tenant_lifecycle:{site_name}` with `shared=True` and 300s TTL (<0.2ms resolution, 0 cross-DB locks).
-  * Administrative operations (`set_tenant_status`, `verify_tenant_hostname`, `verify_custom_domain`, `remove_custom_domain`) immediately write/delete shared Redis keys for instant real-time invalidation.
+  * Administrative operations (`set_tenant_status`, `verify_tenant_hostname`, `verify_custom_domain`, `remove_custom_domain`) immediately write/delete shared Redis keys for both site name and custom domain (`saas_tenant_lifecycle:{norm}`) for instant real-time invalidation.
 - **Trusted Custom-Domain Routing**:
   * Verified custom domains mapped via bench filesystem symlinks (`sites/<custom_domain> -> sites/<site_name>`).
   * Unverified or removed custom domains fail closed (HTTP 404 / HTTP 403 `HostnameUnverifiedError`).
@@ -322,7 +322,7 @@ Last updated: 2026-10-27 (fresh-stack validation pass). Full defect register: `d
 - **Automated Regression & Adversarial Test Suite**:
   * Executed `tests/integration/test_tenant_lifecycle_and_custom_domain.py` (17/17 checks PASS over real HTTP port 8080).
   * Executed `test_e2e_tenant_http_routing.py` (10/10 checks PASS) and `test_two_site_tenant_isolation.py` (7/7 checks PASS).
-  * 124/124 Frappe backend tests PASS; 243 Monorepo tests PASS; 29 Backup tests PASS; 25 Preflight checks PASS; 384 tracked files scanned with 0 secrets.
+  * 124/124 Frappe backend tests PASS; 243 Monorepo tests PASS; 29 Backup tests PASS; 25 Preflight checks PASS; 386 tracked files scanned with 0 secrets.
 
 
 
