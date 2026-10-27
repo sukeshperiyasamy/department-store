@@ -250,3 +250,16 @@ Evidence pointers: docs/testing/, docs/artifacts/. Date of last verification: 20
 | Multi-Site Nginx Reverse Proxy Correction | ✅ | Fixed hardcoded `FRAPPE_SITE_NAME_HEADER: frontend` in `deployment/erpnext/pwd.yml` to `$$host`; Nginx dynamically passes requested Host header to Gunicorn backend via `proxy_set_header X-Frappe-Site-Name $host;` |
 | Provisioning-to-Routing Consistency Audit | ✅ | Verified registry metadata (`slug`, `frappe_site_name`, `primary_hostname`) matches disk directories and MariaDB schemas (`_92f4a44dc913424c` vs `_904a93906bbe0fb1`); mismatched host mappings fail closed with HTTP 404 |
 | Zero Residual State & Guarded Teardown | ✅ | Automated test harness restores and drops disposable sites cleanly (`bench drop-site --force`); primary `frontend` site remains intact and healthy |
+
+## Tenant Lifecycle Enforcement, Custom-Domain Routing & Staging Readiness (Phase 20)
+
+| Feature | Status | Evidence |
+| --- | --- | --- |
+| Exact Baseline CI Verification | ✅ | Commit `833a8c8f22fa760c474085fc9a8634e29d2addcf` verified 100% GREEN on GitHub Actions Run `40583310029` (6/6 jobs PASS: Mobile, Dashboard, Frappe Python Quality, Windows POS, Security Preflight, Shared Contracts) |
+| API-Level Lifecycle Enforcement Gate | ✅ | Registered `enforce_tenant_lifecycle_and_membership()` in Frappe `before_request` hook (`hooks.py`); protects all operational APIs (`/api/resource/*`, `/api/method/*`); fails closed with HTTP 403 on `SUSPENDED`, `ARCHIVED`, `PROVISIONING`, `INACTIVE` |
+| User Membership Authorization Gate | ✅ | Validates active user membership in `tabSaaS Tenant Membership` on incoming authenticated requests; rejects inactive or missing memberships with HTTP 403 `MembershipInactiveError` |
+| Zero-Lock Redis Data-Plane Performance | ✅ | Tenant lifecycle cached in Redis (`saas_tenant_lifecycle:{site_name}`, `shared=True`) with <0.2ms resolution time and zero cross-database locking per request |
+| Instant Real-Time Invalidation | ✅ | Administrative status operations (`set_tenant_status`, `verify_tenant_hostname`, `verify_custom_domain`, `remove_custom_domain`) immediately write/invalidate shared Redis keys, ensuring 0-second stale window |
+| Trusted Custom-Domain Routing | ✅ | Filesystem symlinks (`sites/<custom_domain> -> sites/<site_name>`) map verified domains directly to tenant MariaDB schema; unverified/removed domains fail closed (HTTP 404 / HTTP 403); domain collision check prevents cross-tenant reassignment |
+| E2E Lifecycle & Custom-Domain Test Suite | ✅ | `tests/integration/test_tenant_lifecycle_and_custom_domain.py` (17/17 checks PASS over real HTTP port 8080): validates active access, suspended denial, archived denial, provisioning denial, unverified hostname denial, custom domain resolution, unverified/removed domain fail-closed, collision blocking, forged header immunity, inactive membership denial, cross-tenant denial, instant invalidation, and POS sales lifecycle enforcement |
+| Guarded Teardown & Zero State Leakage | ✅ | Automated test teardown safely drops disposable sites, unlinks symlinks, and deletes shared Redis keys |

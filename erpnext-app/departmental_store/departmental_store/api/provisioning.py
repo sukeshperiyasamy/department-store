@@ -98,12 +98,17 @@ def require_platform_admin() -> str:
 
 def ensure_provisioning_tables():
     """Idempotently ensure dedicated SaaS provisioning tables exist in MariaDB."""
-    # Fast path: return immediately if tables already exist
+    # Fast path: if tables already exist, ensure custom_domains column is present and return
     if (
         frappe.db.table_exists("SaaS Provisioning Job")
         and frappe.db.table_exists("SaaS Provisioning Audit Log")
         and frappe.db.table_exists("SaaS Tenant Registry")
     ):
+        cols = frappe.db.get_table_columns("SaaS Tenant Registry")
+        if "custom_domains" not in cols:
+            frappe.db.commit()
+            frappe.db.sql("ALTER TABLE `tabSaaS Tenant Registry` ADD COLUMN `custom_domains` TEXT NULL")
+            frappe.db.commit()
         return
 
     # Commit any active transaction before executing DDL to prevent ImplicitCommitError
@@ -178,6 +183,7 @@ def ensure_provisioning_tables():
             `plan_id` VARCHAR(40) DEFAULT 'starter',
             `state_code` VARCHAR(10) DEFAULT '33',
             `currency` VARCHAR(10) DEFAULT 'INR',
+            `custom_domains` TEXT NULL,
             `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
             `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             `created_by` VARCHAR(140) DEFAULT 'Platform Admin',
@@ -186,7 +192,9 @@ def ensure_provisioning_tables():
             INDEX (`lifecycle_status`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     """)
-    frappe.db.commit()
+    cols = frappe.db.get_table_columns("SaaS Tenant Registry")
+    if "custom_domains" not in cols:
+        frappe.db.sql("ALTER TABLE `tabSaaS Tenant Registry` ADD COLUMN `custom_domains` TEXT NULL")
     frappe.db.commit()
 
 
@@ -572,6 +580,34 @@ def retry_provisioning_job(request_id: str, reason: str = None) -> dict:
     }
 
 
+def _manage_custom_domain_symlink(site_name: str, domain: str, action: str = "create") -> bool:
+    """Safely manage bench filesystem symlinks for custom-domain site resolution."""
+    if not site_name or not domain or site_name == domain:
+        return True
+    try:
+        bench_sites = os.path.join(frappe.utils.get_bench_path(), "sites")
+        symlink_path = os.path.join(bench_sites, domain)
+        target_site = os.path.join(bench_sites, site_name)
+
+        if action == "create":
+            if not os.path.exists(target_site):
+                return False
+            if os.path.islink(symlink_path) or os.path.exists(symlink_path):
+                try:
+                    os.unlink(symlink_path)
+                except Exception:
+                    pass
+            os.symlink(target_site, symlink_path)
+            return True
+        elif action == "remove":
+            if os.path.islink(symlink_path):
+                os.unlink(symlink_path)
+                return True
+    except Exception as exc:
+        frappe.log_error(f"Error managing custom domain symlink ({action}) for {domain} -> {site_name}: {exc}")
+    return False
+
+
 @frappe.whitelist()
 def set_tenant_status(tenant_id: str, new_status: str, reason: str) -> dict:
     """Suspend, reactivate, or archive a tenant through authorized state transitions."""
@@ -582,14 +618,15 @@ def set_tenant_status(tenant_id: str, new_status: str, reason: str) -> dict:
         frappe.throw(_("Action reason must be at least 3 characters"), frappe.ValidationError)
 
     tenant = frappe.db.sql(
-        "SELECT tenant_id, slug, lifecycle_status FROM `tabSaaS Tenant Registry` WHERE tenant_id = %s FOR UPDATE",
+        "SELECT tenant_id, slug, frappe_site_name, primary_hostname, hostname_status, lifecycle_status, custom_domains FROM `tabSaaS Tenant Registry` WHERE tenant_id = %s FOR UPDATE",
         (tenant_id,),
         as_dict=True,
     )
     if not tenant:
         frappe.throw(_("Tenant not found in registry"), frappe.DoesNotExistError)
 
-    current_status = tenant[0]["lifecycle_status"]
+    t = tenant[0]
+    current_status = t["lifecycle_status"]
     target_status = new_status.upper().strip()
 
     if not is_valid_transition(current_status, target_status):
@@ -603,11 +640,43 @@ def set_tenant_status(tenant_id: str, new_status: str, reason: str) -> dict:
     # Also update linked onboarding request status if exists
     frappe.db.sql(
         "UPDATE `tabSaaS Onboarding Request` SET status = %s, modified = NOW() WHERE preferred_slug = %s",
-        (target_status, tenant[0]["slug"]),
+        (target_status, t["slug"]),
     )
 
+    site_name = t.get("frappe_site_name")
+    c_domains = []
+    if t.get("custom_domains"):
+        try:
+            c_domains = json.loads(t["custom_domains"]) if isinstance(t["custom_domains"], str) else t["custom_domains"]
+        except Exception:
+            c_domains = []
+
+    # Invalidate / update Redis cache immediately for zero-latency enforcement
+    if site_name:
+        cached_meta = {
+            "tenant_id": tenant_id,
+            "slug": t["slug"],
+            "frappe_site_name": site_name,
+            "primary_hostname": t.get("primary_hostname", f"{site_name}.local"),
+            "hostname_status": t.get("hostname_status", "VERIFIED"),
+            "lifecycle_status": target_status,
+            "custom_domains": c_domains,
+        }
+        try:
+            frappe.cache().set_value(f"saas_tenant_lifecycle:{site_name}", cached_meta, expires_in_sec=300, shared=True)
+        except Exception:
+            pass
+
+    # If archived, unlink custom domains so the site is not routable
+    if target_status == "ARCHIVED" and site_name:
+        for cd in c_domains:
+            _manage_custom_domain_symlink(site_name, cd, action="remove")
+    elif target_status == "ACTIVE" and site_name:
+        for cd in c_domains:
+            _manage_custom_domain_symlink(site_name, cd, action="create")
+
     record_audit_log(
-        request_id=f"TENANT-{tenant[0]['slug']}",
+        request_id=f"TENANT-{t['slug']}",
         tenant_id=tenant_id,
         from_status=current_status,
         to_status=target_status,
@@ -631,14 +700,15 @@ def verify_tenant_hostname(tenant_id: str, hostname: str = None) -> dict:
     ensure_provisioning_tables()
 
     tenant = frappe.db.sql(
-        "SELECT tenant_id, slug, primary_hostname, hostname_status, lifecycle_status FROM `tabSaaS Tenant Registry` WHERE tenant_id = %s FOR UPDATE",
+        "SELECT tenant_id, slug, frappe_site_name, primary_hostname, hostname_status, lifecycle_status, custom_domains FROM `tabSaaS Tenant Registry` WHERE tenant_id = %s FOR UPDATE",
         (tenant_id,),
         as_dict=True,
     )
     if not tenant:
         frappe.throw(_("Tenant not found in registry"), frappe.DoesNotExistError)
 
-    target_host = hostname.strip().lower() if hostname else tenant[0]["primary_hostname"]
+    t = tenant[0]
+    target_host = hostname.strip().lower() if hostname else t["primary_hostname"]
     from departmental_store.api.tenant import is_reserved_hostname, validate_hostname
 
     valid, norm, reason = validate_hostname(target_host)
@@ -663,10 +733,22 @@ def verify_tenant_hostname(tenant_id: str, hostname: str = None) -> dict:
         (norm, tenant_id),
     )
 
+    # If target_host differs from frappe_site_name, ensure symlink exists
+    site_name = t.get("frappe_site_name")
+    if site_name and norm != site_name:
+        _manage_custom_domain_symlink(site_name, norm, action="create")
+
+    # Invalidate Redis cache
+    if site_name:
+        try:
+            frappe.cache().delete_value(f"saas_tenant_lifecycle:{site_name}", shared=True)
+        except Exception:
+            pass
+
     record_audit_log(
-        request_id=f"TENANT-{tenant[0]['slug']}",
+        request_id=f"TENANT-{t['slug']}",
         tenant_id=tenant_id,
-        from_status=tenant[0]["hostname_status"],
+        from_status=t["hostname_status"],
         to_status="VERIFIED",
         actor=actor,
         reason=f"Hostname '{norm}' verified and approved for routing",
@@ -680,6 +762,223 @@ def verify_tenant_hostname(tenant_id: str, hostname: str = None) -> dict:
         "primary_hostname": norm,
         "hostname_status": "VERIFIED",
         "message": f"Hostname '{norm}' verified successfully.",
+    }
+
+
+@frappe.whitelist()
+def add_custom_domain(tenant_id: str, custom_domain: str) -> dict:
+    """Register an unverified custom domain for a tenant (Platform Admin only)."""
+    actor = require_platform_admin()
+    ensure_provisioning_tables()
+
+    from departmental_store.api.tenant import is_reserved_hostname, validate_hostname
+    valid, norm, reason = validate_hostname(custom_domain)
+    if not valid:
+        frappe.throw(_(f"Invalid custom domain format: {reason}"), frappe.ValidationError)
+    if is_reserved_hostname(norm):
+        frappe.throw(_(f"Domain '{norm}' is a reserved platform domain"), frappe.ValidationError)
+
+    tenant = frappe.db.sql(
+        "SELECT tenant_id, slug, frappe_site_name, primary_hostname, custom_domains FROM `tabSaaS Tenant Registry` WHERE tenant_id = %s FOR UPDATE",
+        (tenant_id,),
+        as_dict=True,
+    )
+    if not tenant:
+        frappe.throw(_("Tenant not found in registry"), frappe.DoesNotExistError)
+
+    t = tenant[0]
+    # Check collision with other tenants' primary_hostname or custom_domains
+    collision = frappe.db.sql(
+        """SELECT tenant_id, slug FROM `tabSaaS Tenant Registry`
+           WHERE (primary_hostname = %s OR custom_domains LIKE %s) AND tenant_id != %s""",
+        (norm, f'%"{norm}"%', tenant_id),
+        as_dict=True,
+    )
+    if collision:
+        frappe.throw(_(f"Domain '{norm}' is already registered to tenant '{collision[0]['slug']}'"), frappe.ValidationError)
+
+    c_domains = []
+    if t.get("custom_domains"):
+        try:
+            c_domains = json.loads(t["custom_domains"]) if isinstance(t["custom_domains"], str) else t["custom_domains"]
+        except Exception:
+            c_domains = []
+
+    if norm not in c_domains:
+        c_domains.append(norm)
+
+    frappe.db.sql(
+        "UPDATE `tabSaaS Tenant Registry` SET custom_domains = %s, updated_at = NOW() WHERE tenant_id = %s",
+        (json.dumps(c_domains), tenant_id),
+    )
+
+    record_audit_log(
+        request_id=f"TENANT-{t['slug']}",
+        tenant_id=tenant_id,
+        from_status="UNREGISTERED",
+        to_status="UNVERIFIED",
+        actor=actor,
+        reason=f"Custom domain '{norm}' added (awaiting verification)",
+        metadata={"custom_domain": norm},
+    )
+    frappe.db.commit()
+
+    return {
+        "api_version": API_VERSION,
+        "tenant_id": tenant_id,
+        "custom_domain": norm,
+        "status": "UNVERIFIED",
+        "custom_domains": c_domains,
+        "message": f"Custom domain '{norm}' registered. Verification required before activation.",
+    }
+
+
+@frappe.whitelist()
+def verify_custom_domain(tenant_id: str, custom_domain: str) -> dict:
+    """Verify and activate a custom domain for a tenant with filesystem symlink (Platform Admin only)."""
+    actor = require_platform_admin()
+    ensure_provisioning_tables()
+
+    from departmental_store.api.tenant import is_reserved_hostname, validate_hostname
+    valid, norm, reason = validate_hostname(custom_domain)
+    if not valid:
+        frappe.throw(_(f"Invalid custom domain format: {reason}"), frappe.ValidationError)
+    if is_reserved_hostname(norm):
+        frappe.throw(_(f"Domain '{norm}' is a reserved platform domain"), frappe.ValidationError)
+
+    tenant = frappe.db.sql(
+        "SELECT tenant_id, slug, frappe_site_name, primary_hostname, lifecycle_status, custom_domains FROM `tabSaaS Tenant Registry` WHERE tenant_id = %s FOR UPDATE",
+        (tenant_id,),
+        as_dict=True,
+    )
+    if not tenant:
+        frappe.throw(_("Tenant not found in registry"), frappe.DoesNotExistError)
+
+    t = tenant[0]
+    site_name = t.get("frappe_site_name")
+    if not site_name:
+        frappe.throw(_("Tenant has no assigned frappe_site_name"), frappe.ValidationError)
+
+    # Collision check
+    collision = frappe.db.sql(
+        """SELECT tenant_id, slug FROM `tabSaaS Tenant Registry`
+           WHERE (primary_hostname = %s OR custom_domains LIKE %s) AND tenant_id != %s""",
+        (norm, f'%"{norm}"%', tenant_id),
+        as_dict=True,
+    )
+    if collision:
+        frappe.throw(_(f"Domain '{norm}' is already assigned to tenant '{collision[0]['slug']}'"), frappe.ValidationError)
+
+    c_domains = []
+    if t.get("custom_domains"):
+        try:
+            c_domains = json.loads(t["custom_domains"]) if isinstance(t["custom_domains"], str) else t["custom_domains"]
+        except Exception:
+            c_domains = []
+
+    if norm not in c_domains:
+        c_domains.append(norm)
+
+    frappe.db.sql(
+        "UPDATE `tabSaaS Tenant Registry` SET custom_domains = %s, updated_at = NOW() WHERE tenant_id = %s",
+        (json.dumps(c_domains), tenant_id),
+    )
+
+    # Create filesystem symlink in Frappe sites directory
+    symlink_ok = _manage_custom_domain_symlink(site_name, norm, action="create")
+    if not symlink_ok:
+        frappe.log_error(f"Failed to create domain symlink for {norm} -> {site_name}")
+
+    # Invalidate Redis cache
+    try:
+        frappe.cache().delete_value(f"saas_tenant_lifecycle:{site_name}", shared=True)
+    except Exception:
+        pass
+
+    record_audit_log(
+        request_id=f"TENANT-{t['slug']}",
+        tenant_id=tenant_id,
+        from_status="UNVERIFIED",
+        to_status="VERIFIED",
+        actor=actor,
+        reason=f"Custom domain '{norm}' verified and mapped to site '{site_name}'",
+        metadata={"custom_domain": norm, "symlink_created": symlink_ok},
+    )
+    frappe.db.commit()
+
+    return {
+        "api_version": API_VERSION,
+        "tenant_id": tenant_id,
+        "custom_domain": norm,
+        "status": "VERIFIED",
+        "custom_domains": c_domains,
+        "message": f"Custom domain '{norm}' verified and routed successfully.",
+    }
+
+
+@frappe.whitelist()
+def remove_custom_domain(tenant_id: str, custom_domain: str) -> dict:
+    """Remove a verified or pending custom domain and delete its symlink (Platform Admin only)."""
+    actor = require_platform_admin()
+    ensure_provisioning_tables()
+
+    from departmental_store.api.tenant import validate_hostname
+    valid, norm, reason = validate_hostname(custom_domain)
+    if not valid:
+        frappe.throw(_(f"Invalid custom domain format: {reason}"), frappe.ValidationError)
+
+    tenant = frappe.db.sql(
+        "SELECT tenant_id, slug, frappe_site_name, custom_domains FROM `tabSaaS Tenant Registry` WHERE tenant_id = %s FOR UPDATE",
+        (tenant_id,),
+        as_dict=True,
+    )
+    if not tenant:
+        frappe.throw(_("Tenant not found in registry"), frappe.DoesNotExistError)
+
+    t = tenant[0]
+    site_name = t.get("frappe_site_name")
+
+    c_domains = []
+    if t.get("custom_domains"):
+        try:
+            c_domains = json.loads(t["custom_domains"]) if isinstance(t["custom_domains"], str) else t["custom_domains"]
+        except Exception:
+            c_domains = []
+
+    if norm in c_domains:
+        c_domains.remove(norm)
+
+    frappe.db.sql(
+        "UPDATE `tabSaaS Tenant Registry` SET custom_domains = %s, updated_at = NOW() WHERE tenant_id = %s",
+        (json.dumps(c_domains), tenant_id),
+    )
+
+    # Remove symlink if exists
+    if site_name:
+        _manage_custom_domain_symlink(site_name, norm, action="remove")
+        try:
+            frappe.cache().delete_value(f"saas_tenant_lifecycle:{site_name}", shared=True)
+        except Exception:
+            pass
+
+    record_audit_log(
+        request_id=f"TENANT-{t['slug']}",
+        tenant_id=tenant_id,
+        from_status="VERIFIED",
+        to_status="REMOVED",
+        actor=actor,
+        reason=f"Custom domain '{norm}' removed and unlinked",
+        metadata={"custom_domain": norm},
+    )
+    frappe.db.commit()
+
+    return {
+        "api_version": API_VERSION,
+        "tenant_id": tenant_id,
+        "removed_domain": norm,
+        "status": "REMOVED",
+        "custom_domains": c_domains,
+        "message": f"Custom domain '{norm}' unlinked and removed successfully.",
     }
 
 

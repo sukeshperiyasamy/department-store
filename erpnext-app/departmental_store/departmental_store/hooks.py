@@ -8,6 +8,10 @@ app_license = "mit"
 after_install = "departmental_store.install.after_install"
 after_migrate = "departmental_store.install.after_migrate"
 
+before_request = [
+    "departmental_store.api.tenant.enforce_tenant_lifecycle_and_membership",
+]
+
 scheduler_events = {
     "cron": {
         "*/5 * * * *": [

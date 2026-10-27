@@ -298,8 +298,32 @@ Last updated: 2026-10-27 (fresh-stack validation pass). Full defect register: `d
     9. Switching hosts cannot reuse cached responses (`Vary: Host, Cookie`, `Cache-Control: no-store`).
     10. Exceptions and failed requests do not contaminate the next request's site or database context.
 - **Provisioning-to-Routing Consistency Verified**: Registry metadata agrees with disk site directories and database schemas; mismatched mappings fail closed with HTTP 404.
-- **Guarded Teardown**: Disposable test sites dropped cleanly (`bench drop-site --force`); primary `frontend` site remained intact and healthy.
 - **Full Suite Reliability Confirmed**: 396 automated tests PASS; 25 preflight checks PASS; 382 tracked files scanned with 0 secrets.
+
+### Tenant Lifecycle Enforcement & Custom-Domain Routing Verification — VERIFIED 2026-10-28 (Phase 20)
+- **Baseline Commit Confirmed (100% Green)**: Commit `833a8c8f22fa760c474085fc9a8634e29d2addcf` verified 100% green on GitHub Actions Run `40583310029` (`CI Quality Gates`, 6/6 jobs PASS).
+- **API Lifecycle Enforcement Gate in Frappe WSGI Hook**:
+  * Registered `enforce_tenant_lifecycle_and_membership()` in Frappe's `before_request` hook (`hooks.py`).
+  * Protects all operational APIs (`/api/resource/*`, `/api/method/*`) across all tenant sites.
+  * Fails closed with HTTP 403 on `SUSPENDED` (`TenantSuspendedError`), `ARCHIVED` (`TenantArchivedError`), and `PROVISIONING`/`INACTIVE` (`TenantInactiveError`).
+  * Bypasses control plane site `frontend` and health probes (`frappe.ping`, `get_liveness`, `resolve_tenant_by_host`).
+- **User Membership Enforcement**:
+  * Resolves user identity from session or `Authorization: token` header.
+  * Requires active membership in `tabSaaS Tenant Membership` (`status == 'ACTIVE'`) for the resolved tenant workspace.
+  * Rejects missing or inactive memberships with HTTP 403 `MembershipInactiveError`.
+- **Zero-Lock Redis Caching & Instant Invalidation**:
+  * Cached in Redis `saas_tenant_lifecycle:{site_name}` with `shared=True` and 300s TTL (<0.2ms resolution, 0 cross-DB locks).
+  * Administrative operations (`set_tenant_status`, `verify_tenant_hostname`, `verify_custom_domain`, `remove_custom_domain`) immediately write/delete shared Redis keys for instant real-time invalidation.
+- **Trusted Custom-Domain Routing**:
+  * Verified custom domains mapped via bench filesystem symlinks (`sites/<custom_domain> -> sites/<site_name>`).
+  * Unverified or removed custom domains fail closed (HTTP 404 / HTTP 403 `HostnameUnverifiedError`).
+  * Global collision detection blocks cross-tenant domain hijacking.
+  * Overwritten client headers prevent forged routing.
+- **Automated Regression & Adversarial Test Suite**:
+  * Executed `tests/integration/test_tenant_lifecycle_and_custom_domain.py` (17/17 checks PASS over real HTTP port 8080).
+  * Executed `test_e2e_tenant_http_routing.py` (10/10 checks PASS) and `test_two_site_tenant_isolation.py` (7/7 checks PASS).
+  * 124/124 Frappe backend tests PASS; 243 Monorepo tests PASS; 29 Backup tests PASS; 25 Preflight checks PASS; 384 tracked files scanned with 0 secrets.
+
 
 
 

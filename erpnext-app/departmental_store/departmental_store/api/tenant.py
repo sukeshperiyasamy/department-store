@@ -5,12 +5,37 @@ tenant boundary authorization. Shared with the Next.js portal, Windows POS,
 and mobile clients.
 """
 
+import json
 import re
 
 import frappe
 from frappe import _
 
 API_VERSION = 1
+
+
+class TenantLifecycleError(frappe.PermissionError):
+    http_status_code = 403
+
+
+class TenantSuspendedError(TenantLifecycleError):
+    http_status_code = 403
+
+
+class TenantArchivedError(TenantLifecycleError):
+    http_status_code = 403
+
+
+class TenantInactiveError(TenantLifecycleError):
+    http_status_code = 403
+
+
+class HostnameUnverifiedError(TenantLifecycleError):
+    http_status_code = 403
+
+
+class MembershipInactiveError(TenantLifecycleError):
+    http_status_code = 403
 
 RESERVED_HOSTNAMES = {
     "localhost",
@@ -108,6 +133,202 @@ def get_local_site_tenant() -> dict:
     }
 
 
+def get_tenant_lifecycle_for_site(site_name: str, host: str = None) -> dict:
+    """Retrieve cached or database tenant lifecycle and verification metadata for active site."""
+    cache_key = f"saas_tenant_lifecycle:{site_name}"
+    try:
+        cached = frappe.cache().get_value(cache_key, shared=True)
+        if cached and isinstance(cached, dict):
+            return cached
+    except Exception:
+        pass
+
+    record = None
+    if frappe.db and hasattr(frappe.db, "table_exists") and frappe.db.table_exists("SaaS Tenant Registry"):
+        reg_cols = [c[0] for c in frappe.db.sql("DESCRIBE `tabSaaS Tenant Registry`")]
+        has_cd = "custom_domains" in reg_cols
+
+        params = [site_name]
+        where = "frappe_site_name = %s"
+        if host:
+            where += " OR primary_hostname = %s"
+            params.append(host)
+            if has_cd:
+                where += " OR custom_domains LIKE %s"
+                params.append(f'%"{host}"%')
+
+        slug_candidate = site_name.split(".")[0]
+        where += " OR slug = %s"
+        params.append(slug_candidate)
+
+        select_cols = (
+            "tenant_id, slug, name, frappe_site_name, primary_hostname, "
+            "hostname_status, lifecycle_status"
+        )
+        if has_cd:
+            select_cols += ", custom_domains"
+
+        try:
+            rows = frappe.db.sql(
+                f"""SELECT {select_cols}
+                    FROM `tabSaaS Tenant Registry`
+                    WHERE {where}
+                    ORDER BY (frappe_site_name = %s) DESC
+                    LIMIT 1""",
+                tuple(params + [site_name]),
+                as_dict=True,
+            )
+            if rows:
+                r = rows[0]
+                c_domains = []
+                if r.get("custom_domains"):
+                    try:
+                        c_domains = json.loads(r["custom_domains"]) if isinstance(r["custom_domains"], str) else r["custom_domains"]
+                    except Exception:
+                        c_domains = []
+                record = {
+                    "tenant_id": r["tenant_id"],
+                    "slug": r["slug"],
+                    "name": r["name"],
+                    "frappe_site_name": r["frappe_site_name"],
+                    "primary_hostname": r["primary_hostname"],
+                    "hostname_status": r["hostname_status"] or "PENDING",
+                    "lifecycle_status": r["lifecycle_status"] or "PROVISIONING",
+                    "custom_domains": c_domains,
+                }
+        except Exception:
+            pass
+
+    if not record:
+        if site_name in {"frontend", "localhost", "127.0.0.1"}:
+            record = {
+                "tenant_id": "00000000-0000-4000-8000-000000000001",
+                "slug": "local-store",
+                "name": "Local Store",
+                "frappe_site_name": site_name,
+                "primary_hostname": f"{site_name}.local",
+                "hostname_status": "VERIFIED",
+                "lifecycle_status": "ACTIVE",
+                "custom_domains": [],
+            }
+        else:
+            conf_status = (getattr(frappe.local, "conf", {}) or {}).get("lifecycle_status", "ACTIVE")
+            conf_host_status = (getattr(frappe.local, "conf", {}) or {}).get("hostname_status", "VERIFIED")
+            record = {
+                "tenant_id": f"TID-{site_name}",
+                "slug": site_name.split(".")[0],
+                "name": site_name,
+                "frappe_site_name": site_name,
+                "primary_hostname": site_name,
+                "hostname_status": conf_host_status,
+                "lifecycle_status": conf_status,
+                "custom_domains": [],
+            }
+
+    try:
+        frappe.cache().set_value(cache_key, record, expires_in_sec=300, shared=True)
+    except Exception:
+        pass
+
+    return record
+
+
+def enforce_tenant_lifecycle_and_membership():
+    """Enforce tenant lifecycle status, hostname verification, and user membership on incoming requests.
+
+    Registered as Frappe 'before_request' hook.
+    """
+    req = getattr(frappe.local, "request", None)
+    if not req:
+        return
+    if req.method == "OPTIONS":
+        return
+
+    path = getattr(req, "path", "")
+    # Infrastructure health and tenant resolution bypass lifecycle block
+    if path in (
+        "/api/method/frappe.ping",
+        "/api/method/departmental_store.api.health.get_liveness",
+        "/api/method/departmental_store.api.tenant.resolve_tenant_by_host",
+    ):
+        return
+
+    site_name = frappe.local.site
+    if site_name == "frontend":
+        # Platform control plane site is not tenant-scoped
+        return
+
+    raw_host = req.headers.get("Host", "")
+    valid, norm_host, reason = validate_hostname(raw_host)
+    if not valid:
+        frappe.throw(_(f"Invalid host header: {reason}"), frappe.ValidationError)
+
+    # 1. Enforce Tenant Lifecycle Status
+    tenant_info = get_tenant_lifecycle_for_site(site_name, norm_host)
+    lifecycle_status = (tenant_info.get("lifecycle_status") or "ACTIVE").upper()
+
+    if lifecycle_status == "SUSPENDED":
+        frappe.throw(_("Tenant workspace has been suspended"), TenantSuspendedError)
+    if lifecycle_status == "ARCHIVED":
+        frappe.throw(_("Tenant workspace has been archived"), TenantArchivedError)
+    if lifecycle_status in ("PROVISIONING", "VERIFICATION_PENDING", "PROVISIONED", "PENDING_REVIEW"):
+        frappe.throw(_("Tenant workspace is awaiting activation"), TenantInactiveError)
+    if lifecycle_status != "ACTIVE":
+        frappe.throw(_("Tenant workspace is not active"), TenantInactiveError)
+
+    # 2. Enforce Hostname Verification
+    primary_host = (tenant_info.get("primary_hostname") or "").lower()
+    real_site = (tenant_info.get("frappe_site_name") or site_name).lower()
+    hostname_status = (tenant_info.get("hostname_status") or "VERIFIED").upper()
+    custom_domains = tenant_info.get("custom_domains") or []
+    if isinstance(custom_domains, str):
+        try:
+            custom_domains = json.loads(custom_domains)
+        except Exception:
+            custom_domains = []
+
+    if norm_host == primary_host:
+        if hostname_status != "VERIFIED":
+            frappe.throw(_(f"Tenant hostname '{norm_host}' is awaiting verification"), HostnameUnverifiedError)
+    elif norm_host in {real_site, f"{real_site}.local", "localhost", "127.0.0.1"}:
+        pass
+    else:
+        # Custom domain must be explicitly present in tenant's custom_domains registry
+        if norm_host not in custom_domains:
+            frappe.throw(_(f"Hostname '{norm_host}' is unverified for this tenant workspace"), HostnameUnverifiedError)
+
+    # 3. Enforce User Membership for authenticated non-admin users
+    current_user = frappe.session.user
+    if not current_user or current_user == "Guest":
+        auth_header = req.headers.get("Authorization", "")
+        if auth_header and auth_header.lower().startswith("token "):
+            token_part = auth_header.split(" ", 1)[1].strip()
+            if ":" in token_part:
+                api_key = token_part.split(":", 1)[0]
+                try:
+                    user_match = frappe.db.get_value("User", {"api_key": api_key, "enabled": 1}, "name")
+                    if user_match:
+                        current_user = user_match
+                except Exception:
+                    pass
+
+    if current_user and current_user not in ("Guest", "Administrator", "admin"):
+        if frappe.db and hasattr(frappe.db, "table_exists") and frappe.db.table_exists("SaaS Tenant Membership"):
+            tid = tenant_info.get("tenant_id")
+            membership = frappe.db.sql(
+                """SELECT role, status FROM `tabSaaS Tenant Membership`
+                   WHERE user_id = %s AND (tenant_id = %s OR %s = '')
+                   ORDER BY (status = 'ACTIVE') DESC LIMIT 1""",
+                (current_user, tid, tid or ""),
+                as_dict=True,
+            )
+            if not membership or membership[0]["status"] != "ACTIVE":
+                frappe.throw(
+                    _("User does not have active membership in this tenant workspace"),
+                    MembershipInactiveError,
+                )
+
+
 @frappe.whitelist(allow_guest=True)
 def resolve_tenant_by_host(hostname: str = None) -> dict:
     """Resolve a tenant workspace from an incoming hostname.
@@ -148,18 +369,28 @@ def resolve_tenant_by_host(hostname: str = None) -> dict:
                 candidate_slug = norm[:-len(suffix)]
                 break
 
+        reg_cols = [c[0] for c in frappe.db.sql("DESCRIBE `tabSaaS Tenant Registry`")]
+        has_cd = "custom_domains" in reg_cols
+
         where_clause = "primary_hostname = %s"
         params = [norm]
         if candidate_slug:
             where_clause += " OR slug = %s"
             params.append(candidate_slug)
+        if has_cd:
+            where_clause += " OR custom_domains LIKE %s"
+            params.append(f'%"{norm}"%')
+
+        select_cols = (
+            "tenant_id, slug, name, legal_name, frappe_site_name, "
+            "primary_hostname, hostname_status, lifecycle_status, plan_id, "
+            "state_code, currency, created_at, updated_at"
+        )
+        if has_cd:
+            select_cols += ", custom_domains"
 
         records = frappe.db.sql(
-            f"""SELECT tenant_id, slug, name, legal_name, frappe_site_name,
-                      primary_hostname, hostname_status, lifecycle_status, plan_id,
-                      state_code, currency, created_at, updated_at
-               FROM `tabSaaS Tenant Registry`
-               WHERE {where_clause}""",
+            f"SELECT {select_cols} FROM `tabSaaS Tenant Registry` WHERE {where_clause}",
             tuple(params),
             as_dict=True,
         )
@@ -167,6 +398,13 @@ def resolve_tenant_by_host(hostname: str = None) -> dict:
         if records:
             t = records[0]
             status = t["lifecycle_status"]
+            c_domains = []
+            if t.get("custom_domains"):
+                try:
+                    c_domains = json.loads(t["custom_domains"]) if isinstance(t["custom_domains"], str) else t["custom_domains"]
+                except Exception:
+                    c_domains = []
+
             if status == "SUSPENDED":
                 return {
                     "api_version": API_VERSION,
@@ -198,7 +436,7 @@ def resolve_tenant_by_host(hostname: str = None) -> dict:
                     },
                 }
             if status == "ACTIVE":
-                if t.get("hostname_status") and t["hostname_status"] != "VERIFIED":
+                if norm == t["primary_hostname"] and t.get("hostname_status") and t["hostname_status"] != "VERIFIED":
                     return {
                         "api_version": API_VERSION,
                         "matched": False,
@@ -219,7 +457,7 @@ def resolve_tenant_by_host(hostname: str = None) -> dict:
                         "lifecycle_status": t["lifecycle_status"],
                         "primary_hostname": t["primary_hostname"],
                         "hostname_status": t["hostname_status"],
-                        "custom_domains": [],
+                        "custom_domains": c_domains,
                         "frappe_site_name": t["frappe_site_name"],
                         "plan_id": t["plan_id"],
                         "state_code": t.get("state_code", "33"),
@@ -292,17 +530,30 @@ def get_tenant_info(tenant_id: str = None) -> dict:
     # If tenant_id specified, check tabSaaS Tenant Registry if it exists
     if tenant_id:
         if frappe.db.table_exists("SaaS Tenant Registry"):
+            reg_cols = [c[0] for c in frappe.db.sql("DESCRIBE `tabSaaS Tenant Registry`")]
+            has_cd = "custom_domains" in reg_cols
+            select_cols = (
+                "tenant_id, slug, name, legal_name, frappe_site_name, "
+                "primary_hostname, hostname_status, lifecycle_status, plan_id, "
+                "state_code, currency, created_at, updated_at, created_by"
+            )
+            if has_cd:
+                select_cols += ", custom_domains"
+
             records = frappe.db.sql(
-                """SELECT tenant_id, slug, name, legal_name, frappe_site_name,
-                          primary_hostname, hostname_status, lifecycle_status, plan_id,
-                          state_code, currency, created_at, updated_at, created_by
-                   FROM `tabSaaS Tenant Registry`
-                   WHERE tenant_id = %s""",
+                f"SELECT {select_cols} FROM `tabSaaS Tenant Registry` WHERE tenant_id = %s",
                 (tenant_id,),
                 as_dict=True,
             )
             if records:
                 t = records[0]
+                c_domains = []
+                if t.get("custom_domains"):
+                    try:
+                        c_domains = json.loads(t["custom_domains"]) if isinstance(t["custom_domains"], str) else t["custom_domains"]
+                    except Exception:
+                        c_domains = []
+
                 # Enforce membership check for non-admin
                 if not is_admin and frappe.db.table_exists("SaaS Tenant Membership"):
                     mem = frappe.db.sql(
@@ -320,12 +571,12 @@ def get_tenant_info(tenant_id: str = None) -> dict:
                 if t["lifecycle_status"] == "SUSPENDED":
                     frappe.throw(
                         _(f"Tenant workspace '{t['name']}' has been suspended"),
-                        frappe.PermissionError,
+                        TenantSuspendedError,
                     )
                 if t["lifecycle_status"] == "ARCHIVED":
                     frappe.throw(
                         _(f"Tenant workspace '{t['name']}' has been archived"),
-                        frappe.PermissionError,
+                        TenantArchivedError,
                     )
 
                 return {
@@ -338,7 +589,7 @@ def get_tenant_info(tenant_id: str = None) -> dict:
                         "lifecycle_status": t["lifecycle_status"],
                         "primary_hostname": t["primary_hostname"],
                         "hostname_status": t["hostname_status"],
-                        "custom_domains": [],
+                        "custom_domains": c_domains,
                         "frappe_site_name": t["frappe_site_name"],
                         "plan_id": t["plan_id"],
                         "state_code": t.get("state_code", "33"),
