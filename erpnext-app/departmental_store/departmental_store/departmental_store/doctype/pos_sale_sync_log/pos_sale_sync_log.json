@@ -47,7 +47,8 @@
    "label": "Status",
    "options": "Processing\nServer Committed\nRequires Review\nCancelled",
    "read_only": 1,
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "default": "0",
@@ -72,7 +73,8 @@
    "fieldname": "device_id",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Device ID"
+   "label": "Device ID",
+   "search_index": 1
   },
   {
    "fieldname": "device",

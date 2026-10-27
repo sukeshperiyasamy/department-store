@@ -83,12 +83,14 @@ def get_system_health(token=None):
     # 3. Redis Cache & Queue Readiness
     try:
         cache_start = time.perf_counter()
-        cache_ok = frappe.cache().ping()
+        cache_client = frappe.cache()
+        cache_ok = bool(cache_client.ping())
         cache_latency_ms = round((time.perf_counter() - cache_start) * 1000, 2)
         
-        queue_client = frappe.get_redis_client()
+        from frappe.utils.background_jobs import get_redis_conn
+        queue_client = get_redis_conn()
         queue_start = time.perf_counter()
-        queue_ok = queue_client.ping()
+        queue_ok = bool(queue_client.ping())
         queue_latency_ms = round((time.perf_counter() - queue_start) * 1000, 2)
 
         # Inspect Redis Queue Depths
@@ -113,48 +115,57 @@ def get_system_health(token=None):
             "error": str(e)[:100],
         }
 
-    # 4. Provisioning Queue & Job Metrics
+    # 4. Provisioning Queue & Job Metrics (Control Plane only)
     try:
-        job_stats = frappe.db.sql("""
-            SELECT status, count(*) as count 
-            FROM `tabSaaS Provisioning Job` 
-            GROUP BY status
-        """, as_dict=True)
-        stats_map = {r.status: r.count for r in job_stats}
+        if frappe.db.table_exists("SaaS Provisioning Job"):
+            job_stats = frappe.db.sql("""
+                SELECT status, count(*) as count
+                FROM `tabSaaS Provisioning Job`
+                GROUP BY status
+            """, as_dict=True)
+            stats_map = {r.status: r.count for r in job_stats}
 
-        stale_threshold = frappe.utils.now_datetime() - frappe.utils.datetime.timedelta(minutes=10)
-        stale_count = frappe.db.count("SaaS Provisioning Job", {
-            "status": "claimed",
-            "modified": ["<", stale_threshold]
-        })
+            stale_threshold = frappe.utils.now_datetime() - frappe.utils.datetime.timedelta(minutes=10)
+            stale_rows = frappe.db.sql("""
+                SELECT count(*)
+                FROM `tabSaaS Provisioning Job`
+                WHERE status = 'claimed' AND modified < %s
+            """, (stale_threshold,))
+            stale_count = stale_rows[0][0] if stale_rows else 0
 
-        checks["provisioning"] = {
-            "pending": stats_map.get("pending", 0),
-            "claimed": stats_map.get("claimed", 0),
-            "completed": stats_map.get("completed", 0),
-            "failed": stats_map.get("failed", 0),
-            "stale_claimed": stale_count,
-        }
+            checks["provisioning"] = {
+                "pending": stats_map.get("pending", 0),
+                "claimed": stats_map.get("claimed", 0),
+                "completed": stats_map.get("completed", 0),
+                "failed": stats_map.get("failed", 0),
+                "stale_claimed": stale_count,
+            }
+        else:
+            checks["provisioning"] = {"status": "not_applicable"}
     except Exception as e:
         checks["provisioning"] = {"error": str(e)[:100]}
 
     # 5. POS Synchronization Metrics (Last 24 Hours)
     try:
-        since_24h = frappe.utils.now_datetime() - frappe.utils.datetime.timedelta(hours=24)
-        pos_stats = frappe.db.sql("""
-            SELECT status, count(*) as count
-            FROM `tabSaaS POS Sale Sync Log`
-            WHERE creation >= %s
-            GROUP BY status
-        """, (since_24h,), as_dict=True)
-        pos_map = {r.status: r.count for r in pos_stats}
+        if frappe.db.table_exists("POS Sale Sync Log"):
+            since_24h = frappe.utils.now_datetime() - frappe.utils.datetime.timedelta(hours=24)
+            pos_stats = frappe.db.sql("""
+                SELECT status, count(*) as count
+                FROM `tabPOS Sale Sync Log`
+                WHERE creation >= %s
+                GROUP BY status
+            """, (since_24h,), as_dict=True)
+            pos_map = {r.status: r.count for r in pos_stats}
 
-        checks["pos_sync_24h"] = {
-            "synced": pos_map.get("synced", 0),
-            "requires_review": pos_map.get("requires_review", 0),
-            "error": pos_map.get("error", 0),
-            "total_submitted": sum(pos_map.values()),
-        }
+            checks["pos_sync_24h"] = {
+                "server_committed": pos_map.get("Server Committed", 0),
+                "requires_review": pos_map.get("Requires Review", 0),
+                "processing": pos_map.get("Processing", 0),
+                "cancelled": pos_map.get("Cancelled", 0),
+                "total_submitted": sum(pos_map.values()),
+            }
+        else:
+            checks["pos_sync_24h"] = {"status": "not_applicable"}
     except Exception as e:
         checks["pos_sync_24h"] = {"error": str(e)[:100]}
 
@@ -173,7 +184,8 @@ def get_system_health(token=None):
             files = [os.path.join(backup_dir, f) for f in os.listdir(backup_dir) if f.endswith(".sql.gz")]
             if files:
                 latest_backup = max(files, key=os.path.getmtime)
-                latest_backup_time = frappe.utils.get_datetime(os.path.getmtime(latest_backup)).isoformat()
+                import datetime
+                latest_backup_time = datetime.datetime.fromtimestamp(os.path.getmtime(latest_backup)).isoformat()
 
         checks["storage"] = {
             "disk_free_gb": free_gb,
@@ -184,21 +196,27 @@ def get_system_health(token=None):
     except Exception as e:
         checks["storage"] = {"error": str(e)[:100]}
 
-    # 7. Tenant Summary
+    # 7. Tenant Summary (Control Plane only)
     try:
-        tenant_counts = frappe.db.sql("""
-            SELECT status, count(*) as count 
-            FROM `tabSaaS Tenant` 
-            GROUP BY status
-        """, as_dict=True)
-        tenant_map = {r.status: r.count for r in tenant_counts}
-        pending_onboarding = frappe.db.count("SaaS Onboarding Request", {"status": "pending"})
+        if frappe.db.table_exists("SaaS Tenant Registry"):
+            tenant_counts = frappe.db.sql("""
+                SELECT lifecycle_status, count(*) as count
+                FROM `tabSaaS Tenant Registry`
+                GROUP BY lifecycle_status
+            """, as_dict=True)
+            tenant_map = {r.lifecycle_status: r.count for r in tenant_counts}
+            pending_onboarding = (
+                frappe.db.count("SaaS Onboarding Request", {"status": "pending"})
+                if frappe.db.table_exists("SaaS Onboarding Request") else 0
+            )
 
-        checks["tenants"] = {
-            "active": tenant_map.get("active", 0),
-            "suspended": tenant_map.get("suspended", 0),
-            "pending_onboarding": pending_onboarding,
-        }
+            checks["tenants"] = {
+                "active": tenant_map.get("ACTIVE", 0),
+                "suspended": tenant_map.get("SUSPENDED", 0),
+                "pending_onboarding": pending_onboarding,
+            }
+        else:
+            checks["tenants"] = {"status": "not_applicable"}
     except Exception as e:
         checks["tenants"] = {"error": str(e)[:100]}
 

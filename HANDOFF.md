@@ -90,6 +90,16 @@ A departmental-store ERP for a single store with 2–3 Windows POS counters:
     - Customer feedback and defect workflow: authored `docs/pilot/CUSTOMER_FEEDBACK_AND_INCIDENT_WORKFLOW.md` with structured intake schema, Sev 1–4 classification, and strict zero-PII/zero-credential guardrails.
     - Success scorecard and release gates: defined 10 release gates and quantitative SLA targets in `docs/pilot/PILOT_SUCCESS_SCORECARD.md`.
     - Formal Go / No-Go review: produced tri-pillar evaluation (Technical PASS, Operational PASS, Business CONDITIONAL) and formal verdict: `CONDITIONAL GO — Supervised Real-Shop Pilot (1–3 stores with explicit owner authorization & listed limitations)` in `docs/pilot/GO_NO_GO_PILOT_REVIEW.md`.
+  * Phase 10: Scale Readiness, Performance Engineering, and Commercial Launch:
+    - Workload Modeling: Defined concrete sizing profiles (Profile A: single store, Profile B: 5 stores, Profile C: 50 stores) in `docs/scale/WORKLOAD_PROFILES.md`.
+    - Performance & Concurrency Benchmark Suite: Authored `tests/integration/scale_and_capacity_suite.mjs` (8/8 PASS) recording throughput (69.2 req/s), DB latency (1.44ms), Redis cache/queue latencies (0.21ms), full vs incremental catalog sync (3.1x faster), 5 concurrent billing counters burst (15 sales, 0 collisions), 5-way idempotency race (1 unique invoice, zero double-charges), 20-bill backlog drain (8 bills/s), and error isolation; artifacts saved to `docs/testing/artifacts/scale-and-capacity-results.json`.
+    - Database & Query Optimization: Replaced catalog incremental item scan with indexed SQL `JOIN` on `tabItem` primary key; added database indexes `idx_pos_sync_status` and `idx_item_price_list_selling_mod` via `ensure_performance_indexes` in `install.py`; verified filesort elimination via `EXPLAIN`.
+    - Multi-Counter Deadlock Resilience: Implemented randomized exponential backoff retry loop in `sales.py` resolving MariaDB error 1020 on `tabSeries` during concurrent counter submissions.
+    - Resource Fairness & Governance: Documented Nginx rate limits, Redis sliding-window throttling, 500KB payload quota, fair background scheduling in `docs/scale/RESOURCE_FAIRNESS_AND_RATE_LIMITS.md`.
+    - Capacity Planning & Cost Model: Authored 3-tier capacity plan and cost model in `docs/scale/CAPACITY_AND_COST_MODEL.md` (1 shop at ₹2,157/mo, 5 shops at ₹6,630/mo, 50 shops at ₹50,400/mo) delivering 55.8% to 66.4% gross margin.
+    - Commercial Launch Checklist: Authored pricing tiers, DPDPA privacy policy, SAC 997331 GST notes, 99.9% uptime SLA, P1–P3 incident response matrix in `docs/commercial/COMMERCIAL_LAUNCH_CHECKLIST.md`.
+    - Client Scale Assessment: Evaluated mobile app virtualized lists, Next.js edge routing and server pagination, and Windows POS keyboard-first SQLite persistence in `docs/scale/CLIENT_SCALE_AND_EXPERIENCE_ASSESSMENT.md`.
+    - Commercial Launch Scorecard: Evaluated 11 release gates (10 Technical PASS, 1 Legal/CA BLOCKED); issued formal verdict `CONDITIONAL GO — Limited Supervised Cohort (1–3 shops)` in `docs/commercial/COMMERCIAL_LAUNCH_SCORECARD.md`.
 - Pushed to `https://github.com/sukeshperiyasamy/department-store` (origin/main). **Never force-push.**
 
 ## 3. Module map (where things live)

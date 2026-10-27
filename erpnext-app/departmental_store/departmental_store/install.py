@@ -9,6 +9,43 @@ def after_install() -> None:
     ensure_cashier_permissions()
     ensure_app_registered()
     ensure_default_settings()
+    ensure_performance_indexes()
+    frappe.db.commit()
+
+
+def after_migrate() -> None:
+    ensure_performance_indexes()
+
+
+def ensure_performance_indexes() -> None:
+    """Idempotently add database indexes for POS sale sync and catalog query hot paths."""
+    # 1. POS Sale Sync Log: status & creation
+    try:
+        if frappe.db.table_exists("POS Sale Sync Log"):
+            existing = [r[0] for r in frappe.db.sql("SHOW INDEX FROM `tabPOS Sale Sync Log` WHERE Key_name = 'idx_pos_sync_status'")]
+            if not existing:
+                frappe.db.sql("ALTER TABLE `tabPOS Sale Sync Log` ADD INDEX `idx_pos_sync_status` (`status`, `creation`)")
+    except Exception as e:
+        frappe.logger("performance").warning(f"Could not ensure idx_pos_sync_status: {e}")
+
+    # 2. POS Sale Sync Log: device_id
+    try:
+        if frappe.db.table_exists("POS Sale Sync Log"):
+            existing = [r[0] for r in frappe.db.sql("SHOW INDEX FROM `tabPOS Sale Sync Log` WHERE Key_name = 'idx_pos_sync_device'")]
+            if not existing:
+                frappe.db.sql("ALTER TABLE `tabPOS Sale Sync Log` ADD INDEX `idx_pos_sync_device` (`device_id`)")
+    except Exception as e:
+        frappe.logger("performance").warning(f"Could not ensure idx_pos_sync_device: {e}")
+
+    # 3. Item Price: price_list, selling, modified
+    try:
+        if frappe.db.table_exists("Item Price"):
+            existing = [r[0] for r in frappe.db.sql("SHOW INDEX FROM `tabItem Price` WHERE Key_name = 'idx_item_price_list_selling_mod'")]
+            if not existing:
+                frappe.db.sql("ALTER TABLE `tabItem Price` ADD INDEX `idx_item_price_list_selling_mod` (`price_list`, `selling`, `modified`)")
+    except Exception as e:
+        frappe.logger("performance").warning(f"Could not ensure idx_item_price_list_selling_mod: {e}")
+
     frappe.db.commit()
 
 

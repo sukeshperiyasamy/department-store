@@ -36,12 +36,19 @@ def catalog_snapshot(since: str | None = None, price_list: str | None = None,
             "Item", filters={"disabled": 0, "is_sales_item": 1,
                              "modified": (">", since)},
             pluck="name", limit=0))
-        priced_codes = set(frappe.get_all(
-            "Item Price",
-            filters={"price_list": price_list_name, "selling": 1,
-                     "item_code": ("in", _active_sales_item_codes()),
-                     "modified": (">", since)},
-            pluck="item_code", limit=0))
+        priced_codes = set(frappe.db.sql_list(
+            """
+            SELECT ip.item_code
+            FROM `tabItem Price` ip
+            JOIN `tabItem` i ON i.name = ip.item_code
+            WHERE ip.price_list = %s
+              AND ip.selling = 1
+              AND ip.modified > %s
+              AND i.disabled = 0
+              AND i.is_sales_item = 1
+            """,
+            (price_list_name, since),
+        ))
         target_codes = sorted(changed_codes | priced_codes)
         items = _fetch_items_by_codes(target_codes) if target_codes else []
     else:

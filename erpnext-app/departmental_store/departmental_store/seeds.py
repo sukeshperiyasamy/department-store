@@ -415,3 +415,50 @@ def make_qa_pos_profile() -> str:
 def demo_run() -> str:
     """No-arg bench-execute wrapper around demo(run=True)."""
     return demo(run=True)
+
+
+def ensure_scale_devices() -> list[str]:
+    """Ensure devices counter-1 through counter-5 exist and are enabled."""
+    devices = []
+    for i in range(1, 6):
+        dev_id = f"counter-{i}"
+        if not frappe.db.exists("POS Device", dev_id):
+            frappe.get_doc({
+                "doctype": "POS Device",
+                "device_id": dev_id,
+                "counter_name": f"Billing Counter {i}",
+                "status": "Enabled",
+            }).insert(ignore_permissions=True)
+        else:
+            frappe.db.set_value("POS Device", dev_id, "status", "Enabled")
+        devices.append(dev_id)
+    frappe.db.commit()
+    return devices
+
+
+def replenish_scale_stock(qty: int = 5000) -> None:
+    """Add sufficient stock of demo items in the QA warehouse to support high-volume scale tests."""
+    company = frappe.get_all("Company", pluck="name")[0]
+    warehouse = (frappe.db.get_value("POS Profile", "QA Suite Counter", "warehouse")
+                 or frappe.db.get_value("Warehouse", {"company": company, "is_group": 0}, "name"))
+    items = ["COLGATE-200", "RICE-BASMATI-5KG", "BISCUIT-PARLE", "SHAMPOO-340"]
+
+    stock_items = []
+    for it in items:
+        if frappe.db.exists("Item", it):
+            stock_items.append({
+                "item_code": it,
+                "qty": qty,
+                "t_warehouse": warehouse,
+                "uom": "Nos",
+                "basic_rate": 10.0,
+            })
+    if stock_items:
+        se = frappe.get_doc({
+            "doctype": "Stock Entry",
+            "stock_entry_type": "Material Receipt",
+            "company": company,
+            "items": stock_items,
+        }).insert(ignore_permissions=True)
+        se.submit()
+        frappe.db.commit()

@@ -1,0 +1,125 @@
+{
+  "timestamp": "2026-10-27T12:21:46.501Z",
+  "target": "http://localhost:8080",
+  "benchmarks": {
+    "liveness": {
+      "count": 50,
+      "min": 5.82,
+      "max": 21.32,
+      "mean": 14.7,
+      "p50": 15.68,
+      "p95": 19.41,
+      "p99": 21.32,
+      "requestsPerSecond": 68,
+      "durationMs": 735.3565999999992
+    },
+    "health": {
+      "endpointLatencyMs": 24.6,
+      "dbLatencyMs": 1.93,
+      "redisCacheLatencyMs": 0.31,
+      "redisQueueLatencyMs": 0.34,
+      "activeTenants": 6,
+      "diskUsedPercent": 5.8
+    },
+    "catalog": {
+      "itemCount": 549,
+      "fullSnapshot": {
+        "count": 10,
+        "min": 76.6,
+        "max": 122.55,
+        "mean": 98.72,
+        "p50": 102.54,
+        "p95": 122.55,
+        "p99": 122.55
+      },
+      "incrementalSnapshot": {
+        "count": 10,
+        "min": 29.02,
+        "max": 45.8,
+        "mean": 32.48,
+        "p50": 31.4,
+        "p95": 45.8,
+        "p99": 45.8
+      }
+    },
+    "concurrentSales": {
+      "totalSales": 15,
+      "concurrencyLevel": 5,
+      "count": 15,
+      "min": 519.72,
+      "max": 6754.29,
+      "mean": 2968.2,
+      "p50": 2721.14,
+      "p95": 6754.29,
+      "p99": 6754.29
+    },
+    "idempotencyRace": {
+      "transactionId": "idemp-race-1793103738353-998af8",
+      "invoiceName": "SINV-26-00392",
+      "committedDuringRace": 1,
+      "processingDuringRace": 4,
+      "sequentialRetryDuplicate": true
+    },
+    "offlineBacklogDrain": {
+      "backlogCount": 20,
+      "totalDurationMs": 9309.55,
+      "throughputBillsPerSecond": 2.1,
+      "count": 20,
+      "min": 114.66,
+      "max": 827.9,
+      "mean": 464.99,
+      "p50": 556.57,
+      "p95": 827.9,
+      "p99": 827.9
+    }
+  },
+  "assertions": [
+    {
+      "id": "SETUP-01",
+      "name": "Cashier, Admin auth, POS devices, and stock replenished",
+      "status": "PASS"
+    },
+    {
+      "id": "PERF-LIVENESS",
+      "name": "Liveness probe satisfies latency SLO",
+      "status": "PASS",
+      "detail": "p50=15.68ms, p95=19.41ms, rps=68"
+    },
+    {
+      "id": "PERF-HEALTH",
+      "name": "Database and Redis health latency under budget",
+      "status": "PASS",
+      "detail": "db=1.93ms, redis=0.31ms"
+    },
+    {
+      "id": "PERF-CATALOG",
+      "name": "Incremental sync provides significant speedup over full snapshot",
+      "status": "PASS",
+      "detail": "incremental_p50=31.4ms vs full_p50=102.54ms"
+    },
+    {
+      "id": "SCALE-CONCURRENCY",
+      "name": "5 concurrent billing counters processed with zero collisions",
+      "status": "PASS",
+      "detail": "p50=2721.14ms, p95=6754.29ms, distinct_invoices=15"
+    },
+    {
+      "id": "SCALE-IDEMPOTENCY",
+      "name": "Idempotency prevents duplicate invoice creation under concurrent race",
+      "status": "PASS",
+      "detail": "unique_invoice=SINV-26-00392, committed=1, processing=4, retry_duplicate=true"
+    },
+    {
+      "id": "SCALE-BACKLOG-DRAIN",
+      "name": "Accumulated offline transaction queue drained smoothly without timeout",
+      "status": "PASS",
+      "detail": "count=20, throughput=2.1 bills/s, p50=556.57ms"
+    },
+    {
+      "id": "SCALE-ERROR-ISOLATION",
+      "name": "Error in transaction routed to Requires Review without pipeline poisoning",
+      "status": "PASS",
+      "detail": "error_code=ITEM_NOT_FOUND, subsequent_committed=SERVER_COMMITTED"
+    }
+  ]
+}

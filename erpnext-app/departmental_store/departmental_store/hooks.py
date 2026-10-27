@@ -6,6 +6,7 @@ app_email = "sukeshperiyasamy@users.noreply.github.com"
 app_license = "mit"
 
 after_install = "departmental_store.install.after_install"
+after_migrate = "departmental_store.install.after_migrate"
 
 scheduler_events = {
     "cron": {

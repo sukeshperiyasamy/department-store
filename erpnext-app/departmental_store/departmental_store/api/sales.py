@@ -257,26 +257,43 @@ def _resolve_log(log, status: str, response: dict, invoice: dict | None,
     log.save(ignore_permissions=True)
 
 
-def _post_sale_with_deadlock_retry(data: dict, device: dict | None) -> dict:
-    """Two counters submitting at the same instant can deadlock on Frappe's
-    naming series (tabSeries, InnoDB gap lock). The failed transaction rolls back
-    cleanly, so a single immediate retry is safe and standard (QA-MC-001)."""
-    try:
-        return _post_sale(data, device)
-    except Exception as exc:
-        if _is_deadlock(exc):
-            frappe.db.rollback()
-            frappe.logger("departmental_store").info({
-                "event": "pos_deadlock_retried", "user": frappe.session.user,
-            })
+def _post_sale_with_deadlock_retry(data: dict, device: dict | None, max_attempts: int = 6) -> dict:
+    """Multiple counters submitting at the same instant can contend on Frappe's
+    naming series (tabSeries, InnoDB gap lock / error 1020). Because a single sale
+    takes ~400-600ms for full stock & GL posting, the retry jitter must allow sufficient
+    time for the preceding transaction to commit before retrying."""
+    import random
+    import time
+
+    last_exc = None
+    for attempt in range(1, max_attempts + 1):
+        try:
             return _post_sale(data, device)
-        raise
+        except Exception as exc:
+            if _is_deadlock(exc) and attempt < max_attempts:
+                frappe.db.rollback()
+                frappe.local.message_log = []
+                delay = random.uniform(0.20, 0.45) * attempt
+                frappe.logger("departmental_store").warning({
+                    "event": "pos_deadlock_retried",
+                    "user": frappe.session.user,
+                    "attempt": attempt,
+                    "delay_seconds": delay,
+                    "error": str(exc),
+                })
+                time.sleep(delay)
+                last_exc = exc
+                continue
+            raise
+    if last_exc:
+        raise last_exc
 
 
 def _is_deadlock(exc: Exception) -> bool:
     text = f"{type(exc).__name__}: {exc}"
     return ("QueryDeadlockError" in text or "Record has changed since last read" in text
-            or "Deadlock found" in text or "try restarting transaction" in text.lower())
+            or "Deadlock found" in text or "try restarting transaction" in text.lower()
+            or "1020" in text or "1213" in text or "lock wait timeout" in text.lower())
 
 
 def _post_sale(data: dict, device: dict | None) -> dict:
