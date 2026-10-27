@@ -252,6 +252,17 @@ Last updated: 2026-10-27 (fresh-stack validation pass). Full defect register: `d
 - **Staging Deployment Prerequisites Matrix**: Authored actionable 7-item prerequisite checklist in `STAGING_DEPLOYMENT_AND_RECOVERY_RUNBOOK.md` covering cloud storage bucket, public Linux VM, DNS zone delegation, trusted proxy topology, notification credentials, payment gateway keys, and POS hardware.
 - **Port Exposure & Isolation Verified**: Traefik ingress exposes strictly ports 80/443; MariaDB 3306 and Redis 6379 remain isolated on internal bridge networks with zero host interface bindings.
 
+### Latest CI Verification, Staging Execution Planning & Production Safety Audit — VERIFIED & HARDENED 2026-10-28 (Phase 17)
+- **Latest Remote CI Confirmed (100% Green)**: Commit `e26a8325cda2bb77e66bef539f3bde16dfbf0677` verified 100% green on GitHub Actions Run `40531875063` (`CI Quality Gates`, 6/6 jobs PASS: Owner Dashboard, Windows POS, TypeScript & Contracts, Mobile Companion, Frappe Python Quality, Security Preflight).
+- **Critical Tenant-Isolation Adversarial Tests Added (+8 Tests)**:
+  * Next.js Middleware: added multi-IP spoofed `x-forwarded-for` header tests, uppercase host normalization tests, malformed RFC 1123 hostname rejection tests, and nested `/admin` access attempt tests (`apps/owner-dashboard/src/middleware.test.ts` now 72/72 tests PASS).
+  * Frappe Backend: added cross-tenant billing overview access denial, cross-tenant checkout session creation denial, suspended tenant membership access denial, cross-tenant membership listing isolation, and tenant-scoped reconciliation cache key isolation (`erpnext-app/departmental_store/departmental_store/tests/test_tenant_isolation.py` now 11/11 tests PASS).
+  * Total repository automated test count increased to **396 test cases** (80 POS, 80 shared-types, 72 owner-dashboard, 11 mobile, 29 backup/download, 124 Frappe backend).
+- **Frappe DDL ImplicitCommit Bug Remediation**: Fixed `ImplicitCommitError` in `ensure_saas_membership_table()` by adding `frappe.db.table_exists("SaaS Tenant Membership")` guard. All 124 Frappe backend tests run cleanly.
+- **Repository Path & Command Reconciliations**: Audited and reconciled documentation paths across the codebase (`tests/integration/staging_preflight_check.mjs`, `deployment/backup/replicate_offsite.py`, `tests/integration/test_replicate_offsite.py`, `npm` workspaces).
+- **Controlled 10-Step Staging Acceptance Run Protocol**: Added comprehensive Section 8 in `docs/launch/STAGING_DEPLOYMENT_AND_RECOVERY_RUNBOOK.md` with explicit pass/fail gates across all 10 stages from staging VM deployment to rollback rehearsal.
+
+
 5. **Live Payment Gateway Activation (Blocker for Live Billing)**: Production Razorpay Merchant account KYC, production webhook secret configuration.
 6. **Legal & Tax Sign-Off (Blocker for Live Billing)**: Commercial approval of pricing tiers (Starter ₹1,499 / Growth ₹2,999 / Enterprise ₹4,999); legal counsel review of Terms of Service & refund policy; CA sign-off on SAC 998315 and operator GSTIN.
 7. **Staging Domain Live Deployment**: Execute `docs/launch/STAGING_DEPLOYMENT_AND_RECOVERY_RUNBOOK.md` once owner supplies staging domain and DNS credentials.

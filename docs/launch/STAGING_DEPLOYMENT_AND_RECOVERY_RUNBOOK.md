@@ -336,3 +336,35 @@ Once the owner supplies prerequisites 1–6:
 3. Verify live tenant routing: `shop-a.staging.departmentstore.in` and `shop-b.staging.departmentstore.in` route to distinct isolated tenant workspaces with zero cross-tenant leakage.
 4. Execute `python deployment/backup/replicate_offsite.py` against the real test bucket, verify remote SHA-256 metadata via S3 HEAD, download the archive via `download_file()`, and restore into a disposable scratch site (`deployment/backup/test_restore_scratch.py`).
 5. Exercise Step 6.2 rollback runbook to confirm database restore and zero-downtime recovery in the staging environment.
+
+---
+
+## 8. Controlled 10-Step Staging Acceptance Run Protocol
+
+This sequential execution protocol provides explicit pass/fail gates for each staging acceptance stage. Operators must verify each step's exit criteria before advancing to the next.
+
+```mermaid
+flowchart TD
+    S1["1. Deploy to Staging VM"] --> S2["2. Issue & Renew Public TLS"]
+    S2 --> S3["3. Test Hostname Resolution & Fail-Closed"]
+    S3 --> S4["4. Verify Tenant Database Isolation"]
+    S4 --> S5["5. Validate Auth & Onboarding"]
+    S5 --> S6["6. Verify Sandbox Payments & Webhooks"]
+    S6 --> S7["7. Replicate Off-Site Backup to S3"]
+    S7 --> S8["8. Download & Verify Remote Checksum"]
+    S8 --> S9["9. Scratch Site Restoration Drill"]
+    S9 --> S10["10. Drill Rollback & Recovery Procedures"]
+```
+
+| Step | Acceptance Stage | Execution Procedure / Command | Explicit Pass Criteria | Explicit Fail Criteria |
+| :---: | :--- | :--- | :--- | :--- |
+| **1** | **Deploying to Authorized Staging VM** | `docker compose -f deployment/erpnext/pwd.yml -p departmental-erp up -d`<br>`docker compose -f deployment/ingress/docker-compose.traefik.yml up -d` | All 9 service containers report `healthy` or `running`; ports 80/443 bound to host; DB/Redis ports unbound. | Any container in `restarting`/`exited`; public interface binds on port 3306 or 6379. |
+| **2** | **Public TLS Issuance & Renewal** | Inspect Traefik ACME logs:<br>`docker logs saas-edge-ingress \| grep -i "acme"`<br>Probe: `curl -Iv https://staging.departmentstore.in` | Valid Let's Encrypt TLS certificate presented; HTTP redirects to HTTPS (301/308); HSTS headers present. | ACME challenge timeout; certificate validation error; expired or self-signed cert on public endpoint. |
+| **3** | **Hostname Routing & Fail-Closed Behavior** | Query active vs unknown vs suspended hosts:<br>`curl -H "Host: unknown.staging.departmentstore.in" https://<IP>`<br>`curl -H "Host: suspended.staging.departmentstore.in" https://<IP>` | Active host returns HTTP 200 with tenant context; unknown host returns HTTP 404 `TENANT_NOT_FOUND`; suspended host returns 403 `TENANT_SUSPENDED`. | Unknown host returns 200 or falls back to default tenant; suspended tenant workspace accessible. |
+| **4** | **Multi-Tenant Site Isolation** | Execute cross-tenant queries from Tenant A session:<br>`curl -H "Cookie: sid=tenant_a" https://tenant-b.staging.departmentstore.in/api/method/...` | Frappe returns `PermissionError` (HTTP 403); zero data records from Tenant B accessible by Tenant A user. | Cross-tenant data returned; tenant membership checks bypassed; shared database table pollution. |
+| **5** | **Authentication & Onboarding Workflows** | Register new store owner via `/register`; check slug availability; confirm verification token via email sandbox. | Slug checked against reserved list; token delivered to sandbox; verified owner logged in to store dashboard. | Reserved slug permitted; unverified user logged in; cleartext passwords or tokens in server logs. |
+| **6** | **Payment & Notification Sandbox Flows** | Create checkout session (`rzp_test_...`); dispatch signed payment.captured webhook with HMAC-SHA256 signature. | Webhook returns HTTP 200 `PROCESSED`; subscription transitions to `ACTIVE`; duplicate webhook is idempotent. | Webhook accepted with invalid HMAC signature; duplicate webhook creates duplicate invoice; live keys used. |
+| **7** | **Off-Site Backup Upload to S3** | `python deployment/backup/replicate_offsite.py`<br>(with owner-supplied staging bucket and IAM keys) | Upload completes with AES256 server-side encryption; post-upload HEAD probe confirms SHA-256 metadata. | Upload fails; plain HTTP used; credentials leak in stdout/stderr; unverified upload marked successful. |
+| **8** | **Remote Download & Checksum Verification** | Download uploaded archive using `S3ReplicationClient.download_file()` into fresh temp directory. | Download streams chunked; calculated SHA-256 exactly matches `SHA256SUMS.txt` manifest; atomic replace completes. | Checksum mismatch accepted; incomplete download preserved; destination path traversal permitted. |
+| **9** | **Disposable Scratch Site Restoration** | `python deployment/backup/test_restore_scratch.py` using downloaded remote backup archive. | Scratch site restored in < 900s (target < 120s); 1:1 invoice/item parity; `gl_ledger_balanced: True`; site dropped cleanly. | Database restore fails; ledger imbalance; production `frontend` site affected or interrupted. |
+| **10** | **Rollback & Disaster Recovery Drill** | Rehearse Section 6.2 rollback procedure: simulate faulty release, revert Git SHA, restore database, verify liveness. | Stack restarts cleanly on previous commit; database tables restored; `/api/method/.../get_liveness` returns OK. | Rollback leaves database in inconsistent state; migrations cannot roll back; persistent data lost. |

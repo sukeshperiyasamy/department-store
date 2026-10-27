@@ -598,3 +598,42 @@ Raw command execution confirms exactly **388 automated test cases** across the r
 - **Tenant Fail-Closed Routing**: Next.js `middleware.ts` enforces RFC 1123 hostname validation; malformed or unmapped subdomains fail closed with 404; tenant `/admin` attempts are blocked with 403.
 - **Trusted Proxy Inspection**: Forwarded headers (`x-forwarded-host`, `x-forwarded-for`) are accepted only from explicitly matched trusted proxy CIDRs (`TRUSTED_PROXY_IPS`).
 - **7-Item External Staging Acceptance Sequence**: Formally documented in `STAGING_DEPLOYMENT_AND_RECOVERY_RUNBOOK.md` detailing exact owner actions required before initiating public deployment.
+
+---
+
+# Phase 17 Handoff Audit — Latest CI Verification, Staging Execution Planning & Production Safety Audit (2026-10-28)
+
+## Baseline & Remote CI State
+- **Baseline Commit**: `e26a8325cda2bb77e66bef539f3bde16dfbf0677` (on `main`, clean tree).
+- **GitHub Actions Verification**: Run ID `40531875063` (`CI Quality Gates`), Status: `completed`, Conclusion: `success`.
+  * `Owner Dashboard Test & Build` (ID: `122286578219`): **PASS**
+  * `Windows POS Test & Frontend Build` (ID: `122286578585`): **PASS**
+  * `Typecheck & Contract Validation` (ID: `122286578674`): **PASS**
+  * `Mobile Companion Isolation Tests` (ID: `122286578695`): **PASS**
+  * `Frappe App Python Quality` (ID: `122286578738`): **PASS**
+  * `Security & Config Preflight` (ID: `122286578775`): **PASS**
+
+## Reconciled Full Test Suite (396 Automated Test Cases - 100% GREEN)
+1. **Frontend / Monorepo Client Suites (243 tests - Vitest)**:
+   - `packages/shared-types`: **80 tests passed** (4 test files)
+   - `apps/owner-dashboard`: **72 tests passed** (12 test files, +4 new adversarial tests)
+   - `apps/windows-pos`: **80 tests passed** (12 test files)
+   - `apps/mobile`: **11 tests passed** (1 test file)
+2. **Infrastructure & Disaster Recovery Suite (29 tests - Python unittest)**:
+   - `tests/integration/test_replicate_offsite.py`: **29 tests passed** (10 S3 download scenarios + 19 upload/prune/auth tests)
+3. **Frappe Backend Core Business Suites (124 tests - Frappe Bench runner)**:
+   - Unspecified test category (**59 tests passed**, was 55): `test_sales_api` (18), `test_provisioning_api` (14), `test_health_api` (6), `test_tenant_isolation` (**11**, was 7), `test_returns_api` (10)
+   - Old-category test category (**65 tests passed**): `test_catalog_api` (4), `test_settings_api` (13), `test_onboarding_api` (8), `test_billing_api` (21), `test_tenant_api` (19)
+4. **Preflight, Security & Quality Audits (Non-Test Invariants)**:
+   - `tests/integration/staging_preflight_check.mjs`: **25 PASSED**, 0 FAILED, 6 BLOCKED external dependencies
+   - `scripts/ci/secret_scan.py` (`npm run scan:secrets`): 380 tracked files scanned, 0 secrets detected
+   - `scripts/ci/validate_deployment_configs.py` (`npm run validate:configs`): All deployment configs valid
+   - `python -m ruff check ...`: 0 errors across custom app, tools, and tests
+   - `npm run typecheck`: 0 TypeScript errors across all 4 workspaces
+
+## Critical Invariant & Path Reconciliations
+- **Package Manager**: Clarified that root workspace orchestration uses `npm` (`npm run test --workspace @departmental/...`), not `pnpm`.
+- **Preflight Script Path**: Staging preflight check is located at `tests/integration/staging_preflight_check.mjs`.
+- **Backup Tools Path**: S3 replication script is at `deployment/backup/replicate_offsite.py` and its test suite is at `tests/integration/test_replicate_offsite.py`.
+- **Frappe DDL Transaction Safety**: Fixed `ImplicitCommitError` in `ensure_saas_membership_table()` by adding `table_exists` check prior to DDL execution.
+- **Controlled 10-Step Staging Acceptance Protocol**: Fully specified in Section 8 of `STAGING_DEPLOYMENT_AND_RECOVERY_RUNBOOK.md` with explicit pass/fail gates.

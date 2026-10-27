@@ -13,13 +13,16 @@ import unittest
 
 import frappe
 
+from departmental_store.api import billing, tenant
 from departmental_store.api.provisioning import ensure_provisioning_tables
-from departmental_store.api.tenant import get_tenant_info, resolve_tenant_by_host
+from departmental_store.api.tenant import get_tenant_info, list_user_tenants, resolve_tenant_by_host
 
 
 class TestTenantIsolation(unittest.TestCase):
     def setUp(self):
         ensure_provisioning_tables()
+        tenant.ensure_saas_membership_table()
+        billing.ensure_saas_billing_tables()
         self._orig_user = frappe.session.user
         frappe.set_user("Administrator")
 
@@ -73,10 +76,32 @@ class TestTenantIsolation(unittest.TestCase):
 
     def tearDown(self):
         frappe.set_user("Administrator")
+        frappe.cache().delete_value(f"reconcile_payments_{self.tenant_a_id}")
+        frappe.cache().delete_value(f"reconcile_payments_{self.tenant_b_id}")
+        frappe.db.sql(
+            "DELETE FROM `tabSaaS Tenant Membership` WHERE tenant_id IN (%s, %s, %s)",
+            (self.tenant_a_id, self.tenant_b_id, self.tenant_c_id),
+        )
+        frappe.db.sql(
+            "DELETE FROM `tabSaaS Subscription` WHERE tenant_id IN (%s, %s, %s)",
+            (self.tenant_a_id, self.tenant_b_id, self.tenant_c_id),
+        )
+        frappe.db.sql(
+            "DELETE FROM `tabSaaS Invoice` WHERE tenant_id IN (%s, %s, %s)",
+            (self.tenant_a_id, self.tenant_b_id, self.tenant_c_id),
+        )
         frappe.db.sql(
             "DELETE FROM `tabSaaS Tenant Registry` WHERE tenant_id IN (%s, %s, %s)",
             (self.tenant_a_id, self.tenant_b_id, self.tenant_c_id),
         )
+        for u_email in [
+            "cashier_shop_a@example.com",
+            "suspended_emp@example.com",
+            "owner_a@example.com",
+            "owner_b@example.com",
+        ]:
+            if frappe.db.exists("User", u_email):
+                frappe.delete_doc("User", u_email, force=True, ignore_permissions=True)
         frappe.db.commit()
         frappe.set_user(self._orig_user)
 
@@ -203,3 +228,117 @@ class TestTenantIsolation(unittest.TestCase):
         finally:
             frappe.db.sql("DELETE FROM `tabSaaS Tenant Registry` WHERE tenant_id = %s", (prod_tid,))
             frappe.db.commit()
+
+    def test_cross_tenant_billing_access_denied(self):
+        """A user belonging to Shop A cannot access Shop B's billing overview or create sessions."""
+        user_shop_a = "cashier_shop_a@example.com"
+        if not frappe.db.exists("User", user_shop_a):
+            u = frappe.new_doc("User")
+            u.email = user_shop_a
+            u.first_name = "Cashier Shop A"
+            u.append("roles", {"role": "Cashier"})
+            u.insert(ignore_permissions=True)
+
+        frappe.set_user(user_shop_a)
+
+        # Attempt to access Shop B billing overview
+        with self.assertRaises(frappe.PermissionError):
+            billing.get_billing_overview(tenant_id=self.tenant_b_id)
+
+        # Attempt to create checkout session for Shop B
+        with self.assertRaises(frappe.PermissionError):
+            billing.create_checkout_session(
+                tenant_id=self.tenant_b_id,
+                plan_id="starter",
+                billing_interval="MONTHLY",
+            )
+
+    def test_suspended_membership_denied(self):
+        """A user whose membership status is SUSPENDED is denied access even with valid tenant_id."""
+        suspended_user = "suspended_emp@example.com"
+        if not frappe.db.exists("User", suspended_user):
+            u = frappe.new_doc("User")
+            u.email = suspended_user
+            u.first_name = "Suspended Employee"
+            u.append("roles", {"role": "Store Manager"})
+            u.insert(ignore_permissions=True)
+
+        tenant.ensure_saas_membership_table()
+        mem_id = f"MEM-SUSP-{frappe.generate_hash(length=8).upper()}"
+        frappe.db.sql(
+            """INSERT INTO `tabSaaS Tenant Membership`
+               (membership_id, user_id, tenant_id, role, status)
+               VALUES (%s, %s, %s, 'STORE_MANAGER', 'SUSPENDED')""",
+            (mem_id, suspended_user, self.tenant_a_id),
+        )
+        frappe.db.commit()
+
+        try:
+            frappe.set_user(suspended_user)
+            with self.assertRaises(frappe.PermissionError):
+                get_tenant_info(tenant_id=self.tenant_a_id)
+        finally:
+            frappe.set_user("Administrator")
+            frappe.db.sql("DELETE FROM `tabSaaS Tenant Membership` WHERE membership_id = %s", (mem_id,))
+            frappe.db.commit()
+
+    def test_cross_tenant_membership_isolation_in_listing(self):
+        """Two users with distinct tenant memberships only see their own assigned workspace."""
+        user_a = "owner_a@example.com"
+        user_b = "owner_b@example.com"
+        for email, name in [(user_a, "Owner A"), (user_b, "Owner B")]:
+            if not frappe.db.exists("User", email):
+                u = frappe.new_doc("User")
+                u.email = email
+                u.first_name = name
+                u.append("roles", {"role": "Store Manager"})
+                u.insert(ignore_permissions=True)
+
+        tenant.ensure_saas_membership_table()
+        mem_a = f"MEM-A-{frappe.generate_hash(length=8).upper()}"
+        mem_b = f"MEM-B-{frappe.generate_hash(length=8).upper()}"
+        frappe.db.sql(
+            """INSERT INTO `tabSaaS Tenant Membership`
+               (membership_id, user_id, tenant_id, role, status)
+               VALUES (%s, %s, %s, 'TENANT_OWNER', 'ACTIVE')""",
+            (mem_a, user_a, self.tenant_a_id),
+        )
+        frappe.db.sql(
+            """INSERT INTO `tabSaaS Tenant Membership`
+               (membership_id, user_id, tenant_id, role, status)
+               VALUES (%s, %s, %s, 'TENANT_OWNER', 'ACTIVE')""",
+            (mem_b, user_b, self.tenant_b_id),
+        )
+        frappe.db.commit()
+
+        try:
+            # User A only sees Tenant A
+            frappe.set_user(user_a)
+            list_a = list_user_tenants()
+            self.assertEqual(len(list_a["tenants"]), 1)
+            self.assertEqual(list_a["tenants"][0]["tenant_id"], self.tenant_a_id)
+
+            # User B only sees Tenant B
+            frappe.set_user(user_b)
+            list_b = list_user_tenants()
+            self.assertEqual(len(list_b["tenants"]), 1)
+            self.assertEqual(list_b["tenants"][0]["tenant_id"], self.tenant_b_id)
+        finally:
+            frappe.set_user("Administrator")
+            frappe.db.sql(
+                "DELETE FROM `tabSaaS Tenant Membership` WHERE membership_id IN (%s, %s)",
+                (mem_a, mem_b),
+            )
+            frappe.db.commit()
+
+    def test_cross_tenant_cache_key_isolation(self):
+        """Payment reconciliation cache keys are tenant-scoped and do not conflict."""
+        key_a = f"reconcile_payments_{self.tenant_a_id}"
+        key_b = f"reconcile_payments_{self.tenant_b_id}"
+
+        frappe.cache().set_value(key_a, "IN_PROGRESS", expires_in_sec=60)
+        self.assertEqual(frappe.cache().get_value(key_a), "IN_PROGRESS")
+        self.assertIsNone(frappe.cache().get_value(key_b))
+
+        frappe.cache().delete_value(key_a)
+        frappe.cache().delete_value(key_b)

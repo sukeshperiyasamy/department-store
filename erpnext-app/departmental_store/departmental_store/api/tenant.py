@@ -256,6 +256,9 @@ def resolve_tenant_by_host(hostname: str = None) -> dict:
 
 def ensure_saas_membership_table():
     """Idempotently ensure tabSaaS Tenant Membership table exists."""
+    if frappe.db.table_exists("SaaS Tenant Membership"):
+        return
+
     frappe.db.sql("""
         CREATE TABLE IF NOT EXISTS `tabSaaS Tenant Membership` (
             `membership_id` VARCHAR(140) PRIMARY KEY,

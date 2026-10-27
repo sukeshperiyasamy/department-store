@@ -106,4 +106,41 @@ describe("Next.js Middleware Subdomain Resolution & Boundary", () => {
     expect(res.headers.get("X-Tenant-Slug")).toBe("shop-alpha");
     expect(res.headers.get("X-Tenant-Type")).toBe("store");
   });
+
+  it("ignores forged x-forwarded-host when client IP is untrusted public IP with trusted proxy spoofed in header chain", () => {
+    const req = createMockRequest("http://localhost:3100/", {
+      host: "localhost:3100",
+      "x-forwarded-for": "203.0.113.195, 127.0.0.1",
+      "x-forwarded-host": "attacker-spoofed.localhost",
+    });
+    const res = middleware(req);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("X-Tenant-Type")).toBe("platform");
+    expect(res.headers.get("X-Tenant-Host")).toBe("localhost");
+  });
+
+  it("normalizes uppercase hostnames cleanly without leaking platform privileges", () => {
+    const req = createMockRequest("http://SHOP-A.LOCALHOST:3100/app", { host: "SHOP-A.LOCALHOST:3100" });
+    const res = middleware(req);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("X-Tenant-Slug")).toBe("shop-a");
+    expect(res.headers.get("X-Tenant-Type")).toBe("store");
+  });
+
+  it("rejects header injection attempts and malformed hostnames with 400 Bad Request", async () => {
+    const req = createMockRequest("http://localhost:3100/", { host: "shop_a..localhost:3100" });
+    const res = middleware(req);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toBe("INVALID_HOSTNAME");
+  });
+
+
+  it("strictly rejects nested /admin paths from tenant subdomain with 403 Forbidden", async () => {
+    const req = createMockRequest("http://shop-a.localhost:3100/admin/settings/security", { host: "shop-a.localhost:3100" });
+    const res = middleware(req);
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error).toBe("ACCESS_DENIED");
+  });
 });
