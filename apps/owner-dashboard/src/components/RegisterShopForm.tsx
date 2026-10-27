@@ -2,12 +2,12 @@
 
 import React, { useState, useTransition, useEffect } from "react";
 import Link from "next/link";
-import { submitOnboardingAction, checkSlugAction, type ActionState } from "@/app/actions/marketing";
-import type { OnboardingRequestResponse } from "@departmental/shared-types";
+import { checkSlugAction, type ActionState } from "@/app/actions/marketing";
+import { registerCustomerAction } from "@/app/actions/onboarding";
 
 export function RegisterShopForm({ initialPlan = "starter" }: { initialPlan?: string }) {
   const [isPending, startTransition] = useTransition();
-  const [state, setState] = useState<ActionState<OnboardingRequestResponse> | null>(null);
+  const [state, setState] = useState<ActionState<any> | null>(null);
   const [selectedPlan, setSelectedPlan] = useState(initialPlan);
 
   // Slug availability checking state
@@ -56,12 +56,16 @@ export function RegisterShopForm({ initialPlan = "starter" }: { initialPlan?: st
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     startTransition(async () => {
-      const res = await submitOnboardingAction(state, formData);
+      const res = await registerCustomerAction(state, formData);
       setState(res);
     });
   };
 
   if (state?.success && state.data) {
+    const statusUrl = `/onboarding/status?request_id=${encodeURIComponent(state.data.request_id)}${
+      state.data.verification_token ? `&token=${encodeURIComponent(state.data.verification_token)}` : ""
+    }`;
+
     return (
       <div className="form-card" style={{ padding: "48px 36px", textAlign: "center" }}>
         <div
@@ -82,16 +86,16 @@ export function RegisterShopForm({ initialPlan = "starter" }: { initialPlan?: st
         </div>
 
         <h2 style={{ fontSize: 26, margin: "0 0 12px", color: "var(--text)" }}>
-          Onboarding Request Submitted
+          Registration Submitted Successfully
         </h2>
 
         <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#fef3c7", color: "#92400e", padding: "6px 14px", borderRadius: 999, fontSize: 13, fontWeight: 700, marginBottom: 20 }}>
           <span>● Status:</span>
-          <span>{state.data.status} (Not Yet Live)</span>
+          <span>Contact Verification Pending</span>
         </div>
 
         <p style={{ color: "var(--muted)", fontSize: "var(--fs-md)", lineHeight: 1.6, maxWidth: 540, margin: "0 auto 24px" }}>
-          Your shop registration request has been stored in our durable ledger. To prevent domain squatting and ensure valid GST setup, store subdomains are verified before live routing is provisioned.
+          We have recorded your shop details. A secure, single-use email verification link has been generated. Please verify your email to submit your application for platform business review and site provisioning.
         </p>
 
         <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", padding: "20px 24px", textAlign: "left", maxWidth: 500, margin: "0 auto 28px", fontSize: "var(--fs-sm)" }}>
@@ -100,22 +104,26 @@ export function RegisterShopForm({ initialPlan = "starter" }: { initialPlan?: st
             <span style={{ fontFamily: "monospace", fontWeight: 700, color: "var(--accent)" }}>{state.data.request_id}</span>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--border)", paddingBottom: 8, marginBottom: 8 }}>
-            <span style={{ color: "var(--muted)" }}>Requested Subdomain:</span>
+            <span style={{ color: "var(--muted)" }}>Reserved Subdomain:</span>
             <span style={{ fontFamily: "monospace", fontWeight: 700 }}>{state.data.preferred_slug}.departmentstore.in</span>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span style={{ color: "var(--muted)" }}>Next Step:</span>
-            <span style={{ fontWeight: 600 }}>GSTIN & Store Owner Verification</span>
+            <span style={{ color: "var(--muted)" }}>Next Immediate Action:</span>
+            <span style={{ fontWeight: 600, color: "var(--warning)" }}>Verify Contact Email</span>
           </div>
+          {state.data.verification_token && (
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px dashed var(--border)", fontSize: "var(--fs-xs)", color: "var(--muted)" }}>
+              <span>Sandbox Verification Token: </span>
+              <code style={{ background: "var(--card)", padding: "2px 6px", borderRadius: 4, fontWeight: 700 }}>
+                {state.data.verification_token}
+              </code>
+            </div>
+          )}
         </div>
 
-        <div style={{ fontSize: "var(--fs-xs)", color: "var(--muted)", maxWidth: 500, margin: "0 auto 24px", lineHeight: 1.5 }}>
-          Notice: No automated billing has been initiated and no live DNS records have been published. Our deployment team will contact you to configure your Frappe tenant site and Windows counters.
-        </div>
-
-        <div style={{ display: "flex", justifyContent: "center", gap: 14 }}>
-          <Link href="/" className="btn btn-primary" style={{ padding: "10px 22px" }}>
-            Return to Homepage
+        <div style={{ display: "flex", justifyContent: "center", gap: 14, flexWrap: "wrap" }}>
+          <Link href={statusUrl} className="btn btn-primary" style={{ padding: "10px 22px" }}>
+            Track Onboarding & Verify Email →
           </Link>
           <button
             type="button"

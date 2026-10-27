@@ -371,12 +371,17 @@ def approve_onboarding_request(request_id: str, notes: str = None) -> dict:
     ensure_provisioning_tables()
 
     req = frappe.db.sql(
-        "SELECT name, preferred_slug, status, retry_count FROM `tabSaaS Onboarding Request` WHERE name = %s FOR UPDATE",
+        "SELECT name, preferred_slug, email, status, retry_count, contact_verification_status FROM `tabSaaS Onboarding Request` WHERE name = %s FOR UPDATE",
         (request_id,),
         as_dict=True,
     )
     if not req:
         frappe.throw(_("Onboarding request not found"), frappe.DoesNotExistError)
+
+    # Multi-dimensional enforcement: contact email must be verified
+    contact_st = req[0].get("contact_verification_status")
+    if contact_st and contact_st != "VERIFIED":
+        frappe.throw(_("Cannot approve onboarding request: email contact is not verified yet."), frappe.ValidationError)
 
     current_status = req[0]["status"]
     if current_status not in {"Pending Review", "PENDING_REVIEW", "PROVISIONING_FAILED", "REJECTED"}:
@@ -401,10 +406,11 @@ def approve_onboarding_request(request_id: str, notes: str = None) -> dict:
         (job_id, request_id, slug, site_name, req[0].get("retry_count") or 0),
     )
 
-    # Update onboarding request
+    # Update onboarding request with multi-dimensional statuses
     frappe.db.sql(
         """UPDATE `tabSaaS Onboarding Request`
-           SET status = %s, assigned_site_name = %s, job_id = %s, admin_notes = %s, modified = NOW()
+           SET status = %s, business_review_status = 'APPROVED', provisioning_status = 'PENDING',
+               assigned_site_name = %s, job_id = %s, admin_notes = %s, modified = NOW()
            WHERE name = %s""",
         (target_status, site_name, job_id, notes, request_id),
     )
@@ -697,13 +703,28 @@ def activate_tenant(tenant_id: str, reason: str = None) -> dict:
     if t.get("hostname_status") != "VERIFIED":
         frappe.throw(_("Cannot activate tenant without verified hostname. Hostname status is currently '%s'." % t.get("hostname_status")), frappe.ValidationError)
 
+    # Verify subscription status if SaaS Subscription table exists
+    if frappe.db.table_exists("SaaS Subscription"):
+        sub = frappe.db.sql(
+            "SELECT status FROM `tabSaaS Subscription` WHERE tenant_id = %s",
+            (tenant_id,),
+            as_dict=True,
+        )
+        if sub and sub[0]["status"] not in ["ACTIVE", "TRIALING"]:
+            frappe.throw(
+                _(f"Cannot activate tenant: subscription status is '{sub[0]['status']}'. Must be ACTIVE or TRIALING."),
+                frappe.ValidationError,
+            )
+
     target_status = "ACTIVE"
     frappe.db.sql(
         "UPDATE `tabSaaS Tenant Registry` SET lifecycle_status = %s, updated_at = NOW() WHERE tenant_id = %s",
         (target_status, tenant_id),
     )
     frappe.db.sql(
-        "UPDATE `tabSaaS Onboarding Request` SET status = %s, modified = NOW() WHERE preferred_slug = %s",
+        """UPDATE `tabSaaS Onboarding Request`
+           SET status = %s, tenant_access_status = 'ACTIVE', hostname_status = 'VERIFIED', modified = NOW()
+           WHERE preferred_slug = %s""",
         (target_status, t["slug"]),
     )
 

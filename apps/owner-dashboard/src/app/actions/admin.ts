@@ -41,6 +41,7 @@ export async function approveRequestAction(
   try {
     const res = await approvePlatformOnboarding(parsed.data.request_id, parsed.data.notes);
     revalidatePath("/admin/onboarding");
+    revalidatePath("/admin/operations");
     return {
       success: true,
       message: res.message,
@@ -74,6 +75,7 @@ export async function rejectRequestAction(
   try {
     const res = await rejectPlatformOnboarding(parsed.data.request_id, parsed.data.reason);
     revalidatePath("/admin/onboarding");
+    revalidatePath("/admin/operations");
     return {
       success: true,
       message: res.message,
@@ -107,6 +109,7 @@ export async function retryJobAction(
   try {
     const res = await retryPlatformProvisioning(parsed.data.request_id, parsed.data.reason);
     revalidatePath("/admin/onboarding");
+    revalidatePath("/admin/operations");
     return {
       success: true,
       message: res.message,
@@ -141,6 +144,7 @@ export async function setTenantStatusAction(
   try {
     const res = await setPlatformTenantStatus(parsed.data.tenant_id, parsed.data.new_status, parsed.data.reason);
     revalidatePath("/admin/onboarding");
+    revalidatePath("/admin/operations");
     return {
       success: true,
       message: res.message,

@@ -54,6 +54,7 @@ class TestBillingApi(FrappeTestCase):
         frappe.db.sql("DELETE FROM `tabSaaS Subscription` WHERE tenant_id = %s", (self.test_tenant_id,))
         frappe.db.sql("DELETE FROM `tabSaaS Tenant Membership` WHERE tenant_id = %s", (self.test_tenant_id,))
         frappe.db.sql("DELETE FROM `tabSaaS Tenant Registry` WHERE tenant_id = %s", (self.test_tenant_id,))
+        frappe.db.sql("DELETE FROM `tabPOS Device` WHERE device_id IN ('COUNTER-TEST-01', 'COUNTER-TEST-02')")
         frappe.db.commit()
         frappe.set_user(self._orig_user)
         super().tearDown()
@@ -245,9 +246,14 @@ class TestBillingApi(FrappeTestCase):
         # Starter plan allows max 1 counter
         billing.create_checkout_session(tenant_id=self.test_tenant_id, plan_id="starter")
         frappe.db.sql(
-            "UPDATE `tabSaaS Subscription` SET status = 'ACTIVE' WHERE tenant_id = %s",
+            "UPDATE `tabSaaS Subscription` SET status = 'CANCELLED' WHERE tenant_id != %s",
             (self.test_tenant_id,),
         )
+        frappe.db.sql(
+            "UPDATE `tabSaaS Subscription` SET status = 'ACTIVE', plan_id = 'starter', modified = NOW() WHERE tenant_id = %s",
+            (self.test_tenant_id,),
+        )
+        frappe.db.sql("DELETE FROM `tabPOS Device` WHERE device_id IN ('COUNTER-TEST-01', 'COUNTER-TEST-02')")
         frappe.db.commit()
 
         # Count existing enabled devices

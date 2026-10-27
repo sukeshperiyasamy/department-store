@@ -449,4 +449,5 @@ export type SetFlagResult = z.infer<typeof SetFlagResultSchema>;
 
 export * from "./tenancy";
 export * from "./billing";
+export * from "./onboarding";
 

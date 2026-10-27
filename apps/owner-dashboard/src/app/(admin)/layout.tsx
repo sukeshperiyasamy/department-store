@@ -50,6 +50,19 @@ export default async function PlatformAdminLayout({
 
         <nav style={{ display: "flex", alignItems: "center", gap: 20 }}>
           <Link
+            href="/admin/operations"
+            style={{
+              color: "#ffffff",
+              fontSize: 14,
+              fontWeight: 600,
+              textDecoration: "none",
+              borderBottom: "2px solid #2dd4bf",
+              paddingBottom: 4,
+            }}
+          >
+            Operations Cockpit
+          </Link>
+          <Link
             href="/admin/onboarding"
             style={{
               color: "#ffffff",

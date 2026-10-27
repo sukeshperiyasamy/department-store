@@ -29,12 +29,12 @@ class TestProvisioningApi(unittest.TestCase):
         self.test_slug = f"test-shop-{frappe.generate_hash(length=6).lower()}"
         self.request_id = f"ONB-TEST-{frappe.generate_hash(length=8).upper()}"
 
-        # Seed test onboarding request
+        # Seed test onboarding request with verified contact
         frappe.db.sql(
             """INSERT INTO `tabSaaS Onboarding Request`
                (`name`, `business_name`, `owner_name`, `email`, `phone`, `state`, `city`,
-                `preferred_slug`, `requested_plan`, `agreed_to_terms`, `status`)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'growth', 1, 'PENDING_REVIEW')""",
+                `preferred_slug`, `requested_plan`, `agreed_to_terms`, `status`, `contact_verification_status`)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'growth', 1, 'PENDING_REVIEW', 'VERIFIED')""",
             (
                 self.request_id,
                 "Test Departmental Mart",

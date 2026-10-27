@@ -24,6 +24,10 @@ import {
   StockAlertsSchema,
   StoreSettingsSchema,
   TenantInfoResponseSchema,
+  CustomerOnboardingStatusResponseSchema,
+  type CustomerOnboardingStatusResponse,
+  PlatformOperationsOverviewSchema,
+  type PlatformOperationsOverview,
   type CatalogSnapshot,
   type DemoRequest,
   type DemoRequestResponse,
@@ -51,18 +55,25 @@ async function callFrappe<T>(
   method: string,
   args: Record<string, unknown>,
   schema: ZodType<T, ZodTypeDef, unknown>,
+  options?: { allowGuest?: boolean },
 ): Promise<T> {
   const token = dashboardToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "application/json",
   };
-  const sid = (await cookies()).get(SESSION_COOKIE)?.value;
+  let sid: string | undefined;
+  try {
+    sid = (await cookies()).get(SESSION_COOKIE)?.value;
+  } catch {
+    // ignore outside request context
+  }
+
   if (sid) {
     headers.Cookie = `sid=${sid}`;
   } else if (token) {
     headers.Authorization = `token ${token.key}:${token.secret}`;
-  } else {
+  } else if (!options?.allowGuest) {
     throw new DashboardAuthError("not signed in");
   }
 
@@ -83,7 +94,22 @@ async function callFrappe<T>(
     throw new DashboardAuthError(`ERP authorization failed (${response.status})${detail ? `: ${detail}` : ""}`);
   }
   if (!response.ok) {
-    throw new Error(`ERP call ${method} failed: ${response.status}`);
+    let errMsg = `ERP call ${method} failed: ${response.status}`;
+    try {
+      const errJson = (await response.json()) as { _server_messages?: string; message?: string };
+      if (errJson._server_messages) {
+        const msgs = JSON.parse(errJson._server_messages);
+        if (Array.isArray(msgs) && msgs.length > 0) {
+          const first = typeof msgs[0] === "string" ? JSON.parse(msgs[0]) : msgs[0];
+          errMsg = first.message || first;
+        }
+      } else if (errJson.message) {
+        errMsg = typeof errJson.message === "string" ? errJson.message : JSON.stringify(errJson.message);
+      }
+    } catch {
+      // ignore JSON parse failure
+    }
+    throw new Error(errMsg);
   }
   const json = (await response.json()) as { message?: unknown };
   const parsed = schema.safeParse(json.message ?? json);
@@ -543,6 +569,109 @@ export async function adminRetryWebhookEvent(eventId: string): Promise<any> {
   );
 }
 
+// -------------------------------------------------------------------------
+// Phase 7: Onboarding Automation, Contact Verification & Tenant Operations
+// -------------------------------------------------------------------------
+
+export async function registerCustomerOnboarding(data: {
+  business_name: string;
+  owner_name: string;
+  email: string;
+  phone: string;
+  state: string;
+  city: string;
+  preferred_slug: string;
+  requested_plan?: string;
+  agreed_to_terms?: boolean;
+}): Promise<{
+  api_version: number;
+  request_id: string;
+  preferred_slug: string;
+  status: string;
+  contact_verification: string;
+  verification_token?: string | undefined;
+  message: string;
+}> {
+  return callFrappe(
+    "departmental_store.api.onboarding.register_customer_onboarding",
+    data,
+    z.object({
+      api_version: z.literal(1),
+      request_id: z.string(),
+      preferred_slug: z.string(),
+      status: z.string(),
+      contact_verification: z.string(),
+      verification_token: z.string().optional(),
+      message: z.string(),
+    }),
+    { allowGuest: true },
+  );
+}
+
+export async function verifyContactToken(
+  requestId: string,
+  token: string,
+): Promise<{
+  api_version: number;
+  request_id: string;
+  contact_verification: string;
+  status: string;
+  message: string;
+}> {
+  return callFrappe(
+    "departmental_store.api.onboarding.verify_contact_token",
+    { request_id: requestId, token },
+    z.object({
+      api_version: z.literal(1),
+      request_id: z.string(),
+      contact_verification: z.string(),
+      status: z.string(),
+      message: z.string(),
+    }),
+    { allowGuest: true },
+  );
+}
+
+export async function resendVerificationToken(
+  email: string,
+): Promise<{
+  api_version: number;
+  request_id?: string | undefined;
+  verification_token?: string | undefined;
+  message: string;
+}> {
+  return callFrappe(
+    "departmental_store.api.onboarding.resend_verification_token",
+    { email },
+    z.object({
+      api_version: z.literal(1),
+      request_id: z.string().optional(),
+      verification_token: z.string().optional(),
+      message: z.string(),
+    }),
+    { allowGuest: true },
+  );
+}
+
+export async function getOnboardingJourney(
+  requestId: string,
+  email?: string,
+  token?: string,
+): Promise<CustomerOnboardingStatusResponse> {
+  return callFrappe(
+    "departmental_store.api.onboarding.get_onboarding_journey",
+    { request_id: requestId, email: email || null, token: token || null },
+    CustomerOnboardingStatusResponseSchema,
+    { allowGuest: true },
+  );
+}
+
+export async function getPlatformOperationsOverview(): Promise<PlatformOperationsOverview> {
+  return callFrappe(
+    "departmental_store.api.onboarding.get_platform_operations_overview",
+    {},
+    PlatformOperationsOverviewSchema,
+  );
+}
+
 export const zod = z;
-
-

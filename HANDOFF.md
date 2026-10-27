@@ -64,6 +64,16 @@ A departmental-store ERP for a single store with 2–3 Windows POS counters:
     - Customer self-service portal: Next.js routes (`/billing`, `/billing/plans`, `/billing/invoices`, `/billing/usage`, `/billing/cancel`); 90-day data retention guarantee.
     - Platform-admin billing console: protected console `/admin/billing`, subscription search, audited manual corrections, webhook replay pipeline.
     - 10 Frappe backend tests PASS, 9 integration checks PASS, 44 dashboard vitest tests PASS, Next.js build PASS (19 routes). Status: `SANDBOX READY`.
+  * Phase 7: SaaS Onboarding Automation and Tenant Lifecycle Operations:
+    - Multi-dimensional operations layer decoupling 6 distinct dimensions: Contact Verification (`PENDING`, `VERIFIED`, `EXPIRED`), Business Review (`PENDING_REVIEW`, `APPROVED`, `REJECTED`), Site Provisioning (`PENDING`, `RUNNING`, `PROVISIONED`, `PROVISIONING_FAILED`), Hostname Verification (`PENDING`, `VERIFIED`, `FAILED`), Subscription Status (`TRIALING`, `ACTIVE`, `PAST_DUE`, `SUSPENDED`, `CANCELLED`, `EXPIRED`), and Tenant Access Status (`INACTIVE`, `ACTIVE`, `SUSPENDED`, `ARCHIVED`).
+    - Eliminates premature site creation: public registrations create request and token records only. Approval requires `contact_verification == 'VERIFIED'`; activation requires site `PROVISIONED`, hostname `VERIFIED`, and subscription `ACTIVE` or `TRIALING`.
+    - Single-use SHA-256 hashed verification tokens with 24h expiration in `tabSaaS Verification Token`, anti-enumeration on resend, sliding-window rate limiting in `tabSaaS Rate Limit`.
+    - Customer onboarding journey portal at `/onboarding/status` and 1-click verification landing at `/onboarding/verify`, guarded by server-side privacy authorization (email or token required; strangers receive 403 PermissionError).
+    - Platform Operations Cockpit at `/admin/operations`: overview KPI cards (total registrations, pending verification, review queue, active/failed provisioning, tenants, backup status), multi-dimensional queue tabs, audit rationale modal on administrative actions.
+    - Provider-independent customer notification pipeline in `tabSaaS Notification Log` with deterministic deduplication (`MD5(request_id + event + suffix)`).
+    - Tenant data preservation guarantees: ordinary suspension or cancellation never deletes tenant MariaDB databases or backups.
+    - Comprehensive runbook created in `docs/operations/ONBOARDING_AND_TENANT_LIFECYCLE_RUNBOOK.md`.
+    - 98 Frappe backend tests PASS, 55 dashboard vitest tests PASS, 75 shared-types tests PASS, 8 end-to-end integration checks PASS, Next.js build PASS (22 routes). Status: `CONDITIONAL GO — SUPERVISED PILOT`.
 - Pushed to `https://github.com/sukeshperiyasamy/department-store` (origin/main). **Never force-push.**
 
 ## 3. Module map (where things live)
@@ -73,11 +83,14 @@ A departmental-store ERP for a single store with 2–3 Windows POS counters:
 | Sale API (idempotent) | `erpnext-app/.../api/sales.py` | claim-based idempotency via `POS Sale Sync Log`; deadlock retry; Sales Invoice `is_pos` (ADR-0002) |
 | Returns API | `erpnext-app/.../api/returns.py` | `submit_pos_return`, `get_original_invoice`; allocated-refund mirroring |
 | Catalog API | `erpnext-app/.../api/catalog.py` | `catalog_snapshot` (checkpoint covers items **and** prices — QA-0001) |
-| Devices | `erpnext-app/.../api/devices.py` | manager-only `register_device`; cashier-readable `get_device` |
+| Devices | `erpnext-app/.../api/devices.py` | manager-only `register_device`; cashier-readable `get_device`; subscription counter limits |
 | Reports | `erpnext-app/.../api/reports.py` | `owner_summary`, `server_status`, `stock_alerts`, `recent_invoices` |
 | Settings/flags | `erpnext-app/.../api/settings.py` + `.../doctype/departmental_store_settings/` | 10 feature flags; `require_flag()` server guard |
 | Tenancy & Leads API | `erpnext-app/.../api/tenant.py` | `resolve_tenant_by_host`, `get_tenant_info`, `list_user_tenants`, `check_slug_availability`, `submit_demo_request`, `submit_onboarding_request` |
 | Provisioning & Admin API | `erpnext-app/.../api/provisioning.py` | `list_onboarding_requests`, `get_onboarding_detail`, `approve_onboarding_request`, `reject_onboarding_request`, `retry_provisioning_job`, `claim_next_provisioning_job`, `execute_provisioning_pipeline`, `set_tenant_status` |
+| Onboarding & Operations API | `erpnext-app/.../api/onboarding.py` | `register_customer_onboarding`, `verify_contact_token`, `resend_verification_token`, `get_onboarding_journey`, `get_platform_operations_overview`, notification pipeline |
+| Billing & Subscription API | `erpnext-app/.../api/billing.py` | `get_available_plans`, `create_checkout_session`, `process_billing_webhook`, `get_billing_overview`, `cancel_subscription`, `admin_list_subscriptions`, `admin_manual_billing_correction` |
+| Shared Contracts | `packages/shared-types/src/` | `tenancy.ts`, `billing.ts`, `onboarding.ts`, `index.ts` (Zod schemas and TypeScript contracts) |
 | Install/self-heal | `erpnext-app/.../install.py` | roles (`Platform Admin`, `Store Manager`, `POS Cashier`), permissions, language, **apps.txt + module-map repair** |
 | Seeds | `erpnext-app/.../seeds.py` | demo fixtures, cashier/manager users, race items, perf items |
 | Regional catalog | `erpnext-app/.../regional_catalog.py` | 160 TN demo products w/ Tamil+Tanglish aliases (see §7 BLOCKED) |
@@ -87,7 +100,9 @@ A departmental-store ERP for a single store with 2–3 Windows POS counters:
 | POS transport | `apps/windows-pos/src/transport/frappe.ts` | zod-validated; Tauri HTTP plugin fetch (no CORS) |
 | POS UI | `apps/windows-pos/src/ui/` | Billing/Payment/Returns/Sync screens, preview harness (`preview.html`) |
 | Tauri shell | `apps/windows-pos/src-tauri/` | sql + http plugins, `print_raw` spool command, capabilities |
-| SaaS Marketing Site | `apps/owner-dashboard/src/app/(marketing)/` | Public pages: `/`, `/features`, `/pricing`, `/request-demo`, `/register`, `/privacy`, `/terms` |
+| SaaS Marketing Site | `apps/owner-dashboard/src/app/(marketing)/` | Public pages: `/`, `/features`, `/pricing`, `/request-demo`, `/register`, `/privacy`, `/terms`, `/onboarding/status`, `/onboarding/verify` |
+| Customer Onboarding Portal | `apps/owner-dashboard/src/app/(marketing)/onboarding/` | Self-service status tracker (`/status`) and 1-click verify (`/verify`) |
+| Platform Admin Consoles | `apps/owner-dashboard/src/app/(admin)/admin/` | Operations Cockpit (`/operations`), Onboarding Queue (`/onboarding`), Subscriptions (`/billing`) |
 | Platform Admin Console | `apps/owner-dashboard/src/app/(admin)/` | Protected control plane: `/admin`, `/admin/onboarding` |
 | Manager Dashboard | `apps/owner-dashboard/src/app/(app)/` | Authenticated shell: `/app`, `/catalog`, `/sales`, `/inventory`, `/sync`, `/settings` |
 | Lead Outbox | `apps/owner-dashboard/src/lib/lead-storage.ts` | Resilient local outbox in `.leads-outbox/` mirroring Frappe MariaDB leads |

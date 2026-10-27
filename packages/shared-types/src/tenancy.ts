@@ -361,6 +361,7 @@ export type ProvisioningAuditLog = z.infer<typeof ProvisioningAuditLogSchema>;
 /** Onboarding Request Details including job and audit trail */
 export const OnboardingDetailRecordSchema = z.object({
   name: z.string(),
+  request_id: z.string().optional(),
   business_name: z.string(),
   owner_name: z.string(),
   email: z.string(),
@@ -371,6 +372,12 @@ export const OnboardingDetailRecordSchema = z.object({
   requested_plan: z.string(),
   status: TenantLifecycleStatusSchema,
   assigned_site_name: z.string().nullable().optional(),
+  contact_verification_status: z.string().nullable().optional(),
+  business_review_status: z.string().nullable().optional(),
+  provisioning_status: z.string().nullable().optional(),
+  hostname_status: z.string().nullable().optional(),
+  subscription_status: z.string().nullable().optional(),
+  tenant_access_status: z.string().nullable().optional(),
   job_id: z.string().nullable().optional(),
   retry_count: z.number().int().default(0),
   admin_notes: z.string().nullable().optional(),

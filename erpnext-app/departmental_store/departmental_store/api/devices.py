@@ -34,6 +34,7 @@ def register_device(device_id: str | None = None, counter_name: str | None = Non
                    FROM `tabSaaS Subscription` s
                    JOIN `tabSaaS Subscription Plan` p ON s.plan_id = p.name
                    WHERE s.status IN ('ACTIVE', 'TRIALING')
+                   ORDER BY s.modified DESC
                    LIMIT 1""",
                 as_dict=True,
             )
