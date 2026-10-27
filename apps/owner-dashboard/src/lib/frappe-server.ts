@@ -13,17 +13,21 @@ import {
   API_VERSION_SCHEMA,
   CatalogSnapshotSchema,
   OwnerSummarySchema,
+  ResolveTenantResponseSchema,
   ServerStatusSchema,
   SetFlagResultSchema,
   StockAlertsSchema,
   StoreSettingsSchema,
+  TenantInfoResponseSchema,
   type CatalogSnapshot,
   type FeatureFlagName,
   type OwnerSummary,
+  type ResolveTenantResponse,
   type ServerStatus,
   type SetFlagResult,
   type StockAlerts,
   type StoreSettings,
+  type TenantRecord,
 } from "@departmental/shared-types";
 import { z, type ZodType, type ZodTypeDef } from "zod";
 
@@ -200,6 +204,32 @@ export async function setFeatureFlag(flag: FeatureFlagName, value: boolean): Pro
     { flag, value: value ? 1 : 0 },
     SetFlagResultSchema,
   );
+}
+
+export async function resolveTenantFromHost(hostname: string): Promise<ResolveTenantResponse> {
+  const response = await fetch(
+    `${ERP_BASE_URL}/api/method/departmental_store.api.tenant.resolve_tenant_by_host`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ hostname }),
+      cache: "no-store",
+    },
+  );
+  if (!response.ok) {
+    throw new Error(`Tenant resolution failed: ${response.status}`);
+  }
+  const json = (await response.json()) as { message?: unknown };
+  return ResolveTenantResponseSchema.parse(json.message ?? json);
+}
+
+export async function fetchTenantInfo(): Promise<TenantRecord> {
+  const result = await callFrappe(
+    "departmental_store.api.tenant.get_tenant_info",
+    {},
+    TenantInfoResponseSchema,
+  );
+  return result.tenant;
 }
 
 export const zod = z;

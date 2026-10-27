@@ -36,6 +36,7 @@ A departmental-store ERP for a single store with 2–3 Windows POS counters:
 | Devices | `erpnext-app/.../api/devices.py` | manager-only `register_device`; cashier-readable `get_device` |
 | Reports | `erpnext-app/.../api/reports.py` | `owner_summary`, `server_status`, `stock_alerts`, `recent_invoices` |
 | Settings/flags | `erpnext-app/.../api/settings.py` + `.../doctype/departmental_store_settings/` | 10 feature flags; `require_flag()` server guard |
+| Tenancy API | `erpnext-app/.../api/tenant.py` | `resolve_tenant_by_host`, `get_tenant_info`, `list_user_tenants` (ADR-0008) |
 | Install/self-heal | `erpnext-app/.../install.py` | roles, permissions, language, **apps.txt + module-map repair** |
 | Seeds | `erpnext-app/.../seeds.py` | demo fixtures, cashier/manager users, race items, perf items |
 | Regional catalog | `erpnext-app/.../regional_catalog.py` | 160 TN demo products w/ Tamil+Tanglish aliases (see §7 BLOCKED) |
@@ -46,7 +47,7 @@ A departmental-store ERP for a single store with 2–3 Windows POS counters:
 | POS UI | `apps/windows-pos/src/ui/` | Billing/Payment/Returns/Sync screens, preview harness (`preview.html`) |
 | Tauri shell | `apps/windows-pos/src-tauri/` | sql + http plugins, `print_raw` spool command, capabilities |
 | Dashboard | `apps/owner-dashboard/src/` | shell + (app) route group; lib/frappe-server.ts fetchers |
-| Contracts | `packages/shared-types/src/index.ts` | all API zod schemas; `api_version` pinned to 1 |
+| Contracts & Tenancy | `packages/shared-types/src/index.ts` + `tenancy.ts` | API zod schemas + SaaS tenant registry contracts & resolution engine |
 
 ## 4. Authoritative docs (read next)
 

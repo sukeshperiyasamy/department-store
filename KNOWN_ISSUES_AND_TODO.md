@@ -99,21 +99,30 @@ Last updated: 2026-10-27 (fresh-stack validation pass). Full defect register: `d
 ### Production Deployment Checklist — RESOLVED 2026-10-27
 - Comprehensive checklist documented in `docs/release/PRODUCTION_DEPLOYMENT_CHECKLIST.md` defining requirements for store legal entity, certified GSTIN, HSN tax templates, cashier/manager least-privilege accounts, device UUID registration, network security, and backup replication.
 
+### Multi-Tenant SaaS Platform Phase 0 & 1 — IMPLEMENTED 2026-10-27
+- **Architecture decision**: `ADR-0008` accepted (Central SaaS Control Plane with physical database isolation via dedicated Frappe tenant sites).
+- **Contracts and resolution engine**: `packages/shared-types/src/tenancy.ts` defines tenant lifecycle, RFC 1123 hostname normalization, validation, resolution, and server-side authorization boundaries (38 unit tests PASS).
+- **Backend Frappe API**: `departmental_store.api.tenant` (`resolve_tenant_by_host`, `get_tenant_info`, `list_user_tenants`) with 12 bench tests PASS.
+- **Zero single-store regressions**: all 52 backend tests, 103 TypeScript tests, and Next.js production build pass cleanly.
+
 ## Open issues
 - ISSUE-03 (HTML in error messages) and ISSUE-04 (bench quirks) above.
 
 ## TODO — prioritized
 
-1. **Tamil voice assistant**: deterministic parser + transcript fixtures → Ctrl+Space +
-   speech provider (Vosk/Whisper decision) → flag `voice_assistant_enabled` gating.
-2. **Camera/OCR batch capture** per spec (flags `camera_product_capture_enabled`).
-3. **Trigger GitHub Actions NSIS workflow**: push release tag (`v0.1.0`) to generate signed installer.
-4. **Accountant GST sign-off** → real GSTIN/HSN data; then evaluate e-invoicing/e-waybill.
-5. **Physical printer + camera validation** when hardware arrives.
-6. **Off-site backup replication** (rclone / external cold storage mirror).
-7. **k6 load test** + 20k-item catalog performance pass.
-8. **Returns screen** exercise in the packaged exe (API verified; UI pending device test).
-9. **Production DB sizing/indexing review** (deferred from ISSUE-05; dev stack is clean).
+### SaaS Evolution Next Modules
+1. **Public Marketing Website & Lead Capture** (Phase 2): product overview, screenshots, feature comparison, demo request form, plan comparison, and login portal router.
+2. **Customer Portal Multi-Tenant Routing** (Phase 2.5): integrate hostname resolution in dashboard middleware with clean fallback for single-store local development.
+3. **Automated Site Provisioning Pipeline** (Phase 3): template-based site cloning (`bench new-site` automation) for fast onboarding of first 3 test shops (`ramesh`, `lakshmi`, `murugan`).
+4. **Shared Mobile Application Foundation** (Phase 4): mobile app package with tenant workspace selector and token lifecycle.
+
+### Core Store Operations
+5. **Accountant GST sign-off** → real GSTIN/HSN data; then evaluate e-invoicing/e-waybill.
+6. **Physical printer + camera validation** when hardware arrives.
+7. **Tamil voice assistant**: deterministic parser + transcript fixtures → Ctrl+Space + speech provider decision.
+8. **Camera/OCR batch capture** per spec.
+9. **Off-site backup replication** (rclone / external cold storage mirror).
+10. **k6 load test** + 20k-item catalog performance pass.
 
 
 ## Fresh-stack provisioning notes (for reproducibility)

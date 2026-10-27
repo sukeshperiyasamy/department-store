@@ -58,6 +58,20 @@ Evidence pointers: docs/testing/, docs/artifacts/. Date of last verification: 20
 | ERPNext v16 docker stack + seeds + self-heal | ✅ | live Docker stack (9 containers) |
 | India Compliance v16 + GST templates + POS-path GST | ✅ math / 🟡 accountant sign-off | bench suite tests |
 | Backup script + Host scheduling + DR rehearsal | ✅ | run_backup.ps1 / run_backup.sh; Task Scheduler registered ('Ready'); scratch site restore PASS |
+
+## Multi-Tenant SaaS Platform (Evolution)
+
+| Feature | Status | Evidence |
+| --- | --- | --- |
+| Tenant Registry Contracts & Schemas | ✅ | `packages/shared-types/src/tenancy.ts` (38 vitest unit tests) |
+| Hostname Normalization & Validation (RFC 1123) | ✅ | vitest test suite + bench test suite (12 bench tests) |
+| Tenant Resolution Engine (Subdomain / Custom Domain) | ✅ | `resolve_tenant_by_host` API + `resolveTenantByHostname` TypeScript engine |
+| Server-Side Boundary & Cross-Tenant Access Denial | ✅ | `authorizeTenantAccess` + `get_tenant_info` server role enforcement |
+| Multi-Site Isolation Architecture (ADR-0008) | ✅ | Architecture decision accepted; native database separation |
+| Public Marketing Website & Lead Capture Forms | ⬜ | Roadmap Phase 2 |
+| Multi-Tenant Subdomain Routing in Dashboard Portal | 🚧 | Foundation resolution API complete; middleware integration next |
+| Automated Tenant Site Provisioning Pipeline | ⬜ | Roadmap Phase 3 (`bench new-site` automation) |
+| Shared Mobile Application & Auth Flow | ⬜ | Roadmap Phase 4 |
 | Production deployment checklist | ✅ | docs/release/PRODUCTION_DEPLOYMENT_CHECKLIST.md |
 | e-invoicing / e-waybill | ⬜ disabled pending legal determination | settings UI verified |
 | Tamil voice speech engine | ⬜ | spec only |

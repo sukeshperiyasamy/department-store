@@ -73,3 +73,41 @@
   (Store Manager, Accounts Manager) with an API token in dashboard env vars.
   Tokens are never committed; `.env.example` documents the variables.
 - **Status**: implemented and verified (token auth against live ERP).
+
+## ADR-0008 — Multi-Tenant SaaS Architecture: Central Control Plane with Dedicated Frappe Tenant Sites (Database Isolation)
+
+- **Decision**: Adopt a hybrid SaaS architecture combining a central Control Plane
+  (managing tenant registry, verified hostnames, user memberships, and subscription
+  lifecycle) with dedicated Frappe sites per tenant (`bench new-site <tenant_site>`)
+  sharing the underlying application containers and background queues.
+- **Context & Problem Statement**: Evolving from a single-shop ERP to a commercial SaaS
+  platform serving multiple independent retail stores requires strict tenant boundary
+  isolation, individual statutory GST/tax setups, and multi-counter POS support without
+  compromising performance or risking cross-tenant data exposure.
+- **Alternatives Evaluated**:
+  1. *Shared Single Frappe Site (Row-Level Multi-Tenancy)*:
+     - Evaluated: adding `tenant_id` or relying on Frappe's `Company` field in a single database.
+     - **Rejected**: Critical leakage risks in ERPNext financial and stock reports that execute
+       raw SQL joins across `tabGL Entry` and `tabStock Ledger Entry`. Frappe singletons
+       (`Stock Settings`, `Departmental Store Settings`, `Print Settings`, `GST Settings`) cannot
+       be varied per shop. Public file uploads share a single storage namespace. MariaDB naming
+       series locks on sales invoices create contention across unrelated shops. Tenant data export,
+       backup, and deletion cannot be done cleanly without cascading table surgery.
+  2. *Completely Independent Container/VM Stacks per Customer*:
+     - **Rejected**: Prohibitive infrastructure cost and operational overhead for small shops;
+       fails to provide a unified public marketing site, shared mobile app sign-in, or central
+       user management.
+  3. *Hybrid Central Control Plane + Dedicated Tenant Sites (Selected)*:
+     - Leverages Frappe's native multi-site architecture. Each shop receives an isolated MariaDB
+       database, independent `site_config.json`, isolated encryption key, and private file space.
+     - Central Control Plane resolves incoming domains (e.g. `ramesh.departmentstore.in`), validates
+       verification status, checks user memberships, and routes requests to the verified tenant site.
+     - The custom Windows POS, offline SQLite sync, sales posting, and returns workflows work
+       100% unmodified against the tenant's site URL.
+- **Consequences**:
+  - Hard physical isolation at the database layer prevents SQL, cache, and reporting cross-leakage.
+  - Per-tenant GST compliance, tax templates, and custom settings are fully isolated.
+  - Individual tenant disaster recovery, backup (`bench backup`), and data export are built-in.
+  - Low idle resource overhead: 50–100 small shop databases can share a single bench deployment.
+- **Status**: Implemented foundation in Phase 1 (contracts in `packages/shared-types`, Frappe tenant API
+  in `departmental_store.api.tenant`, and comprehensive unit tests).
