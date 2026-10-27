@@ -74,12 +74,23 @@ A departmental-store ERP for a single store with 2–3 Windows POS counters:
     - Tenant data preservation guarantees: ordinary suspension or cancellation never deletes tenant MariaDB databases or backups.
     - Comprehensive runbook created in `docs/operations/ONBOARDING_AND_TENANT_LIFECYCLE_RUNBOOK.md`.
     - 98 Frappe backend tests PASS, 55 dashboard vitest tests PASS, 75 shared-types tests PASS, 8 end-to-end integration checks PASS, Next.js build PASS (22 routes). Status: `CONDITIONAL GO — SUPERVISED PILOT`.
+  * Phase 8: Production Hardening, Observability, Disaster Recovery, and Security Readiness:
+    - Threat model & practical security audit: evaluated 12 attack surfaces using STRIDE methodology in `docs/security/THREAT_MODEL_AND_SECURITY_AUDIT.md`. Verified container network port isolation (MariaDB 3306 & Redis 6379 strictly internal; only port 8080 exposed).
+    - Secrets & fail-closed configuration management: centralized validator `apps/owner-dashboard/src/lib/env.ts` fails closed in production when URLs or required settings are missing. `.gitignore` protects credentials; `.env.example` templates contain placeholders only; zero secrets in client bundles.
+    - Production telemetry & health monitoring: implemented `get_liveness` (lightweight probe) and role/token-protected `get_system_health` in Frappe backend; Next.js `/api/health` dependency probe. Monitors MariaDB latency, Redis queue depths (`default`, `short`, `long`), disk space, and POS sync metrics.
+    - Live disaster recovery rehearsal: fresh automated backup executed with SHA-256 checksums; restored into isolated scratch site `scratch-phase8-restore.local` in 21 seconds. 1:1 data parity verified against production site (254 Sales Invoices, 545 Items, 353 POS logs, 19 Onboarding Requests, 2 Subscriptions). Clean teardown executed with zero production impact. Documented in `BACKUP_AND_DISASTER_RECOVERY.md`.
+    - Operational incident response runbooks: authored 13 actionable runbooks covering cross-tenant data leaks, admin credential compromises, provisioning failures, DNS/TLS outages, DB crash recovery, disk exhaustion, webhook failures, and release rollbacks in `docs/operations/INCIDENT_RESPONSE_RUNBOOKS.md`.
+    - Automated security check suite: `tests/integration/security_and_hardening_check.mjs` (15/15 PASS).
+    - Production readiness scorecard: full matrix across PASS, BLOCKED, NOT TESTED categories with release verdict: `CONDITIONAL GO — Supervised Pilot` in `docs/release/PRODUCTION_READINESS_SCORECARD.md`.
 - Pushed to `https://github.com/sukeshperiyasamy/department-store` (origin/main). **Never force-push.**
 
 ## 3. Module map (where things live)
 
 | Area | Path | Notes |
 | --- | --- | --- |
+| Health & Telemetry API | `erpnext-app/.../api/health.py` | `get_liveness`, protected `get_system_health`, `verify_restore_stats` |
+| Environment Validator | `apps/owner-dashboard/src/lib/env.ts` | Fail-closed production validator, secret redaction, Zod schemas |
+| Dashboard Health Route | `apps/owner-dashboard/src/app/api/health/route.ts` | Next.js health check, memory, uptime, upstream ERP status |
 | Sale API (idempotent) | `erpnext-app/.../api/sales.py` | claim-based idempotency via `POS Sale Sync Log`; deadlock retry; Sales Invoice `is_pos` (ADR-0002) |
 | Returns API | `erpnext-app/.../api/returns.py` | `submit_pos_return`, `get_original_invoice`; allocated-refund mirroring |
 | Catalog API | `erpnext-app/.../api/catalog.py` | `catalog_snapshot` (checkpoint covers items **and** prices — QA-0001) |

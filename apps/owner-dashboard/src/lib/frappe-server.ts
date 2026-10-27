@@ -46,8 +46,13 @@ import {
 import { saveDemoRequestLocal, saveOnboardingRequestLocal } from "./lead-storage";
 import { z, type ZodType, type ZodTypeDef } from "zod";
 
-const ERP_BASE_URL = process.env.ERP_BASE_URL ?? "http://localhost:8080";
+import { getEnv } from "./env";
+
 const SESSION_COOKIE = "ds_dash_sid";
+
+function getErpBaseUrl(): string {
+  return getEnv().ERP_BASE_URL;
+}
 
 export class DashboardAuthError extends Error {}
 
@@ -77,7 +82,7 @@ async function callFrappe<T>(
     throw new DashboardAuthError("not signed in");
   }
 
-  const response = await fetch(`${ERP_BASE_URL}/api/method/${method}`, {
+  const response = await fetch(`${getEnv().ERP_BASE_URL}/api/method/${method}`, {
     method: "POST",
     headers,
     body: JSON.stringify(args),
@@ -120,14 +125,15 @@ async function callFrappe<T>(
 }
 
 function dashboardToken(): { key: string; secret: string } | null {
-  const key = process.env.DASHBOARD_API_KEY;
-  const secret = process.env.DASHBOARD_API_SECRET;
+  const env = getEnv();
+  const key = env.DASHBOARD_API_KEY;
+  const secret = env.DASHBOARD_API_SECRET;
   if (key && secret) return { key, secret };
   return null;
 }
 
 export async function loginAndCaptureSession(username: string, password: string): Promise<void> {
-  const response = await fetch(`${ERP_BASE_URL}/api/method/login`, {
+  const response = await fetch(`${getEnv().ERP_BASE_URL}/api/method/login`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ usr: username, pwd: password }),
@@ -149,7 +155,7 @@ export async function loginAndCaptureSession(username: string, password: string)
     httpOnly: true,
     sameSite: "lax",
     path: "/",
-    secure: process.env.NODE_ENV === "production",
+    secure: getEnv().NODE_ENV === "production",
     maxAge: 60 * 60 * 12,
   });
 }
@@ -245,7 +251,7 @@ export async function setFeatureFlag(flag: FeatureFlagName, value: boolean): Pro
 
 export async function resolveTenantFromHost(hostname: string): Promise<ResolveTenantResponse> {
   const response = await fetch(
-    `${ERP_BASE_URL}/api/method/departmental_store.api.tenant.resolve_tenant_by_host`,
+    `${getErpBaseUrl()}/api/method/departmental_store.api.tenant.resolve_tenant_by_host`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -272,7 +278,7 @@ export async function fetchTenantInfo(): Promise<TenantRecord> {
 export async function checkSlugAvailability(slug: string): Promise<SlugAvailabilityResponse> {
   try {
     const response = await fetch(
-      `${ERP_BASE_URL}/api/method/departmental_store.api.tenant.check_slug_availability`,
+      `${getErpBaseUrl()}/api/method/departmental_store.api.tenant.check_slug_availability`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -300,7 +306,7 @@ export async function checkSlugAvailability(slug: string): Promise<SlugAvailabil
 export async function submitDemoRequest(data: DemoRequest): Promise<DemoRequestResponse> {
   try {
     const response = await fetch(
-      `${ERP_BASE_URL}/api/method/departmental_store.api.tenant.submit_demo_request`,
+      `${getErpBaseUrl()}/api/method/departmental_store.api.tenant.submit_demo_request`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -330,7 +336,7 @@ export async function submitDemoRequest(data: DemoRequest): Promise<DemoRequestR
 export async function submitOnboardingRequest(data: OnboardingRequest): Promise<OnboardingRequestResponse> {
   try {
     const response = await fetch(
-      `${ERP_BASE_URL}/api/method/departmental_store.api.tenant.submit_onboarding_request`,
+      `${getErpBaseUrl()}/api/method/departmental_store.api.tenant.submit_onboarding_request`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },

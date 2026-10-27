@@ -1,0 +1,235 @@
+import os
+import time
+import shutil
+import uuid
+import frappe
+from frappe import _
+
+def _get_request_header(header_name):
+    req = getattr(frappe.local, "request", None)
+    if req and hasattr(req, "headers"):
+        return req.headers.get(header_name)
+    return None
+
+@frappe.whitelist(allow_guest=True)
+def get_liveness():
+    """
+    Lightweight liveness probe for container orchestrators and reverse proxies.
+    Returns 200 OK without database overhead.
+    """
+    correlation_id = _get_request_header("X-Correlation-ID") or str(uuid.uuid4())
+    return {
+        "status": "ok",
+        "app": "departmental_store",
+        "timestamp": time.time(),
+        "correlation_id": correlation_id,
+    }
+
+@frappe.whitelist(allow_guest=True)
+def get_system_health(token=None):
+    """
+    Comprehensive operational telemetry and dependency readiness check.
+    
+    Protected: Requires Platform Admin / System Manager role or matching HEALTH_CHECK_TOKEN.
+    """
+    correlation_id = _get_request_header("X-Correlation-ID") or str(uuid.uuid4())
+    
+    # 1. Authorization Gate
+    is_authorized = False
+    
+    # Check user session role
+    if frappe.session.user and frappe.session.user != "Guest":
+        roles = frappe.get_roles(frappe.session.user)
+        if "Platform Admin" in roles or "System Manager" in roles:
+            is_authorized = True
+
+    # Check shared health token (header or parameter)
+    configured_token = frappe.conf.get("health_check_token") or os.environ.get("HEALTH_CHECK_TOKEN")
+    header_token = _get_request_header("X-Health-Check-Token")
+    auth_header = _get_request_header("Authorization") or ""
+    bearer_token = auth_header.replace("Bearer ", "").strip() if auth_header.startswith("Bearer ") else None
+
+    presented_token = token or header_token or bearer_token
+    if configured_token and presented_token and presented_token == configured_token:
+        is_authorized = True
+
+    if not is_authorized:
+        frappe.throw(_("Unauthorized: Telemetry requires Platform Admin role or valid health token"), 
+                     frappe.PermissionError)
+
+    health_status = "ok"
+    checks = {}
+
+    # 2. Database Health & Latency
+    db_start = time.perf_counter()
+    try:
+        frappe.db.sql("SELECT 1")
+        db_latency_ms = round((time.perf_counter() - db_start) * 1000, 2)
+        threads_row = frappe.db.sql("SHOW STATUS LIKE 'Threads_connected'", as_dict=True)
+        threads_connected = int(threads_row[0].Value) if threads_row else None
+
+        checks["database"] = {
+            "status": "healthy",
+            "latency_ms": db_latency_ms,
+            "threads_connected": threads_connected,
+        }
+    except Exception as e:
+        health_status = "degraded"
+        checks["database"] = {
+            "status": "unhealthy",
+            "error": str(e)[:100],
+        }
+
+    # 3. Redis Cache & Queue Readiness
+    try:
+        cache_start = time.perf_counter()
+        cache_ok = frappe.cache().ping()
+        cache_latency_ms = round((time.perf_counter() - cache_start) * 1000, 2)
+        
+        queue_client = frappe.get_redis_client()
+        queue_start = time.perf_counter()
+        queue_ok = queue_client.ping()
+        queue_latency_ms = round((time.perf_counter() - queue_start) * 1000, 2)
+
+        # Inspect Redis Queue Depths
+        default_depth = queue_client.llen("default") or 0
+        short_depth = queue_client.llen("short") or 0
+        long_depth = queue_client.llen("long") or 0
+
+        checks["redis"] = {
+            "status": "healthy" if (cache_ok and queue_ok) else "degraded",
+            "cache_latency_ms": cache_latency_ms,
+            "queue_latency_ms": queue_latency_ms,
+            "queue_depths": {
+                "default": default_depth,
+                "short": short_depth,
+                "long": long_depth,
+            }
+        }
+    except Exception as e:
+        health_status = "degraded"
+        checks["redis"] = {
+            "status": "unhealthy",
+            "error": str(e)[:100],
+        }
+
+    # 4. Provisioning Queue & Job Metrics
+    try:
+        job_stats = frappe.db.sql("""
+            SELECT status, count(*) as count 
+            FROM `tabSaaS Provisioning Job` 
+            GROUP BY status
+        """, as_dict=True)
+        stats_map = {r.status: r.count for r in job_stats}
+
+        stale_threshold = frappe.utils.now_datetime() - frappe.utils.datetime.timedelta(minutes=10)
+        stale_count = frappe.db.count("SaaS Provisioning Job", {
+            "status": "claimed",
+            "modified": ["<", stale_threshold]
+        })
+
+        checks["provisioning"] = {
+            "pending": stats_map.get("pending", 0),
+            "claimed": stats_map.get("claimed", 0),
+            "completed": stats_map.get("completed", 0),
+            "failed": stats_map.get("failed", 0),
+            "stale_claimed": stale_count,
+        }
+    except Exception as e:
+        checks["provisioning"] = {"error": str(e)[:100]}
+
+    # 5. POS Synchronization Metrics (Last 24 Hours)
+    try:
+        since_24h = frappe.utils.now_datetime() - frappe.utils.datetime.timedelta(hours=24)
+        pos_stats = frappe.db.sql("""
+            SELECT status, count(*) as count
+            FROM `tabSaaS POS Sale Sync Log`
+            WHERE creation >= %s
+            GROUP BY status
+        """, (since_24h,), as_dict=True)
+        pos_map = {r.status: r.count for r in pos_stats}
+
+        checks["pos_sync_24h"] = {
+            "synced": pos_map.get("synced", 0),
+            "requires_review": pos_map.get("requires_review", 0),
+            "error": pos_map.get("error", 0),
+            "total_submitted": sum(pos_map.values()),
+        }
+    except Exception as e:
+        checks["pos_sync_24h"] = {"error": str(e)[:100]}
+
+    # 6. Disk Usage and Backup Freshness
+    try:
+        disk = shutil.disk_usage("/")
+        free_gb = round(disk.free / (1024 ** 3), 2)
+        total_gb = round(disk.total / (1024 ** 3), 2)
+        used_percent = round(((disk.total - disk.free) / disk.total) * 100, 1)
+
+        # Check latest backup file
+        site_path = frappe.get_site_path()
+        backup_dir = os.path.join(site_path, "private", "backups")
+        latest_backup_time = None
+        if os.path.exists(backup_dir):
+            files = [os.path.join(backup_dir, f) for f in os.listdir(backup_dir) if f.endswith(".sql.gz")]
+            if files:
+                latest_backup = max(files, key=os.path.getmtime)
+                latest_backup_time = frappe.utils.get_datetime(os.path.getmtime(latest_backup)).isoformat()
+
+        checks["storage"] = {
+            "disk_free_gb": free_gb,
+            "disk_total_gb": total_gb,
+            "disk_used_percent": used_percent,
+            "latest_backup_iso": latest_backup_time,
+        }
+    except Exception as e:
+        checks["storage"] = {"error": str(e)[:100]}
+
+    # 7. Tenant Summary
+    try:
+        tenant_counts = frappe.db.sql("""
+            SELECT status, count(*) as count 
+            FROM `tabSaaS Tenant` 
+            GROUP BY status
+        """, as_dict=True)
+        tenant_map = {r.status: r.count for r in tenant_counts}
+        pending_onboarding = frappe.db.count("SaaS Onboarding Request", {"status": "pending"})
+
+        checks["tenants"] = {
+            "active": tenant_map.get("active", 0),
+            "suspended": tenant_map.get("suspended", 0),
+            "pending_onboarding": pending_onboarding,
+        }
+    except Exception as e:
+        checks["tenants"] = {"error": str(e)[:100]}
+
+    return {
+        "status": health_status,
+        "site": frappe.local.site,
+        "correlation_id": correlation_id,
+        "timestamp": frappe.utils.now(),
+        "checks": checks,
+    }
+
+def verify_restore_stats():
+    """
+    Audit helper for disaster recovery restore verification.
+    Can be run against any restored or staging site via bench execute.
+    """
+    settings = frappe.get_single("Departmental Store Settings").as_dict()
+    feature_flags = {k: v for k, v in settings.items() if k.startswith("flag_") or k.startswith("enable_")}
+
+    return {
+        "site": frappe.local.site,
+        "installed_apps": frappe.get_installed_apps(),
+        "sales_invoices": frappe.db.count("Sales Invoice"),
+        "items": frappe.db.count("Item"),
+        "pos_sync_logs": frappe.db.count("POS Sale Sync Log"),
+        "tenant_registry_count": frappe.db.sql("SELECT count(*) FROM `tabSaaS Tenant Registry`")[0][0],
+        "tenant_membership_count": frappe.db.sql("SELECT count(*) FROM `tabSaaS Tenant Membership`")[0][0],
+        "onboarding_requests_count": frappe.db.sql("SELECT count(*) FROM `tabSaaS Onboarding Request`")[0][0],
+        "provisioning_jobs_count": frappe.db.sql("SELECT count(*) FROM `tabSaaS Provisioning Job`")[0][0],
+        "subscriptions_count": frappe.db.sql("SELECT count(*) FROM `tabSaaS Subscription`")[0][0],
+        "active_feature_flags_count": len(feature_flags),
+        "feature_flags": feature_flags,
+    }
+
