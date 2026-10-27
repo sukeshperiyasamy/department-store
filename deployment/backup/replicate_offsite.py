@@ -388,11 +388,41 @@ class S3ReplicationClient:
         remote_key: str,
         local_path: Path,
         expected_sha256: str | None = None,
+        base_dir: Path | None = None,
+        require_checksum: bool = True,
         dry_run: bool = False,
     ) -> dict[str, Any]:
         """Download a file from S3 with SHA-256 integrity verification and atomic write."""
         clean_key = remote_key.lstrip("/")
         validate_object_key(clean_key)
+
+        if local_path.is_dir():
+            raise ValueError(f"Destination path '{local_path}' cannot be an existing directory")
+
+        if base_dir is not None:
+            resolved_local = local_path.resolve()
+            resolved_base = base_dir.resolve()
+            if not resolved_local.is_relative_to(resolved_base):
+                raise ValueError(
+                    f"Destination traversal rejected: '{local_path}' escapes base directory '{base_dir}'"
+                )
+
+        target_sha = expected_sha256.strip().lower() if expected_sha256 else None
+        if target_sha is not None and not re.match(r"^[0-9a-f]{64}$", target_sha):
+            raise ValueError(
+                f"Malformed expected SHA-256 checksum: '{expected_sha256}' is not a valid 64-character hex string"
+            )
+
+        if target_sha is None and require_checksum and not dry_run:
+            head_info = self.head_object(clean_key)
+            if head_info.get("meta_sha256"):
+                meta_sha = head_info["meta_sha256"].strip().lower()
+                if re.match(r"^[0-9a-f]{64}$", meta_sha):
+                    target_sha = meta_sha
+            if target_sha is None:
+                raise ValueError(
+                    f"Missing expected SHA-256 checksum for disaster recovery download of '{clean_key}'"
+                )
 
         if self.endpoint_url_custom():
             canonical_uri = f"/{self.bucket}/{clean_key}"
@@ -413,7 +443,7 @@ class S3ReplicationClient:
             return {
                 "remote_key": clean_key,
                 "local_path": str(local_path),
-                "expected_sha256": expected_sha256,
+                "expected_sha256": target_sha,
                 "download_verified": True,
                 "status": "DRY_RUN_DOWNLOAD_OK",
             }
@@ -446,15 +476,14 @@ class S3ReplicationClient:
                             total_downloaded += len(chunk)
 
             actual_sha = hasher.hexdigest().lower()
-            if expected_sha256 and actual_sha != expected_sha256.lower():
+            if target_sha and actual_sha != target_sha:
                 part_path.unlink(missing_ok=True)
                 raise RuntimeError(
-                    f"Integrity check failed on downloaded object '{clean_key}': expected {expected_sha256}, got {actual_sha}"
+                    f"Integrity check failed on downloaded object '{clean_key}': expected {target_sha}, got {actual_sha}"
                 )
 
-            if local_path.exists():
-                local_path.unlink()
-            part_path.rename(local_path)
+            # Atomic rename / replace (works on POSIX and Windows without intermediate deletion)
+            part_path.replace(local_path)
 
             return {
                 "remote_key": clean_key,
@@ -464,7 +493,7 @@ class S3ReplicationClient:
                 "download_verified": True,
                 "status": "DOWNLOAD_VERIFIED",
             }
-        except (RuntimeError, ValueError, OSError):
+        except Exception:
             part_path.unlink(missing_ok=True)
             raise
 

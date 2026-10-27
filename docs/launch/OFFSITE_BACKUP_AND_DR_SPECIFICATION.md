@@ -80,6 +80,17 @@ S3_SSE_ALGORITHM=AES256
 S3_RETENTION_DAYS=30
 ```
 
+### 3.3 Provider-Specific Architecture & Compatibility Matrix
+
+| Feature / Setting | AWS S3 | Cloudflare R2 | MinIO (Self-Hosted) |
+| :--- | :--- | :--- | :--- |
+| **Endpoint Format** | `https://s3.<region>.amazonaws.com` (default) | `https://<account_id>.r2.cloudflarestorage.com` | `https://minio.internal:9000` |
+| **URL Path Style** | Virtual-hosted or path-style supported | Path-style (`/<bucket>/<key>`) required | Path-style (`/<bucket>/<key>`) required |
+| **Region Parameter** | Specific AWS region (e.g. `ap-south-1`, `us-east-1`) | `auto` (or `us-east-1` for SigV4 signing) | `us-east-1` (default) or custom |
+| **Server-Side Encryption** | `x-amz-server-side-encryption: AES256` | Transparently encrypted; headers accepted | AES256 or KMS if configured |
+| **Storage Class** | `STANDARD`, `STANDARD_IA`, `GLACIER_IR` | Standard (unified tier, zero egress fees) | Standard tier |
+| **Egress Fees** | Standard AWS data egress rates | **Zero egress fees** (ideal for DR drills) | Zero egress fees |
+
 ---
 
 ## 4. Disaster Recovery Scratch Restoration Drill

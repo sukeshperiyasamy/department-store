@@ -502,3 +502,55 @@ Phase 15 focused on staging deployment reproducibility, disaster-recovery automa
 - `bench --site frontend run-tests --app departmental_store` → 120/120 PASS (exit code 0)
 - `python scripts/ci/secret_scan.py` → 380 tracked files, 0 secrets (exit code 0)
 - `git diff --check` → 0 whitespace errors (exit code 0)
+
+---
+
+# PHASE 15C HANDOFF AUDIT — 2026-10-27 (Latest Commit CI Verification, Backup Download Testing & Staging Readiness)
+
+## Latest Commit Remote GitHub Actions CI Verification
+- **Verified Commit SHA:** `cc831d3b6ad4123e377a7367abc8df43edf36455` (`cc831d3`)
+- **Remote Run URL:** [`https://github.com/sukeshperiyasamy/department-store/actions/runs/40527267818`](https://github.com/sukeshperiyasamy/department-store/actions/runs/40527267818)
+- **Workflow:** `CI Quality Gates`
+- **Conclusion:** `success` (100% GREEN)
+- **Job Status Breakdown (6/6 PASS):**
+  * `Security & Config Preflight` (Job `122270121817`): **success**
+  * `Typecheck & Contract Validation` (Job `122270122345`): **success**
+  * `Frappe App Python Quality` (Job `122270122356`): **success**
+  * `Owner Dashboard Test & Build` (Job `122270122394`): **success**
+  * `Windows POS Test & Frontend Build` (Job `122270122660`): **success**
+  * `Mobile Companion Isolation Tests` (Job `122270122952`): **success**
+
+## S3 Download Test Coverage & Safety Invariants
+- **Expanded Test Suite**: 29 automated tests in `tests/integration/test_replicate_offsite.py` PASS (exit code 0).
+- **10 Core Scenarios Verified**:
+  1. Signed GET and streamed download chunking.
+  2. SHA-256 integrity hash and exact byte-count tracking.
+  3. Checksum mismatch fails closed and preserves existing local file intact.
+  4. Mid-stream network failure and HTTP 500 cleanly remove partial `.part` file.
+  5. Missing or malformed expected checksum fails safely with explicit `ValueError`.
+  6. Destination directory traversal and directory targets strictly rejected.
+  7. Atomic destination replacement (`part_path.replace(local_path)`) without intermediate non-atomic deletion.
+  8. Secrets, tokens, and authorization headers never leak into exceptions or log messages.
+  9. Remote HEAD metadata fallback retrieves `x-amz-meta-sha256` when caller hash is omitted.
+  10. Windows file handle cleanup verified: handles closed before rename/delete, preventing sharing violations.
+
+## Cloud Storage & Staging Readiness Status
+- **Local Technical Infrastructure**: Preflight audit verifies 25/25 checks PASS with 0 failures (`tests/integration/staging_preflight_check.mjs`).
+- **Cloud Storage Replication (BLK-OPS-01)**: `replicate_offsite.py` supports S3, R2, and MinIO. Blocked on owner-provided credentials (`S3_BUCKET_NAME`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`).
+- **Public Staging Deployment (BLK-OPS-02)**: Traefik v3 templates and ACME DNS-01 staging options ready. Blocked on owner-provisioned public VM and DNS zone delegation (`*.staging.departmentstore.in`).
+- **Legal, Tax, & Commercial KYC**: Blocked on CA sign-off (SAC 998315 / 18% GST), Legal counsel review (ToS & DPDPA), and live Razorpay merchant KYC.
+
+## Full Workspace Regression Verification (All Tests Run & Verified)
+- `ruff check departmental_store` → PASS (0 errors, exit code 0)
+- `python -m ruff check deployment/backup tests/integration/test_replicate_offsite.py` → PASS (0 errors, exit code 0)
+- `npm --prefix apps/windows-pos test` → 80/80 PASS (exit code 0)
+- `python -m unittest tests/integration/test_replicate_offsite.py` → 29/29 PASS (exit code 0)
+- `node tests/integration/staging_preflight_check.mjs` → 25 PASS, 6 BLOCKED (exit code 0)
+- `python deployment/backup/test_restore_scratch.py` → 70.59s RTO, balanced GL, 1:1 parity PASS (exit code 0)
+- `python deployment/backup/replicate_offsite.py --dry-run` → 13 files, 5.12 MB verified PASS (exit code 0)
+- `npm --prefix packages/shared-types test` → 80/80 PASS (exit code 0)
+- `npm --prefix apps/owner-dashboard test` → 68/68 PASS (exit code 0)
+- `npm --prefix apps/mobile test` → 11/11 PASS (exit code 0)
+- `bench --site frontend run-tests --app departmental_store --module departmental_store.tests.test_billing_api` → 21/21 PASS (exit code 0)
+- `python scripts/ci/secret_scan.py` → 380 tracked files, 0 secrets (exit code 0)
+- `git diff --check` → 0 whitespace errors (exit code 0)

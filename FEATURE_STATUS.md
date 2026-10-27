@@ -202,3 +202,12 @@ Evidence pointers: docs/testing/, docs/artifacts/. Date of last verification: 20
 | S3 Atomic Download & SHA-256 Verification | ✅ Script Verified / ⛔ Cloud Bucket Pending | Added `download_file` with AWS SigV4, streaming chunk hashing, atomic `.part` staging, and SHA-256 integrity validation; 20 unit tests in `test_replicate_offsite.py` PASS |
 | Non-Destructive DR Scratch Site Drill Parity | ✅ Local Verified | `deployment/backup/test_restore_scratch.py` verified 70.59s RTO, `gl_ledger_balanced: True` (0.0 imbalance), 4 apps, 254 invoices, 545 catalog items, clean teardown |
 | Cloud Storage Infrastructure Audit | ⛔ Blocked on Cloud Credentials | Verified local checks; halted at live S3 upload due to absent owner-provided credentials (never simulated) |
+
+## Latest Commit CI Verification, Backup Download Testing & Staging Readiness (Phase 15C)
+
+| Feature | Status | Evidence |
+| --- | --- | --- |
+| Latest Commit Remote GitHub Actions CI | ✅ | Verified commit `cc831d3b6ad4123e377a7367abc8df43edf36455` on Run ID `40527267818`; 6/6 jobs PASS (`Security & Config Preflight`, `Typecheck & Contract Validation`, `Frappe App Python Quality`, `Windows POS Test & Frontend Build`, `Owner Dashboard Test & Build`, `Mobile Companion Isolation Tests`) |
+| S3 Download Security & Error Resilience Suite | ✅ | 29 automated tests in `tests/integration/test_replicate_offsite.py` exercising 10 security/fault scenarios (streamed GET, SHA-256 match, checksum mismatch preserving destination, mid-stream network drop, HTTP 500, malformed hex check, directory & path traversal, atomic replacement, secret redaction, and Windows handle cleanup) |
+| Multi-Cloud Provider Architecture Specification | ✅ | S3/R2/MinIO compatibility matrix, SigV4 path-style vs virtual-host, region `auto`, and zero-egress assumptions documented in `OFFSITE_BACKUP_AND_DR_SPECIFICATION.md` |
+| Cloud Storage & Public Staging Readiness | ⛔ Blocked on Cloud Credentials & Owner Infra | Automated preflight valid (25 PASS); real cloud replication and public staging deployment remain strictly blocked on external credentials and domain delegation |

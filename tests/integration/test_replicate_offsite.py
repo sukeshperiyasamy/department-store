@@ -18,11 +18,13 @@ Validates:
 from __future__ import annotations
 
 import datetime
+import hashlib
 import os
 import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 from deployment.backup import replicate_offsite
 
@@ -285,7 +287,8 @@ class TestReplicateOffsiteSafety(unittest.TestCase):
         self.assertEqual(replicate_offsite.mask_secret("  secret_token_value  "), "secr***")
 
     # -------------------------------------------------------------------------
-    # 8. S3 Download Verification
+    # -------------------------------------------------------------------------
+    # 8. S3 Download Verification (Phase 15C Comprehensive Audit)
     # -------------------------------------------------------------------------
 
     def test_download_file_dry_run_and_path_validation(self):
@@ -296,15 +299,16 @@ class TestReplicateOffsiteSafety(unittest.TestCase):
             region_name="ap-south-1",
         )
         dest_file = self.test_dir / "restored.sql.gz"
+        dummy_sha = hashlib.sha256(b"dummy").hexdigest()
         res = client.download_file(
             remote_key="department-store-backups/20261027_102247/db.sql.gz",
             local_path=dest_file,
-            expected_sha256="abc123hash",
+            expected_sha256=dummy_sha,
             dry_run=True,
         )
         self.assertEqual(res["status"], "DRY_RUN_DOWNLOAD_OK")
         self.assertTrue(res["download_verified"])
-        self.assertEqual(res["expected_sha256"], "abc123hash")
+        self.assertEqual(res["expected_sha256"], dummy_sha)
 
         # Unsafe path traversal in download key must be rejected
         with self.assertRaises(ValueError):
@@ -313,6 +317,265 @@ class TestReplicateOffsiteSafety(unittest.TestCase):
                 local_path=dest_file,
                 dry_run=True,
             )
+
+    def test_download_file_successful_stream_and_verification(self):
+        client = replicate_offsite.S3ReplicationClient(
+            bucket_name="valid-backup-bucket",
+            access_key_id="AKIA_TEST_KEY",
+            secret_access_key="SECRET_TEST_123",
+            region_name="ap-south-1",
+        )
+        dest_file = self.test_dir / "db_restore.sql.gz"
+        part_file = dest_file.with_suffix(dest_file.suffix + ".part")
+        payload = b"SAMPLE_DATABASE_BACKUP_SQL_GZ_PAYLOAD_CHUNK_DATA"
+        payload_sha = hashlib.sha256(payload).hexdigest()
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.iter_content.return_value = [payload[:20], payload[20:]]
+
+        with patch("deployment.backup.replicate_offsite.requests.get", return_value=mock_resp):
+            res = client.download_file(
+                remote_key="department-store-backups/20261027_102247/db.sql.gz",
+                local_path=dest_file,
+                expected_sha256=payload_sha,
+            )
+
+        self.assertEqual(res["status"], "DOWNLOAD_VERIFIED")
+        self.assertEqual(res["bytes_downloaded"], len(payload))
+        self.assertEqual(res["sha256"], payload_sha)
+        self.assertTrue(dest_file.exists())
+        self.assertEqual(dest_file.read_bytes(), payload)
+        self.assertFalse(part_file.exists())
+
+    def test_download_file_checksum_mismatch_preserves_existing_destination(self):
+        client = replicate_offsite.S3ReplicationClient(
+            bucket_name="valid-backup-bucket",
+            access_key_id="AKIA_TEST_KEY",
+            secret_access_key="SECRET_TEST_123",
+            region_name="ap-south-1",
+        )
+        dest_file = self.test_dir / "db_restore.sql.gz"
+        part_file = dest_file.with_suffix(dest_file.suffix + ".part")
+        dest_file.write_bytes(b"EXISTING_VALID_DATABASE_CONTENT")
+        expected_sha = hashlib.sha256(b"EXPECTED_CORRECT_BYTES").hexdigest()
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.iter_content.return_value = [b"CORRUPTED_STREAMED_BYTES"]
+
+        with (
+            patch("deployment.backup.replicate_offsite.requests.get", return_value=mock_resp),
+            self.assertRaises(RuntimeError) as ctx,
+        ):
+            client.download_file(
+                remote_key="department-store-backups/20261027_102247/db.sql.gz",
+                local_path=dest_file,
+                expected_sha256=expected_sha,
+            )
+
+        self.assertIn("Integrity check failed", str(ctx.exception))
+        self.assertEqual(dest_file.read_bytes(), b"EXISTING_VALID_DATABASE_CONTENT")
+        self.assertFalse(part_file.exists())
+
+    def test_download_file_network_interruption_and_http_error_cleanup(self):
+        client = replicate_offsite.S3ReplicationClient(
+            bucket_name="valid-backup-bucket",
+            access_key_id="AKIA_TEST_KEY",
+            secret_access_key="SECRET_TEST_123",
+            region_name="ap-south-1",
+        )
+        dest_file = self.test_dir / "interrupted.sql.gz"
+        part_file = dest_file.with_suffix(dest_file.suffix + ".part")
+        dummy_sha = hashlib.sha256(b"dummy").hexdigest()
+
+        def faulty_stream(*args, **kwargs):
+            yield b"initial chunk"
+            raise ConnectionResetError("Connection aborted by remote peer")
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.iter_content = faulty_stream
+
+        with (
+            patch("deployment.backup.replicate_offsite.requests.get", return_value=mock_resp),
+            self.assertRaises(ConnectionResetError),
+        ):
+            client.download_file(
+                remote_key="department-store-backups/20261027_102247/interrupted.sql.gz",
+                local_path=dest_file,
+                expected_sha256=dummy_sha,
+            )
+        self.assertFalse(part_file.exists())
+        self.assertFalse(dest_file.exists())
+
+        mock_resp_500 = MagicMock()
+        mock_resp_500.status_code = 500
+
+        with (
+            patch("deployment.backup.replicate_offsite.requests.get", return_value=mock_resp_500),
+            self.assertRaises(RuntimeError) as ctx,
+        ):
+            client.download_file(
+                remote_key="department-store-backups/20261027_102247/interrupted.sql.gz",
+                local_path=dest_file,
+                expected_sha256=dummy_sha,
+            )
+        self.assertIn("HTTP 500", str(ctx.exception))
+        self.assertFalse(part_file.exists())
+
+    def test_download_file_missing_or_malformed_checksum_fails_safely(self):
+        client = replicate_offsite.S3ReplicationClient(
+            bucket_name="valid-backup-bucket",
+            access_key_id="AKIA_TEST_KEY",
+            secret_access_key="SECRET_TEST_123",
+            region_name="ap-south-1",
+        )
+        dest_file = self.test_dir / "test.sql.gz"
+
+        with self.assertRaises(ValueError) as ctx:
+            client.download_file("backups/test.sql.gz", dest_file, expected_sha256="abc123nothex")
+        self.assertIn("Malformed expected SHA-256", str(ctx.exception))
+
+        with self.assertRaises(ValueError) as ctx:
+            client.download_file("backups/test.sql.gz", dest_file, expected_sha256="a" * 32)
+        self.assertIn("Malformed expected SHA-256", str(ctx.exception))
+
+        with patch.object(client, "head_object", return_value={"exists": True, "meta_sha256": ""}):
+            with self.assertRaises(ValueError) as ctx:
+                client.download_file("backups/test.sql.gz", dest_file, expected_sha256=None)
+            self.assertIn("Missing expected SHA-256", str(ctx.exception))
+
+    def test_download_file_destination_traversal_and_directory_rejected(self):
+        client = replicate_offsite.S3ReplicationClient(
+            bucket_name="valid-backup-bucket",
+            access_key_id="AKIA_TEST_KEY",
+            secret_access_key="SECRET_TEST_123",
+            region_name="ap-south-1",
+        )
+        valid_sha = hashlib.sha256(b"test").hexdigest()
+
+        target_dir = self.test_dir / "target_dir"
+        target_dir.mkdir()
+        with self.assertRaises(ValueError) as ctx:
+            client.download_file("backups/test.sql.gz", target_dir, expected_sha256=valid_sha)
+        self.assertIn("cannot be an existing directory", str(ctx.exception))
+
+        safe_base = self.test_dir / "safe_restore_dir"
+        safe_base.mkdir()
+        escaping_path = self.test_dir / "other_dir" / "escape.sql.gz"
+        with self.assertRaises(ValueError) as ctx:
+            client.download_file(
+                "backups/test.sql.gz",
+                escaping_path,
+                expected_sha256=valid_sha,
+                base_dir=safe_base,
+            )
+        self.assertIn("escapes base directory", str(ctx.exception))
+
+    def test_download_file_atomic_replacement_of_existing_destination(self):
+        client = replicate_offsite.S3ReplicationClient(
+            bucket_name="valid-backup-bucket",
+            access_key_id="AKIA_TEST_KEY",
+            secret_access_key="SECRET_TEST_123",
+            region_name="ap-south-1",
+        )
+        dest_file = self.test_dir / "db_atomic.sql.gz"
+        dest_file.write_bytes(b"OLD_ARCHIVE_BYTES")
+
+        new_payload = b"NEW_ARCHIVE_BYTES_VERIFIED"
+        new_sha = hashlib.sha256(new_payload).hexdigest()
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.iter_content.return_value = [new_payload]
+
+        with patch("deployment.backup.replicate_offsite.requests.get", return_value=mock_resp):
+            res = client.download_file(
+                "backups/db.sql.gz",
+                dest_file,
+                expected_sha256=new_sha,
+            )
+
+        self.assertEqual(res["status"], "DOWNLOAD_VERIFIED")
+        self.assertEqual(dest_file.read_bytes(), b"NEW_ARCHIVE_BYTES_VERIFIED")
+
+    def test_download_file_secrets_never_appear_in_exceptions(self):
+        secret_token = "SUPER_SECRET_TOKEN_DO_NOT_REVEAL_9999"
+        client = replicate_offsite.S3ReplicationClient(
+            bucket_name="valid-backup-bucket",
+            access_key_id="AKIA_TEST_KEY",
+            secret_access_key=secret_token,
+            region_name="ap-south-1",
+        )
+        dest_file = self.test_dir / "secret_probe.sql.gz"
+        valid_sha = hashlib.sha256(b"dummy").hexdigest()
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 403
+
+        with (
+            patch("deployment.backup.replicate_offsite.requests.get", return_value=mock_resp),
+            self.assertRaises(RuntimeError) as ctx,
+        ):
+            client.download_file("backups/secret_probe.sql.gz", dest_file, expected_sha256=valid_sha)
+        self.assertNotIn(secret_token, str(ctx.exception))
+
+    def test_download_file_remote_metadata_fallback(self):
+        client = replicate_offsite.S3ReplicationClient(
+            bucket_name="valid-backup-bucket",
+            access_key_id="AKIA_TEST_KEY",
+            secret_access_key="SECRET_TEST_123",
+            region_name="ap-south-1",
+        )
+        dest_file = self.test_dir / "metadata_fallback.sql.gz"
+        payload = b"PAYLOAD_VERIFIED_BY_REMOTE_METADATA_HEADER"
+        payload_sha = hashlib.sha256(payload).hexdigest()
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.iter_content.return_value = [payload]
+
+        with (
+            patch.object(
+                client,
+                "head_object",
+                return_value={"exists": True, "meta_sha256": payload_sha, "content_length": len(payload)},
+            ),
+            patch("deployment.backup.replicate_offsite.requests.get", return_value=mock_resp),
+        ):
+            res = client.download_file(
+                remote_key="backups/metadata_fallback.sql.gz",
+                local_path=dest_file,
+                expected_sha256=None,
+            )
+
+        self.assertEqual(res["status"], "DOWNLOAD_VERIFIED")
+        self.assertEqual(res["sha256"], payload_sha)
+        self.assertEqual(dest_file.read_bytes(), payload)
+
+    def test_download_file_windows_compatible_handle_cleanup(self):
+        client = replicate_offsite.S3ReplicationClient(
+            bucket_name="valid-backup-bucket",
+            access_key_id="AKIA_TEST_KEY",
+            secret_access_key="SECRET_TEST_123",
+            region_name="ap-south-1",
+        )
+        dest_file = self.test_dir / "win_handle.sql.gz"
+        payload = b"WINDOWS_SHARING_VERIFICATION_BYTES"
+        payload_sha = hashlib.sha256(payload).hexdigest()
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.iter_content.return_value = [payload]
+
+        with patch("deployment.backup.replicate_offsite.requests.get", return_value=mock_resp):
+            client.download_file("backups/win_handle.sql.gz", dest_file, expected_sha256=payload_sha)
+
+        with open(dest_file, "r+b") as f:
+            f.seek(0)
+            f.write(b"W")
+        self.assertTrue(dest_file.exists())
 
 
 if __name__ == "__main__":
