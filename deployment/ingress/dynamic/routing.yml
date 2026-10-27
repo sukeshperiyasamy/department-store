@@ -1,0 +1,126 @@
+# ==============================================================================
+# Traefik v3 Dynamic Routing Configuration (dynamic/routing.yml)
+# Department Store ERP — Multi-Tenant SaaS Routing Matrix
+# ==============================================================================
+
+http:
+  # ----------------------------------------------------------------------------
+  # Middlewares
+  # ----------------------------------------------------------------------------
+  middlewares:
+    # Strict Security Headers & HSTS
+    security-headers:
+      headers:
+        sslRedirect: true
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        forceSTSHeader: true
+        customFrameOptionsValue: "DENY"
+        contentTypeNosniff: true
+        browserXssFilter: true
+        referrerPolicy: "strict-origin-when-cross-origin"
+        customResponseHeaders:
+          X-Permitted-Cross-Domain-Policies: "none"
+          X-Download-Options: "noopen"
+
+    # Cache Isolation & Partitioning for Tenant Dashboards
+    tenant-cache-control:
+      headers:
+        customResponseHeaders:
+          Vary: "Host, Cookie"
+          Cache-Control: "no-cache, no-store, must-revalidate"
+          Pragma: "no-cache"
+          Expires: "0"
+
+    # API Rate Limiter
+    api-rate-limit:
+      rateLimit:
+        average: 120
+        burst: 30
+        period: "1m"
+        sourceCriterion:
+          ipStrategy:
+            depth: 1
+
+    # Security header to strip untrusted proxy metadata before forwarding
+    strip-untrusted-headers:
+      headers:
+        customRequestHeaders:
+          X-Forwarded-Client-Cert: ""
+
+  # ----------------------------------------------------------------------------
+  # Routers
+  # ----------------------------------------------------------------------------
+  routers:
+    # 1. Apex Marketing & Onboarding Router (e.g. departmentstore.in, www.departmentstore.in)
+    marketing-router:
+      rule: "Host(`departmentstore.in`) || Host(`www.departmentstore.in`)"
+      entryPoints:
+        - "websecure"
+      service: "owner-dashboard-service"
+      middlewares:
+        - "security-headers"
+      tls:
+        certResolver: "letsencrypt-staging"
+        domains:
+          - main: "departmentstore.in"
+            sans:
+              - "*.departmentstore.in"
+
+    # 2. Platform Administration Console (e.g. admin.departmentstore.in)
+    platform-admin-router:
+      rule: "Host(`admin.departmentstore.in`)"
+      entryPoints:
+        - "websecure"
+      service: "owner-dashboard-service"
+      middlewares:
+        - "security-headers"
+      tls:
+        certResolver: "letsencrypt-staging"
+
+    # 3. Tenant Subdomain API, Assets & WebSockets (Priority 100)
+    # Routes /api, /assets, /socket.io, and /files to Frappe Nginx/Backend
+    tenant-api-router:
+      rule: "HostRegexp(`{subdomain:[a-z0-9-]+}.departmentstore.in`) && (PathPrefix(`/api`) || PathPrefix(`/assets`) || PathPrefix(`/socket.io`) || PathPrefix(`/files`) || PathPrefix(`/protected`))"
+      priority: 100
+      entryPoints:
+        - "websecure"
+      service: "frappe-frontend-service"
+      middlewares:
+        - "security-headers"
+        - "api-rate-limit"
+      tls:
+        certResolver: "letsencrypt-staging"
+
+    # 4. Tenant Subdomain Web Dashboard (Priority 50)
+    # Routes all remaining tenant URLs to Next.js Owner Dashboard with tenant-context
+    tenant-ui-router:
+      rule: "HostRegexp(`{subdomain:[a-z0-9-]+}.departmentstore.in`)"
+      priority: 50
+      entryPoints:
+        - "websecure"
+      service: "owner-dashboard-service"
+      middlewares:
+        - "security-headers"
+        - "tenant-cache-control"
+      tls:
+        certResolver: "letsencrypt-staging"
+
+  # ----------------------------------------------------------------------------
+  # Services (Upstreams)
+  # ----------------------------------------------------------------------------
+  services:
+    # Next.js 15 SSR Owner Dashboard (Marketing, Admin, & Tenant UI)
+    owner-dashboard-service:
+      loadBalancer:
+        servers:
+          - url: "http://owner-dashboard:3100"
+        passHostHeader: true
+
+    # Frappe Nginx & ERPNext Backend (API, Sync, Assets & SocketIO)
+    frappe-frontend-service:
+      loadBalancer:
+        servers:
+          - url: "http://frontend:8080"
+        passHostHeader: true

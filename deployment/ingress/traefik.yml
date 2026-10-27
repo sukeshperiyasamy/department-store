@@ -1,0 +1,145 @@
+# ==============================================================================
+# Traefik v3 Static Configuration (traefik.yml)
+# Department Store ERP — Multi-Tenant SaaS Edge Ingress
+# ==============================================================================
+
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+# ------------------------------------------------------------------------------
+# Entry Points
+# ------------------------------------------------------------------------------
+entryPoints:
+  # HTTP (Port 80) — Automatically redirects all plain HTTP to HTTPS
+  web:
+    address: ":80"
+    forwardedHeaders:
+      trustedIPs:
+        - "127.0.0.1/32"
+        - "::1/128"
+        - "10.0.0.0/8"
+        - "172.16.0.0/12"
+        - "192.168.0.0/16"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
+
+  # HTTPS (Port 443) — TLS termination for apex, admin, and wildcard tenant subdomains
+  websecure:
+    address: ":443"
+    forwardedHeaders:
+      trustedIPs:
+        - "127.0.0.1/32"
+        - "::1/128"
+        - "10.0.0.0/8"
+        - "172.16.0.0/12"
+        - "192.168.0.0/16"
+    http:
+      tls:
+        options: default
+
+  # Internal Healthcheck & Metrics (Port 8080) — Never exposed to public internet
+  traefik:
+    address: ":8080"
+
+# ------------------------------------------------------------------------------
+# TLS Configuration Options
+# ------------------------------------------------------------------------------
+tls:
+  options:
+    default:
+      minVersion: "VersionTLS12"
+      cipherSuites:
+        - "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384"
+        - "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
+        - "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305"
+        - "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305"
+        - "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256"
+        - "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
+      sniStrict: true
+
+# ------------------------------------------------------------------------------
+# Certificate Resolvers (Let's Encrypt ACME with DNS-01 Challenge)
+# ------------------------------------------------------------------------------
+certificatesResolvers:
+  # Production Let's Encrypt Resolver
+  letsencrypt-prod:
+    acme:
+      email: "${ACME_EMAIL}"
+      storage: "/etc/traefik/acme/acme.json"
+      caServer: "https://acme-v02.api.letsencrypt.org/directory"
+      dnsChallenge:
+        provider: "cloudflare"
+        delayBeforeCheck: 30
+        resolvers:
+          - "1.1.1.1:53"
+          - "8.8.8.8:53"
+
+  # Staging Let's Encrypt Resolver (Use for development and pre-flight tests)
+  letsencrypt-staging:
+    acme:
+      email: "${ACME_EMAIL}"
+      storage: "/etc/traefik/acme/acme-staging.json"
+      caServer: "https://acme-staging-v02.api.letsencrypt.org/directory"
+      dnsChallenge:
+        provider: "cloudflare"
+        delayBeforeCheck: 15
+        resolvers:
+          - "1.1.1.1:53"
+          - "8.8.8.8:53"
+
+# ------------------------------------------------------------------------------
+# Providers
+# ------------------------------------------------------------------------------
+providers:
+  # Dynamic File Provider watching YAML routing templates
+  file:
+    directory: "/etc/traefik/dynamic"
+    watch: true
+
+  # Docker Label Provider for container auto-discovery
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+    watch: true
+
+# ------------------------------------------------------------------------------
+# Observability, Logs, Healthchecks & Metrics
+# ------------------------------------------------------------------------------
+ping:
+  entryPoint: "traefik"
+
+metrics:
+  prometheus:
+    entryPoint: "traefik"
+    addEntryPointsLabels: true
+    addRoutersLabels: true
+    addServicesLabels: true
+
+log:
+  level: "INFO"
+  format: "json"
+
+accessLog:
+  format: "json"
+  bufferingSize: 100
+  filters:
+    statusCodes:
+      - "200-299"
+      - "400-599"
+  fields:
+    defaultMode: "keep"
+    names:
+      ClientUsername: "drop"
+    headers:
+      defaultMode: "keep"
+      names:
+        Authorization: "redact"
+        Cookie: "drop"
+        Set-Cookie: "drop"
+        X-Tenant-Slug: "keep"
+        X-Tenant-Host: "keep"

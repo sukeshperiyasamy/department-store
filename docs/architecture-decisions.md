@@ -135,3 +135,40 @@
   - Complete operational observability with zero secret exposure.
 - **Status**: Implemented in Phase 3 with end-to-end unit, backend, and browser tests.
 
+## ADR-0010 — Edge Ingress Reverse Proxy, Wildcard TLS, and Dual-Upstream Tenant Routing Architecture
+- **Context & Problem Statement**:
+  - The departmental store ERP SaaS platform requires a production-ready edge ingress reverse proxy to terminate TLS, manage Let's Encrypt certificates for root and wildcard tenant subdomains (`*.departmentstore.in`), securely route requests to the appropriate application upstreams, and enforce trusted proxy headers and tenant isolation.
+  - The platform consists of two distinct application tiers:
+    1. `owner-dashboard` (Next.js 15, SSR, port 3100): Serves marketing, onboarding registration, platform admin console, and tenant shop owner dashboard.
+    2. `frontend` (Frappe-Docker Nginx + ERPNext Python backend, port 8080): Serves core ERP APIs (`/api/*`), WebSockets (`/socket.io/*`), static assets (`/assets/*`), public/private uploads (`/files/*`), and counter POS billing synchronization.
+  - Requirements mandate automated wildcard TLS via DNS-01, zero untrusted header injection, zero silent fallback to default sites, strict isolation of platform admin from tenant subdomains, and operational observability.
+- **Alternatives Evaluated**:
+  1. *Caddy v2*:
+     - Offers excellent automatic TLS and readable Caddyfiles, but its official Docker image (`caddy:2`) does not bundle DNS-01 ACME challenge providers (required by Let's Encrypt for wildcard certificates). Requires custom `xcaddy` builds for Cloudflare/Route53, adding build pipeline complexity.
+  2. *Traefik v3 (Selected)*:
+     - The official `traefik:v3` image includes the Lego ACME client with native DNS-01 challenge support for all major DNS providers (Cloudflare, AWS Route53, DigitalOcean, Google Cloud DNS, etc.) out of the box with zero custom compilation.
+     - Dual configuration model: Docker label discovery + dynamic YAML file provider (`/etc/traefik/dynamic/*.yml`) with hot-reload watching.
+     - First-class middleware ecosystem: automatic HTTP->HTTPS redirection, HSTS injection, security headers (`X-Frame-Options`, `nosniff`), rate limiting, and explicit proxy trust (`forwardedHeaders.trustedIPs`).
+     - Built-in operational observability: Prometheus metrics, `/ping` health checks, structured JSON access logs, and internal dashboard.
+  3. *Standalone Nginx + Certbot*:
+     - Rejected due to manual cron management, certificate reload scripting, lack of native wildcard DNS-01 orchestration, and higher operational failure rates.
+- **Decision**:
+  - Deploy **Traefik v3** as the edge reverse proxy and TLS termination layer.
+  - Implement a **Dual-Upstream Routing Matrix**:
+    * **Root & Marketing** (`departmentstore.in`, `www.departmentstore.in`): Routes to `owner-dashboard:3100`.
+    * **Platform Administration** (`admin.departmentstore.in`): Routes UI to `owner-dashboard:3100` and API calls to `frontend:8080`. Access blocked from tenant subdomains.
+    * **Tenant Subdomains** (`{subdomain:[a-z0-9-]+}.departmentstore.in`):
+      - API, assets, WebSockets, and file paths (`/api/*`, `/assets/*`, `/socket.io/*`, `/files/*`) route directly to Frappe `frontend:8080` with preserved `Host` and `X-Frappe-Site-Name`.
+      - Web UI paths (`/`, `/app/*`, `/catalog/*`, `/settings/*`, etc.) route to `owner-dashboard:3100` where Next.js middleware verifies tenant context and sets cache isolation (`Vary: Host, Cookie`).
+  - **TLS & Certificate Automation**:
+    * Wildcard certificate (`*.departmentstore.in` and `departmentstore.in`) issued via Let's Encrypt using DNS-01 challenge with persistent, secured `acme.json` (permissions `0600`).
+    * Staging and production ACME directory resolvers configured separately to prevent Let's Encrypt rate limiting during testing.
+  - **Security & Header Trust**:
+    * Ingress strips client-supplied `X-Forwarded-*` headers and injects verified peer metadata.
+    * Downstream services trust forwarding headers only when received from explicitly configured `TRUSTED_PROXY_IPS`.
+- **Consequences**:
+  - Clean separation between frontend dashboard SSR and Frappe backend ERP.
+  - Fully automated, zero-touch certificate issuance and renewals for wildcard domains.
+  - Multi-tenant routing guarantees: unmapped or invalid tenant hostnames are stopped at the ingress and middleware boundaries with zero silent default fallbacks.
+- **Status**: Accepted and implemented in Phase 4B.
+

@@ -17,6 +17,8 @@ from departmental_store.api.provisioning import (
     sanitize_error,
     set_tenant_status,
     process_provisioning_job,
+    verify_tenant_hostname,
+    activate_tenant,
 )
 
 
@@ -283,3 +285,57 @@ class TestProvisioningApi(unittest.TestCase):
         res = process_provisioning_job(job_id=job_id, test_mode=True)
         self.assertTrue(res["success"])
         self.assertEqual(res["status"], "VERIFICATION_PENDING")
+        self.assertIsNotNone(res["tenant_id"])
+
+    def test_hostname_verification_and_tenant_activation_lifecycle(self):
+        # 1. Provision site to VERIFICATION_PENDING
+        app_res = approve_onboarding_request(self.request_id, "Testing activation lifecycle")
+        proc_res = process_provisioning_job(job_id=app_res["job_id"], test_mode=True)
+        tenant_id = proc_res["tenant_id"]
+
+        # Check tenant in registry is VERIFICATION_PENDING and hostname is PENDING
+        t_row = frappe.db.sql(
+            "SELECT lifecycle_status, hostname_status FROM `tabSaaS Tenant Registry` WHERE tenant_id = %s",
+            (tenant_id,),
+            as_dict=True,
+        )[0]
+        self.assertEqual(t_row["lifecycle_status"], "VERIFICATION_PENDING")
+        self.assertEqual(t_row["hostname_status"], "PENDING")
+
+        # 2. Cannot activate tenant while hostname is still PENDING
+        with self.assertRaises(frappe.ValidationError):
+            activate_tenant(tenant_id)
+
+        # 3. Verify hostname via platform admin
+        ver_res = verify_tenant_hostname(tenant_id)
+        self.assertEqual(ver_res["hostname_status"], "VERIFIED")
+
+        # 4. Activate tenant
+        act_res = activate_tenant(tenant_id, reason="Legal verification completed")
+        self.assertEqual(act_res["status"], "ACTIVE")
+
+        # Verify registry updated
+        t_row2 = frappe.db.sql(
+            "SELECT lifecycle_status, hostname_status FROM `tabSaaS Tenant Registry` WHERE tenant_id = %s",
+            (tenant_id,),
+            as_dict=True,
+        )[0]
+        self.assertEqual(t_row2["lifecycle_status"], "ACTIVE")
+        self.assertEqual(t_row2["hostname_status"], "VERIFIED")
+
+    def test_non_platform_admin_cannot_verify_or_activate(self):
+        # Seed a test user with Cashier role
+        cashier_email = "non_admin_cashier@test.local"
+        if not frappe.db.exists("User", cashier_email):
+            u = frappe.new_doc("User")
+            u.email = cashier_email
+            u.first_name = "Cashier"
+            u.append("roles", {"role": "Cashier"})
+            u.insert(ignore_permissions=True)
+
+        frappe.set_user(cashier_email)
+        with self.assertRaises(frappe.PermissionError):
+            verify_tenant_hostname("dummy-tenant-id")
+
+        with self.assertRaises(frappe.PermissionError):
+            activate_tenant("dummy-tenant-id")

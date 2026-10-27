@@ -177,6 +177,16 @@ def resolve_tenant_by_host(hostname: str = None) -> dict:
                         "message": f"Tenant '{t['slug']}' is currently suspended",
                     },
                 }
+            if status == "ARCHIVED":
+                return {
+                    "api_version": API_VERSION,
+                    "matched": False,
+                    "tenant": None,
+                    "error": {
+                        "code": "TENANT_ARCHIVED",
+                        "message": f"Tenant '{t['slug']}' has been archived",
+                    },
+                }
             if status in {"PROVISIONING", "PROVISIONED", "VERIFICATION_PENDING"}:
                 return {
                     "api_version": API_VERSION,
@@ -188,6 +198,16 @@ def resolve_tenant_by_host(hostname: str = None) -> dict:
                     },
                 }
             if status == "ACTIVE":
+                if t.get("hostname_status") and t["hostname_status"] != "VERIFIED":
+                    return {
+                        "api_version": API_VERSION,
+                        "matched": False,
+                        "tenant": None,
+                        "error": {
+                            "code": "HOSTNAME_UNVERIFIED",
+                            "message": f"Hostname '{norm}' is awaiting verification",
+                        },
+                    }
                 return {
                     "api_version": API_VERSION,
                     "matched": True,

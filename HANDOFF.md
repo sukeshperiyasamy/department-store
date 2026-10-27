@@ -38,6 +38,13 @@ A departmental-store ERP for a single store with 2–3 Windows POS counters:
     - Local subdomain routing: Next.js `middleware.ts` with RFC 1123 normalization, trusted proxy IP enforcement (`TRUSTED_PROXY_IPS`), `/admin` lockout on tenant subdomains, and cache isolation (`Vary: Host, Cookie`).
     - 5 authenticated session models formally defined and verified.
     - Two-tenant isolation test suite (`test_tenant_isolation.py`) proving Shop A and Shop B database, auth, and record separation with zero fallback defaults.
+  * Phase 4B: Production Ingress, Wildcard TLS, and Tenant Routing:
+    - Traefik v3 selected as edge ingress reverse proxy (ADR-0010 accepted).
+    - Production and staging deployment templates created in `deployment/ingress/` with Let's Encrypt DNS-01 challenge support for wildcard certificates (`*.departmentstore.in` + apex).
+    - Dual-upstream routing matrix: Next.js 15 SSR (`owner-dashboard:3100`) for marketing, platform admin, and tenant web UI; Frappe Nginx (`frontend:8080`) for tenant APIs, assets, WebSockets, and POS billing sync.
+    - Strict lifecycle state separation: site provisioning (`PROVISIONED`), hostname verification (`VERIFIED`), and commercial activation (`ACTIVE`); verified through `verify_tenant_hostname` and `activate_tenant` in `provisioning.py`.
+    - Staging acceptance runbook (`STAGING_ACCEPTANCE_RUNBOOK.md`) and disaster recovery/rollback runbook (`INGRESS_ROLLBACK_AND_MONITORING.md`).
+    - Automated integration suite `tests/integration/ingress_routing_check.mjs` (26/26 PASS).
 - Pushed to `https://github.com/sukeshperiyasamy/department-store` (origin/main). **Never force-push.**
 
 ## 3. Module map (where things live)
@@ -230,12 +237,13 @@ certified accountant GST sign-off on legal GSTIN; speech-engine accuracy.
 **NOT STARTED**: e-invoicing/e-waybill (disabled pending legal turnover determination);
 GSTR tooling validation; k6 load tests; mobile-native app (responsive PWA covers v1).
 
-## Verified commands (run at Phase 4A completion)
+## Verified commands (run at Phase 4B completion)
 
-- `bench --site frontend run-tests --app departmental_store` → 73 PASS (40 core store tests + 12 provisioning + 17 tenant registry + 4 tenant isolation)
+- `bench --site frontend run-tests --app departmental_store` → 78 PASS (40 core store tests + 14 provisioning + 17 tenant registry + 7 tenant isolation)
 - `npm run typecheck` → 0 errors across all workspaces (@departmental/owner-dashboard, @departmental/windows-pos, @departmental/shared-types)
-- `npm run test` → 166 tests PASS (80 POS + 53 shared-types + 33 owner-dashboard)
-- `npm run build --prefix apps/owner-dashboard` → PASS (All 13 routes and Middleware (51.2 kB) built and optimized)
+- `npm run test` → 170 tests PASS (80 POS + 53 shared-types + 37 owner-dashboard)
+- `npm run build --prefix apps/owner-dashboard` → PASS (All 13 routes and Middleware (51.3 kB) built and optimized)
+- `node tests/integration/ingress_routing_check.mjs` → 26/26 PASS (static, dynamic, ports, and simulated ingress routing)
 - `node tests/integration/api_suite.mjs` → 24/24 PASS (including STOCK-01, IDEMP-01, SEC-01..04)
 - `npx tsx tests/integration/multi_counter.ts` → 11/11 PASS (multi-counter sales, offline sync, idempotency)
 - `node tests/integration/reliability_check.mjs` → 4/4 PASS (RELY-01 through RELY-04 across container restarts)
@@ -243,7 +251,8 @@ GSTR tooling validation; k6 load tests; mobile-native app (responsive PWA covers
 
 ## Exact next steps (priority)
 
-1. Next module: Phase 4B — Production Ingress, Wildcard TLS & Reverse-Proxy Automation (Traefik/Caddy integration, automated Let's Encrypt certificates, production DNS mapping).
-2. Store owner / accountant GST review with the store's legal 15-digit GSTIN using `docs/release/PRODUCTION_DEPLOYMENT_CHECKLIST.md`.
-3. Physical printer + camera validation when hardware arrives at the store.
-4. Build Tamil voice parser + transcript fixtures; gate on `voice_assistant_enabled`.
+1. Next module: Phase 5 — Shared Mobile Application Foundation (React Native / Flutter / Tauri companion app with QR counter pairing, tenant switcher, and offline sync).
+2. Staging domain validation runbook execution with project owner domain using `docs/operations/STAGING_ACCEPTANCE_RUNBOOK.md`.
+3. Store owner / accountant GST review with the store's legal 15-digit GSTIN using `docs/release/PRODUCTION_DEPLOYMENT_CHECKLIST.md`.
+4. Physical printer + camera validation when hardware arrives at the store.
+5. Build Tamil voice parser + transcript fixtures; gate on `voice_assistant_enabled`.

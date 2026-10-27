@@ -77,7 +77,8 @@ Evidence pointers: docs/testing/, docs/artifacts/. Date of last verification: 20
 | Local Subdomain Routing & Middleware Boundary (Phase 4A) | ✅ | Next.js `middleware.ts` resolving `*.localhost` to tenant workspaces, trusted proxy enforcement (`TRUSTED_PROXY_IPS`), `/admin` lockout on tenant subdomains, cache isolation (`Vary: Host, Cookie`), 33 vitest tests PASS |
 | Provisioning Worker Scheduling & Stale Recovery (Phase 4A) | ✅ | Heartbeat timeout recovery (>600s), background enqueue into Frappe `long` queue, scheduler hook in `hooks.py`, CLI argument password redaction |
 | Two-Tenant Isolation Verification (Phase 4A) | ✅ | Automated test suite `test_tenant_isolation.py` (4/4 PASS) demonstrating Shop A / Shop B separation, cross-tenant denial, and zero fallback defaults |
-| Automated Production Reverse-Proxy / TLS Generation | 🚧 | Domain mapping schema & verification ready; Traefik/Caddy wildcard TLS automation deferred to Phase 4B |
+| Production Ingress & Wildcard TLS Automation (Phase 4B) | ✅ | Traefik v3 deployment templates (`deployment/ingress/`), Let's Encrypt DNS-01 challenge, ADR-0010 accepted, dual-upstream routing (`owner-dashboard` vs `frontend`), HSTS, Vary: Host/Cookie, 26 integration checks PASS |
+| Hostname Verification & Tenant Activation Lifecycle (Phase 4B) | ✅ | Explicit separation of site provisioning (`PROVISIONED`), hostname verification (`VERIFIED`), and commercial activation (`ACTIVE`); server-side guards in `provisioning.py` & `tenant.py`, 78 Frappe tests PASS |
 | Shared Mobile Application & Auth Flow | ⬜ | Roadmap Phase 5 (transparent roadmap disclosures published) |
 | Production deployment checklist | ✅ | docs/release/PRODUCTION_DEPLOYMENT_CHECKLIST.md |
 | e-invoicing / e-waybill | ⬜ disabled pending legal determination | settings UI verified |

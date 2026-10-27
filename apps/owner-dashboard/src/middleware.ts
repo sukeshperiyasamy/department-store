@@ -7,15 +7,22 @@ const TRUSTED_PROXIES = (process.env.TRUSTED_PROXY_IPS ?? "127.0.0.1,::1")
   .split(",")
   .map((ip) => ip.trim());
 
+// Configurable base domain (defaults to departmentstore.in, overridable via BASE_DOMAIN)
+const BASE_DOMAIN = (process.env.BASE_DOMAIN ?? "departmentstore.in").toLowerCase().trim();
+
 // Reserved platform hostnames that serve marketing and platform-admin
 const PLATFORM_HOSTS = new Set([
   "localhost",
   "127.0.0.1",
+  "::1",
   "admin.localhost",
   "platform.localhost",
   "departmentstore.in",
   "www.departmentstore.in",
   "admin.departmentstore.in",
+  BASE_DOMAIN,
+  `www.${BASE_DOMAIN}`,
+  `admin.${BASE_DOMAIN}`,
 ]);
 
 export function middleware(request: NextRequest) {
@@ -38,7 +45,13 @@ export function middleware(request: NextRequest) {
   const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "127.0.0.1";
 
   // Trust forwarded-host headers ONLY from specifically configured trusted proxies
-  if (TRUSTED_PROXIES.includes(clientIp)) {
+  const isTrustedProxy = TRUSTED_PROXIES.some((trusted) => {
+    if (trusted === clientIp) return true;
+    if (trusted === "127.0.0.1" && (clientIp === "127.0.0.1" || clientIp === "::1" || clientIp === "localhost")) return true;
+    return false;
+  });
+
+  if (isTrustedProxy) {
     const forwardedHost = request.headers.get("x-forwarded-host");
     if (forwardedHost) {
       rawHost = forwardedHost.split(",")[0]?.trim() ?? rawHost;
@@ -81,7 +94,8 @@ export function middleware(request: NextRequest) {
 
   // 4. Tenant Subdomain Handling (e.g. shop-a.localhost, shop-b.localhost, ramesh.departmentstore.in)
   let candidateSlug: string | null = null;
-  for (const base of [".localhost", ".local", ".departmentstore.in"]) {
+  const recognizedSuffixes = Array.from(new Set([`.${BASE_DOMAIN}`, ".localhost", ".local", ".departmentstore.in"]));
+  for (const base of recognizedSuffixes) {
     if (normalizedHost.endsWith(base)) {
       candidateSlug = normalizedHost.slice(0, -base.length);
       break;

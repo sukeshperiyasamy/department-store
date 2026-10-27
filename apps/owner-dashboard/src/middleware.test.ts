@@ -71,4 +71,39 @@ describe("Next.js Middleware Subdomain Resolution & Boundary", () => {
     expect(res.headers.get("X-Tenant-Type")).toBe("platform");
     expect(res.headers.get("X-Tenant-Host")).toBe("localhost");
   });
+
+  it("honors x-forwarded-host from trusted proxy peer IP", () => {
+    const req = createMockRequest("http://127.0.0.1:3100/app", {
+      host: "127.0.0.1:3100",
+      "x-forwarded-for": "127.0.0.1", // Loopback trusted proxy
+      "x-forwarded-host": "shop-b.localhost",
+    });
+    const res = middleware(req);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("X-Tenant-Slug")).toBe("shop-b");
+    expect(res.headers.get("X-Tenant-Type")).toBe("store");
+  });
+
+  it("routes apex domain departmentstore.in to platform context", () => {
+    const req = createMockRequest("https://departmentstore.in/", { host: "departmentstore.in" });
+    const res = middleware(req);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("X-Tenant-Type")).toBe("platform");
+    expect(res.headers.get("X-Tenant-Host")).toBe("departmentstore.in");
+  });
+
+  it("routes admin.departmentstore.in to platform context and allows /admin", () => {
+    const req = createMockRequest("https://admin.departmentstore.in/admin/onboarding", { host: "admin.departmentstore.in" });
+    const res = middleware(req);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("X-Tenant-Type")).toBe("platform");
+  });
+
+  it("routes tenant subdomain on departmentstore.in to store context", () => {
+    const req = createMockRequest("https://shop-alpha.departmentstore.in/app", { host: "shop-alpha.departmentstore.in" });
+    const res = middleware(req);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("X-Tenant-Slug")).toBe("shop-alpha");
+    expect(res.headers.get("X-Tenant-Type")).toBe("store");
+  });
 });

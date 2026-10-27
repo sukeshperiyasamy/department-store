@@ -617,6 +617,116 @@ def set_tenant_status(tenant_id: str, new_status: str, reason: str) -> dict:
     }
 
 
+@frappe.whitelist()
+def verify_tenant_hostname(tenant_id: str, hostname: str = None) -> dict:
+    """Verify and approve a tenant hostname for routing (Platform Admin only)."""
+    actor = require_platform_admin()
+    ensure_provisioning_tables()
+
+    tenant = frappe.db.sql(
+        "SELECT tenant_id, slug, primary_hostname, hostname_status, lifecycle_status FROM `tabSaaS Tenant Registry` WHERE tenant_id = %s FOR UPDATE",
+        (tenant_id,),
+        as_dict=True,
+    )
+    if not tenant:
+        frappe.throw(_("Tenant not found in registry"), frappe.DoesNotExistError)
+
+    target_host = hostname.strip().lower() if hostname else tenant[0]["primary_hostname"]
+    from departmental_store.api.tenant import validate_hostname, is_reserved_hostname
+
+    valid, norm, reason = validate_hostname(target_host)
+    if not valid:
+        frappe.throw(_(f"Invalid hostname format: {reason}"), frappe.ValidationError)
+    if is_reserved_hostname(norm):
+        frappe.throw(_(f"Hostname '{norm}' is a reserved platform domain"), frappe.ValidationError)
+
+    # Check hostname collision
+    existing = frappe.db.sql(
+        "SELECT tenant_id, slug FROM `tabSaaS Tenant Registry` WHERE primary_hostname = %s AND tenant_id != %s",
+        (norm, tenant_id),
+        as_dict=True,
+    )
+    if existing:
+        frappe.throw(_(f"Hostname '{norm}' is already assigned to tenant '{existing[0]['slug']}'"), frappe.ValidationError)
+
+    frappe.db.sql(
+        """UPDATE `tabSaaS Tenant Registry`
+           SET primary_hostname = %s, hostname_status = 'VERIFIED', updated_at = NOW()
+           WHERE tenant_id = %s""",
+        (norm, tenant_id),
+    )
+
+    record_audit_log(
+        request_id=f"TENANT-{tenant[0]['slug']}",
+        tenant_id=tenant_id,
+        from_status=tenant[0]["hostname_status"],
+        to_status="VERIFIED",
+        actor=actor,
+        reason=f"Hostname '{norm}' verified and approved for routing",
+        metadata={"verified_hostname": norm},
+    )
+    frappe.db.commit()
+
+    return {
+        "api_version": API_VERSION,
+        "tenant_id": tenant_id,
+        "primary_hostname": norm,
+        "hostname_status": "VERIFIED",
+        "message": f"Hostname '{norm}' verified successfully.",
+    }
+
+
+@frappe.whitelist()
+def activate_tenant(tenant_id: str, reason: str = None) -> dict:
+    """Activate a provisioned and verified tenant for commercial access (Platform Admin only)."""
+    actor = require_platform_admin()
+    ensure_provisioning_tables()
+
+    tenant = frappe.db.sql(
+        "SELECT tenant_id, slug, hostname_status, lifecycle_status FROM `tabSaaS Tenant Registry` WHERE tenant_id = %s FOR UPDATE",
+        (tenant_id,),
+        as_dict=True,
+    )
+    if not tenant:
+        frappe.throw(_("Tenant not found in registry"), frappe.DoesNotExistError)
+
+    t = tenant[0]
+    if t["lifecycle_status"] != "VERIFICATION_PENDING":
+        frappe.throw(_(f"Cannot activate tenant in lifecycle status '{t['lifecycle_status']}'. Must be 'VERIFICATION_PENDING'."), frappe.ValidationError)
+
+    if t.get("hostname_status") != "VERIFIED":
+        frappe.throw(_("Cannot activate tenant without verified hostname. Hostname status is currently '%s'." % t.get("hostname_status")), frappe.ValidationError)
+
+    target_status = "ACTIVE"
+    frappe.db.sql(
+        "UPDATE `tabSaaS Tenant Registry` SET lifecycle_status = %s, updated_at = NOW() WHERE tenant_id = %s",
+        (target_status, tenant_id),
+    )
+    frappe.db.sql(
+        "UPDATE `tabSaaS Onboarding Request` SET status = %s, modified = NOW() WHERE preferred_slug = %s",
+        (target_status, t["slug"]),
+    )
+
+    action_reason = reason or "Commercial, statutory, and hostname verification completed"
+    record_audit_log(
+        request_id=f"TENANT-{t['slug']}",
+        tenant_id=tenant_id,
+        from_status=t["lifecycle_status"],
+        to_status=target_status,
+        actor=actor,
+        reason=action_reason,
+    )
+    frappe.db.commit()
+
+    return {
+        "api_version": API_VERSION,
+        "tenant_id": tenant_id,
+        "status": target_status,
+        "message": f"Tenant '{t['slug']}' activated successfully.",
+    }
+
+
+
 # -------------------------------------------------------------------------
 # Provisioning Worker Pipeline
 # -------------------------------------------------------------------------

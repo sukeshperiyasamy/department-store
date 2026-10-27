@@ -1,0 +1,68 @@
+# ==============================================================================
+# Reference Caddyfile Example (Caddy v2)
+# Department Store ERP — Multi-Tenant SaaS Platform
+# ==============================================================================
+# NOTE: Wildcard TLS (*.departmentstore.in) requires DNS-01 challenge plugin
+# (e.g. caddy-dns/cloudflare) built into Caddy via xcaddy.
+# ==============================================================================
+
+{
+    email {$ACME_EMAIL:admin@departmentstore.in}
+    acme_ca {$ACME_CA:https://acme-staging-v02.api.letsencrypt.org/directory}
+    admin off
+}
+
+# Snippet: Standard Security Headers
+(security_headers) {
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+}
+
+# 1. Marketing Site (Apex & WWW)
+{$BASE_DOMAIN:departmentstore.in}, www.{$BASE_DOMAIN:departmentstore.in} {
+    import security_headers
+    reverse_proxy owner-dashboard:3100 {
+        header_up Host {host}
+        header_up X-Forwarded-Host {host}
+    }
+}
+
+# 2. Platform Administration Console
+admin.{$BASE_DOMAIN:departmentstore.in} {
+    import security_headers
+    reverse_proxy owner-dashboard:3100 {
+        header_up Host {host}
+        header_up X-Forwarded-Host {host}
+    }
+}
+
+# 3. Wildcard Tenant Subdomains (*.departmentstore.in)
+*.{$BASE_DOMAIN:departmentstore.in} {
+    import security_headers
+
+    # Cache isolation
+    header Vary "Host, Cookie"
+
+    # API, assets, WebSockets, and file uploads -> Frappe Nginx
+    @frappe_backend path /api/* /assets/* /socket.io/* /files/* /protected/*
+    handle @frappe_backend {
+        reverse_proxy frontend:8080 {
+            header_up Host {host}
+            header_up X-Forwarded-Host {host}
+            header_up X-Frappe-Site-Name {host}
+        }
+    }
+
+    # All UI routes -> Next.js Owner Dashboard
+    handle {
+        reverse_proxy owner-dashboard:3100 {
+            header_up Host {host}
+            header_up X-Forwarded-Host {host}
+        }
+    }
+}

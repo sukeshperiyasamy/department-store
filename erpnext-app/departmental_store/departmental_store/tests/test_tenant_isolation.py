@@ -128,3 +128,76 @@ class TestTenantIsolation(unittest.TestCase):
         # Attempt to query with forged arbitrary tenant ID
         with self.assertRaises(frappe.PermissionError):
             get_tenant_info(tenant_id="FORGED-UUID-0000-000000000000")
+
+    def test_unverified_hostname_rejected_at_resolution(self):
+        """Tenants with pending hostname verification are rejected with HOSTNAME_UNVERIFIED."""
+        unverified_tid = f"TID-UNVER-{frappe.generate_hash(length=8).upper()}"
+        unverified_slug = f"shop-unver-{frappe.generate_hash(length=4).lower()}"
+        unverified_host = f"{unverified_slug}.localhost"
+
+        frappe.db.sql(
+            """INSERT INTO `tabSaaS Tenant Registry`
+               (`tenant_id`, `slug`, `name`, `legal_name`, `frappe_site_name`, `primary_hostname`,
+                `hostname_status`, `lifecycle_status`, `plan_id`, `state_code`, `currency`)
+               VALUES (%s, %s, 'Unverified Shop', 'Unverified LLC', 'shop-unver.local', %s,
+                       'PENDING', 'ACTIVE', 'starter', '33', 'INR')""",
+            (unverified_tid, unverified_slug, unverified_host),
+        )
+        frappe.db.commit()
+
+        try:
+            res = resolve_tenant_by_host(unverified_host)
+            self.assertFalse(res["matched"])
+            self.assertEqual(res["error"]["code"], "HOSTNAME_UNVERIFIED")
+        finally:
+            frappe.db.sql("DELETE FROM `tabSaaS Tenant Registry` WHERE tenant_id = %s", (unverified_tid,))
+            frappe.db.commit()
+
+    def test_archived_tenant_rejected_at_resolution(self):
+        """Archived tenants cannot resolve to an active workspace."""
+        archived_tid = f"TID-ARCH-{frappe.generate_hash(length=8).upper()}"
+        archived_slug = f"shop-arch-{frappe.generate_hash(length=4).lower()}"
+        archived_host = f"{archived_slug}.localhost"
+
+        frappe.db.sql(
+            """INSERT INTO `tabSaaS Tenant Registry`
+               (`tenant_id`, `slug`, `name`, `legal_name`, `frappe_site_name`, `primary_hostname`,
+                `hostname_status`, `lifecycle_status`, `plan_id`, `state_code`, `currency`)
+               VALUES (%s, %s, 'Archived Shop', 'Archived LLC', 'shop-arch.local', %s,
+                       'VERIFIED', 'ARCHIVED', 'starter', '33', 'INR')""",
+            (archived_tid, archived_slug, archived_host),
+        )
+        frappe.db.commit()
+
+        try:
+            res = resolve_tenant_by_host(archived_host)
+            self.assertFalse(res["matched"])
+            self.assertEqual(res["error"]["code"], "TENANT_ARCHIVED")
+        finally:
+            frappe.db.sql("DELETE FROM `tabSaaS Tenant Registry` WHERE tenant_id = %s", (archived_tid,))
+            frappe.db.commit()
+
+    def test_custom_production_domain_resolution(self):
+        """Custom domains on departmentstore.in resolve correctly when verified and active."""
+        prod_tid = f"TID-PROD-{frappe.generate_hash(length=8).upper()}"
+        prod_slug = f"shop-prod-{frappe.generate_hash(length=4).lower()}"
+        prod_host = f"{prod_slug}.departmentstore.in"
+
+        frappe.db.sql(
+            """INSERT INTO `tabSaaS Tenant Registry`
+               (`tenant_id`, `slug`, `name`, `legal_name`, `frappe_site_name`, `primary_hostname`,
+                `hostname_status`, `lifecycle_status`, `plan_id`, `state_code`, `currency`)
+               VALUES (%s, %s, 'Production Shop', 'Production Supermarket Ltd', 'prod.local', %s,
+                       'VERIFIED', 'ACTIVE', 'starter', '33', 'INR')""",
+            (prod_tid, prod_slug, prod_host),
+        )
+        frappe.db.commit()
+
+        try:
+            res = resolve_tenant_by_host(prod_host)
+            self.assertTrue(res["matched"])
+            self.assertEqual(res["tenant"]["tenant_id"], prod_tid)
+            self.assertEqual(res["tenant"]["primary_hostname"], prod_host)
+        finally:
+            frappe.db.sql("DELETE FROM `tabSaaS Tenant Registry` WHERE tenant_id = %s", (prod_tid,))
+            frappe.db.commit()
