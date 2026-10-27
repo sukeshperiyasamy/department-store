@@ -45,6 +45,11 @@ A departmental-store ERP for a single store with 2–3 Windows POS counters:
     - Strict lifecycle state separation: site provisioning (`PROVISIONED`), hostname verification (`VERIFIED`), and commercial activation (`ACTIVE`); verified through `verify_tenant_hostname` and `activate_tenant` in `provisioning.py`.
     - Staging acceptance runbook (`STAGING_ACCEPTANCE_RUNBOOK.md`) and disaster recovery/rollback runbook (`INGRESS_ROLLBACK_AND_MONITORING.md`).
     - Automated integration suite `tests/integration/ingress_routing_check.mjs` (26/26 PASS).
+  * Phase 4C: Staging Deployment and Real-World Acceptance Testing:
+    - Preflight audit and compose verification: `tests/integration/staging_preflight_check.mjs` (13/13 PASS).
+    - Port exposure verification: public ports strictly 80 & 443; MariaDB (3306), Redis (6379), and Frappe (8000) not exposed publicly.
+    - Deployment prerequisite gate: external cloud deployment stopped pending owner-controlled staging domain, authoritative DNS, and DNS-01 API token; exact checklist documented in `STAGING_ACCEPTANCE_RUNBOOK.md`.
+    - Status marked `BLOCKED (Missing Staging Prerequisites)`.
 - Pushed to `https://github.com/sukeshperiyasamy/department-store` (origin/main). **Never force-push.**
 
 ## 3. Module map (where things live)
@@ -237,13 +242,14 @@ certified accountant GST sign-off on legal GSTIN; speech-engine accuracy.
 **NOT STARTED**: e-invoicing/e-waybill (disabled pending legal turnover determination);
 GSTR tooling validation; k6 load tests; mobile-native app (responsive PWA covers v1).
 
-## Verified commands (run at Phase 4B completion)
+## Verified commands (run at Phase 4C completion)
 
+- `node tests/integration/staging_preflight_check.mjs` → 13/13 PASS (compose rendering, port exposure, ACME staging, prerequisite audit)
+- `node tests/integration/ingress_routing_check.mjs` → 26/26 PASS (static, dynamic, ports, and simulated ingress routing)
 - `bench --site frontend run-tests --app departmental_store` → 78 PASS (40 core store tests + 14 provisioning + 17 tenant registry + 7 tenant isolation)
 - `npm run typecheck` → 0 errors across all workspaces (@departmental/owner-dashboard, @departmental/windows-pos, @departmental/shared-types)
 - `npm run test` → 170 tests PASS (80 POS + 53 shared-types + 37 owner-dashboard)
 - `npm run build --prefix apps/owner-dashboard` → PASS (All 13 routes and Middleware (51.3 kB) built and optimized)
-- `node tests/integration/ingress_routing_check.mjs` → 26/26 PASS (static, dynamic, ports, and simulated ingress routing)
 - `node tests/integration/api_suite.mjs` → 24/24 PASS (including STOCK-01, IDEMP-01, SEC-01..04)
 - `npx tsx tests/integration/multi_counter.ts` → 11/11 PASS (multi-counter sales, offline sync, idempotency)
 - `node tests/integration/reliability_check.mjs` → 4/4 PASS (RELY-01 through RELY-04 across container restarts)
@@ -252,7 +258,7 @@ GSTR tooling validation; k6 load tests; mobile-native app (responsive PWA covers
 ## Exact next steps (priority)
 
 1. Next module: Phase 5 — Shared Mobile Application Foundation (React Native / Flutter / Tauri companion app with QR counter pairing, tenant switcher, and offline sync).
-2. Staging domain validation runbook execution with project owner domain using `docs/operations/STAGING_ACCEPTANCE_RUNBOOK.md`.
+2. Staging domain validation runbook execution once owner provides staging domain, authoritative DNS, and DNS-01 API token using `docs/operations/STAGING_ACCEPTANCE_RUNBOOK.md`.
 3. Store owner / accountant GST review with the store's legal 15-digit GSTIN using `docs/release/PRODUCTION_DEPLOYMENT_CHECKLIST.md`.
 4. Physical printer + camera validation when hardware arrives at the store.
 5. Build Tamil voice parser + transcript fixtures; gate on `voice_assistant_enabled`.

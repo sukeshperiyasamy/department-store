@@ -171,3 +171,37 @@ To promote from Staging to Production:
 1. All 10 tests above must report **PASS**.
 2. Zero certificate rate-limit errors in Traefik logs.
 3. Switch `ACME_RESOLVER=letsencrypt-prod` in `.env` only after sign-off.
+
+---
+
+## Staging Readiness Audit Execution Record (Phase 4C)
+
+- **Audit Date**: 2026-10-27
+- **Audit Script**: `tests/integration/staging_preflight_check.mjs` (13/13 PASS)
+- **Ingress Routing Simulation**: `tests/integration/ingress_routing_check.mjs` (26/26 PASS)
+- **Current Environment Status**: **`BLOCKED (Missing Staging Prerequisites)`**
+
+### Preflight Verification Results
+| Verification Item | Status | Result / Detail |
+| :--- | :--- | :--- |
+| **Traefik Static & Dynamic Config** | ✅ PASS | Verified valid YAML syntax, TLS 1.2+ ciphers, HSTS, `Vary: Host, Cookie` |
+| **Docker Compose Config Rendering** | ✅ PASS | `docker compose -f docker-compose.traefik.yml config` renders cleanly |
+| **Port Exposure Security** | ✅ PASS | Ports 80 & 443 exposed only; MariaDB (3306), Redis (6379), Frappe (8000) strictly internal |
+| **Container Privilege Hardening** | ✅ PASS | `security_opt: no-new-privileges:true` active |
+| **ACME Staging Resolver** | ✅ PASS | Configured to `https://acme-staging-v02.api.letsencrypt.org/directory` with separate `acme-staging.json` storage |
+| **ACME DNS-01 Resolvers** | ✅ PASS | Public recursive resolvers configured (`1.1.1.1`, `8.8.8.8`) |
+| **Dual-Upstream Path Priorities** | ✅ PASS | Priority 100 for API/assets (`frontend:8080`), Priority 50 for UI (`owner-dashboard:3100`) |
+
+### Missing Prerequisites Checklist (Required from Project Owner)
+The following external inputs must be provided by the project owner before live external deployment can proceed:
+
+1. **Owner-Controlled Staging Domain**:
+   - Provide an active domain name (e.g., `staging.departmentstore.in` or custom domain).
+2. **Authoritative DNS Delegation & Access**:
+   - Access to configure DNS A/CNAME records pointing `@`, `admin`, and `*` to the staging server IP.
+3. **DNS-01 Provider Scoped API Token**:
+   - A dedicated API token (e.g. Cloudflare API Token scoped to `Zone:DNS:Edit` for the zone) to allow Traefik to automate DNS-01 ACME challenges for wildcard certificates.
+4. **Public Staging Linux VM / Server**:
+   - A virtual machine with public IPv4 address, running Docker 24+, with ports 80 & 443 open in cloud firewall / security groups.
+5. **Project Owner Deployment Authorization**:
+   - Explicit written authorization to bind public DNS and execute live Let's Encrypt certificate issuance.

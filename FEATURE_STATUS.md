@@ -79,6 +79,7 @@ Evidence pointers: docs/testing/, docs/artifacts/. Date of last verification: 20
 | Two-Tenant Isolation Verification (Phase 4A) | ✅ | Automated test suite `test_tenant_isolation.py` (4/4 PASS) demonstrating Shop A / Shop B separation, cross-tenant denial, and zero fallback defaults |
 | Production Ingress & Wildcard TLS Automation (Phase 4B) | ✅ | Traefik v3 deployment templates (`deployment/ingress/`), Let's Encrypt DNS-01 challenge, ADR-0010 accepted, dual-upstream routing (`owner-dashboard` vs `frontend`), HSTS, Vary: Host/Cookie, 26 integration checks PASS |
 | Hostname Verification & Tenant Activation Lifecycle (Phase 4B) | ✅ | Explicit separation of site provisioning (`PROVISIONED`), hostname verification (`VERIFIED`), and commercial activation (`ACTIVE`); server-side guards in `provisioning.py` & `tenant.py`, 78 Frappe tests PASS |
+| Staging Deployment & Real-World Acceptance (Phase 4C) | 🟡 BLOCKED (Prerequisites) | Preflight validated (13 checks PASS); exact prerequisites checklist documented in `STAGING_ACCEPTANCE_RUNBOOK.md`; external cloud deployment stopped pending owner domain & credentials |
 | Shared Mobile Application & Auth Flow | ⬜ | Roadmap Phase 5 (transparent roadmap disclosures published) |
 | Production deployment checklist | ✅ | docs/release/PRODUCTION_DEPLOYMENT_CHECKLIST.md |
 | e-invoicing / e-waybill | ⬜ disabled pending legal determination | settings UI verified |

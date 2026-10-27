@@ -15,15 +15,9 @@ services:
       - no-new-privileges:true
     ports:
       # Public HTTP (Port 80) — Redirects to HTTPS
-      - target: 80
-        published: 80
-        protocol: tcp
-        mode: host
+      - "80:80"
       # Public HTTPS (Port 443) — TLS Termination
-      - target: 443
-        published: 443
-        protocol: tcp
-        mode: host
+      - "443:443"
     environment:
       # Base Domain & ACME Email
       - BASE_DOMAIN=${BASE_DOMAIN:-departmentstore.in}

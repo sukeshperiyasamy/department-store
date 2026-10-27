@@ -131,7 +131,15 @@ Last updated: 2026-10-27 (fresh-stack validation pass). Full defect register: `d
   - Reference Caddyfile: `caddy/Caddyfile.example` for cross-proxy architecture evaluation.
 - **Strict Hostname Verification & Activation Separation**: Implemented `verify_tenant_hostname` and `activate_tenant` in `provisioning.py`; updated `resolve_tenant_by_host` in `tenant.py` to enforce that a site must be `PROVISIONED`, its hostname must be `VERIFIED`, and its status must be `ACTIVE` before any tenant traffic routes. Suspended and archived tenants are rejected immediately with zero database deletion.
 - **Runbooks & Recovery Guides**: Created `docs/operations/INGRESS_AND_WILDCARD_TLS_GUIDE.md`, `docs/operations/STAGING_ACCEPTANCE_RUNBOOK.md`, and `docs/operations/INGRESS_ROLLBACK_AND_MONITORING.md`.
-- **Automated Verification**: Integration test `tests/integration/ingress_routing_check.mjs` (26/26 PASS), 170 vitest tests PASS, 78 Frappe tests PASS, Next.js build PASS.
+### Multi-Tenant SaaS Platform Phase 4C (Staging Deployment & Real-World Acceptance Testing) — STATUS: BLOCKED (Prerequisites)
+- **Preflight & Compose Audit**: Automated preflight test `tests/integration/staging_preflight_check.mjs` (13/13 PASS) verified clean compose rendering, restricted port exposure (only 80 & 443; MariaDB 3306, Redis 6379, Frappe 8000 closed publicly), container privilege hardening, and separate ACME staging directory configuration.
+- **Missing Prerequisites Documented**: External cloud deployment and live DNS-01 certificate requests held back pending project owner inputs:
+  1. Owner-controlled staging domain (e.g. `staging.departmentstore.in`).
+  2. Authoritative DNS delegation & CNAME records.
+  3. Scoped DNS provider API token (e.g. Cloudflare `Zone:DNS:Edit`).
+  4. Public staging Linux VM with ingress firewall.
+  5. Explicit project owner deployment authorization.
+- **Runbook Updated**: Documented execution records and verification criteria in `docs/operations/STAGING_ACCEPTANCE_RUNBOOK.md`.
 
 ## Open issues
 - ISSUE-03 (HTML in error messages) and ISSUE-04 (bench quirks) above.
@@ -140,7 +148,7 @@ Last updated: 2026-10-27 (fresh-stack validation pass). Full defect register: `d
 
 ### SaaS Evolution Next Modules
 1. **Shared Mobile Application Foundation (Phase 5)**: React Native / Flutter or Tauri mobile companion with QR-code counter pairing and tenant switcher.
-2. **Staging Domain Pilot Validation**: Execute `docs/operations/STAGING_ACCEPTANCE_RUNBOOK.md` on owner-controlled staging domain.
+2. **Staging Domain Live Deployment**: Execute `docs/operations/STAGING_ACCEPTANCE_RUNBOOK.md` once owner supplies staging domain and DNS credentials.
 
 ### Core Store Operations
 3. **Accountant GST sign-off** → real GSTIN/HSN data; then evaluate e-invoicing/e-waybill.
