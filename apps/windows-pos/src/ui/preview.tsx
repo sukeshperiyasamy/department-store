@@ -86,6 +86,9 @@ function makePreviewServices(): PosServices {
         error: null,
       };
     },
+    openShift: async () => `preview-shift-${Date.now()}`,
+    closeShift: async () => undefined,
+    getCurrentShift: async () => null,
   };
 }
 

@@ -91,6 +91,15 @@ export function initialPosState(): PosState {
   };
 }
 
+export interface ShiftRecord {
+  shift_id: string;
+  device_id: string;
+  cashier: string;
+  opened_at: number;
+  opening_float_minor: number;
+  status: string;
+}
+
 export interface PosServices {
   searchCatalog(query: string): Promise<CatalogItem[]>;
   itemByBarcode(barcode: string): Promise<CatalogItem | null>;
@@ -113,6 +122,9 @@ export interface PosServices {
   retryTransaction(transactionId: string): Promise<void>;
   printReceipt(data: ReceiptData, duplicate: boolean): Promise<boolean>;
   resetCart(): Cart;
+  openShift(openingFloatMinor: number): Promise<string>;
+  closeShift(shiftId: string, countedMinor: number, expectedMinor: number): Promise<void>;
+  getCurrentShift(): Promise<ShiftRecord | null>;
 }
 
 export const PosContext = createContext<{

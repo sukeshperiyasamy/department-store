@@ -4,6 +4,7 @@ import { BillingScreen } from "./BillingScreen";
 import { PaymentScreen } from "./PaymentScreen";
 import { SyncBadge, SyncScreen } from "./SyncScreen";
 import { ReturnsScreen } from "./ReturnsScreen";
+import { ShiftModal } from "./ShiftModal";
 import { AppServices } from "./services";
 import { FrappeClient } from "../transport/frappe";
 import { TransportError } from "../domain/sync-engine";
@@ -29,6 +30,7 @@ export function App() {
 export function Shell({ state }: { state: PosState }) {
   const { dispatch, services } = usePos();
   const [payOpen, setPayOpen] = useState(false);
+  const [shiftOpen, setShiftOpen] = useState(false);
 
   useEffect(() => {
     if (!services) return;
@@ -62,12 +64,16 @@ export function Shell({ state }: { state: PosState }) {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         if (payOpen) setPayOpen(false);
+        else if (shiftOpen) setShiftOpen(false);
         else dispatch({ type: "SHOW_SCREEN", screen: "billing" });
+      } else if (e.key === "F3") {
+        e.preventDefault();
+        setShiftOpen((prev) => !prev);
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [dispatch, payOpen]);
+  }, [dispatch, payOpen, shiftOpen]);
 
   if (!services) return null;
 
@@ -75,6 +81,9 @@ export function Shell({ state }: { state: PosState }) {
     <div className="shell">
       <header className="topbar">
         <span className="brand">Department Store POS</span>
+        <button type="button" onClick={() => setShiftOpen(true)}>
+          Shift (F3)
+        </button>
         <button type="button" onClick={() => dispatch({ type: "SHOW_SCREEN", screen: "returns" })}>
           Returns (F7)
         </button>
@@ -91,6 +100,7 @@ export function Shell({ state }: { state: PosState }) {
       )}
       {state.screen === "sync" && <SyncScreen />}
       {payOpen && <PaymentScreen onClose={() => setPayOpen(false)} />}
+      {shiftOpen && <ShiftModal onClose={() => setShiftOpen(false)} />}
     </div>
   );
 }

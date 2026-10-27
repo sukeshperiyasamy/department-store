@@ -403,6 +403,29 @@ export class PosStore {
       [nowMs, countedMinor, expectedMinor, countedMinor - expectedMinor, shiftId],
     );
   }
+
+  async getCurrentShift(deviceId: string): Promise<{
+    shift_id: string;
+    device_id: string;
+    cashier: string;
+    opened_at: number;
+    opening_float_minor: number;
+    status: string;
+  } | null> {
+    const rows = await this.db.select<{
+      shift_id: string;
+      device_id: string;
+      cashier: string;
+      opened_at: number;
+      opening_float_minor: number;
+      status: string;
+    }>(
+      `SELECT shift_id, device_id, cashier, opened_at, opening_float_minor, status
+       FROM shifts WHERE device_id = ? AND status = 'OPEN' ORDER BY opened_at DESC LIMIT 1`,
+      [deviceId],
+    );
+    return rows[0] ?? null;
+  }
 }
 
 function rowToRecord(row: Record<string, unknown>): SyncRecord {

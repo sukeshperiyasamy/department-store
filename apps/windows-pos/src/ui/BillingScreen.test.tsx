@@ -45,6 +45,9 @@ function fakeServices(overrides: Partial<PosServices> = {}): PosServices {
     })),
     submitReturn: vi.fn(async () => ({ transactionId: "t1", committed: true,
                                        creditNoteName: "SINV-0002", error: null })),
+    openShift: vi.fn(async () => "shift-1"),
+    closeShift: vi.fn(async () => undefined),
+    getCurrentShift: vi.fn(async () => null),
     ...overrides,
   };
 }

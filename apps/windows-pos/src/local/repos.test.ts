@@ -263,8 +263,17 @@ describe("PosStore persistence (real SQLite)", () => {
   it("tracks shift open/close with variance", async () => {
     const store = new PosStore(newDriver());
     await store.migrate();
+    expect(await store.getCurrentShift("counter-1")).toBeNull();
     const shiftId = await store.openShift("counter-1", "cashier@x", 50000, Date.now());
+    const current = await store.getCurrentShift("counter-1");
+    expect(current).toMatchObject({
+      shift_id: shiftId,
+      cashier: "cashier@x",
+      opening_float_minor: 50000,
+      status: "OPEN",
+    });
     await store.closeShift(shiftId, 48700, 50000, Date.now());
+    expect(await store.getCurrentShift("counter-1")).toBeNull();
     const rows = await store["db"].select<{ variance_minor: number; status: string }>(
       `SELECT variance_minor, status FROM shifts WHERE shift_id = '${shiftId}'`,
     );

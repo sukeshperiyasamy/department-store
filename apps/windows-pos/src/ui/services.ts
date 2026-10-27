@@ -16,7 +16,7 @@ import { SyncEngine, type SyncRepo } from "../domain/sync-engine";
 import type { PosStore } from "../local/repos";
 import type { FrappeClient } from "../transport/frappe";
 import type { Printer } from "../printing/printer";
-import type { PosServices } from "../ui/store";
+import type { PosServices, ShiftRecord } from "../ui/store";
 
 function uuid(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
@@ -199,5 +199,17 @@ export class AppServices implements PosServices {
 
   clearedCart(cart: Cart): Cart {
     return clearCart(cart);
+  }
+
+  async openShift(openingFloatMinor: number): Promise<string> {
+    return this.store.openShift(this.opts.deviceId, this.opts.cashier, openingFloatMinor, Date.now());
+  }
+
+  async closeShift(shiftId: string, countedMinor: number, expectedMinor: number): Promise<void> {
+    return this.store.closeShift(shiftId, countedMinor, expectedMinor, Date.now());
+  }
+
+  async getCurrentShift(): Promise<ShiftRecord | null> {
+    return this.store.getCurrentShift(this.opts.deviceId);
   }
 }
