@@ -74,7 +74,10 @@ Evidence pointers: docs/testing/, docs/artifacts/. Date of last verification: 20
 | Platform Admin Review Console (Phase 3) | ✅ | Protected console at `/admin/onboarding`, KPI cards, queue filtering tabs, full search, inspect drawer, approve/reject/retry/suspend modals, browser-verified, 26 vitest tests PASS |
 | Dedicated Platform Admin Permission Boundary (ADR-0009) | ✅ | Frappe `Platform Admin` role; server-side denial of tenant System Managers, store managers, cashiers, and guests |
 | Immutable Provisioning Audit Trail (Phase 3) | ✅ | `tabSaaS Provisioning Audit Log` capturing all state transitions, actors, reasons, and sanitized metadata |
-| Automated Production Reverse-Proxy / TLS Generation | 🚧 | Domain mapping schema & verification ready; Traefik/Caddy wildcard TLS automation deferred to Phase 4 |
+| Local Subdomain Routing & Middleware Boundary (Phase 4A) | ✅ | Next.js `middleware.ts` resolving `*.localhost` to tenant workspaces, trusted proxy enforcement (`TRUSTED_PROXY_IPS`), `/admin` lockout on tenant subdomains, cache isolation (`Vary: Host, Cookie`), 33 vitest tests PASS |
+| Provisioning Worker Scheduling & Stale Recovery (Phase 4A) | ✅ | Heartbeat timeout recovery (>600s), background enqueue into Frappe `long` queue, scheduler hook in `hooks.py`, CLI argument password redaction |
+| Two-Tenant Isolation Verification (Phase 4A) | ✅ | Automated test suite `test_tenant_isolation.py` (4/4 PASS) demonstrating Shop A / Shop B separation, cross-tenant denial, and zero fallback defaults |
+| Automated Production Reverse-Proxy / TLS Generation | 🚧 | Domain mapping schema & verification ready; Traefik/Caddy wildcard TLS automation deferred to Phase 4B |
 | Shared Mobile Application & Auth Flow | ⬜ | Roadmap Phase 5 (transparent roadmap disclosures published) |
 | Production deployment checklist | ✅ | docs/release/PRODUCTION_DEPLOYMENT_CHECKLIST.md |
 | e-invoicing / e-waybill | ⬜ disabled pending legal determination | settings UI verified |

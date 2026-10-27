@@ -140,7 +140,77 @@ def resolve_tenant_by_host(hostname: str = None) -> dict:
             },
         }
 
-    # In single-site / local deployment mode:
+    # 1. Query tabSaaS Tenant Registry if it exists
+    if frappe.db.table_exists("SaaS Tenant Registry"):
+        candidate_slug = None
+        for suffix in [".localhost", ".local", ".departmentstore.in"]:
+            if norm.endswith(suffix):
+                candidate_slug = norm[:-len(suffix)]
+                break
+
+        where_clause = "primary_hostname = %s"
+        params = [norm]
+        if candidate_slug:
+            where_clause += " OR slug = %s"
+            params.append(candidate_slug)
+
+        records = frappe.db.sql(
+            f"""SELECT tenant_id, slug, name, legal_name, frappe_site_name,
+                      primary_hostname, hostname_status, lifecycle_status, plan_id,
+                      state_code, currency, created_at, updated_at
+               FROM `tabSaaS Tenant Registry`
+               WHERE {where_clause}""",
+            tuple(params),
+            as_dict=True,
+        )
+
+        if records:
+            t = records[0]
+            status = t["lifecycle_status"]
+            if status == "SUSPENDED":
+                return {
+                    "api_version": API_VERSION,
+                    "matched": False,
+                    "tenant": None,
+                    "error": {
+                        "code": "TENANT_SUSPENDED",
+                        "message": f"Tenant '{t['slug']}' is currently suspended",
+                    },
+                }
+            if status in {"PROVISIONING", "PROVISIONED", "VERIFICATION_PENDING"}:
+                return {
+                    "api_version": API_VERSION,
+                    "matched": False,
+                    "tenant": None,
+                    "error": {
+                        "code": "TENANT_INACTIVE",
+                        "message": f"Tenant '{t['slug']}' is awaiting activation verification",
+                    },
+                }
+            if status == "ACTIVE":
+                return {
+                    "api_version": API_VERSION,
+                    "matched": True,
+                    "tenant": {
+                        "tenant_id": t["tenant_id"],
+                        "slug": t["slug"],
+                        "name": t["name"],
+                        "legal_name": t["legal_name"],
+                        "lifecycle_status": t["lifecycle_status"],
+                        "primary_hostname": t["primary_hostname"],
+                        "hostname_status": t["hostname_status"],
+                        "custom_domains": [],
+                        "frappe_site_name": t["frappe_site_name"],
+                        "plan_id": t["plan_id"],
+                        "state_code": t.get("state_code", "33"),
+                        "currency": t.get("currency", "INR"),
+                        "created_at": str(t["created_at"]),
+                        "updated_at": str(t["updated_at"]),
+                    },
+                    "error": None,
+                }
+
+    # 2. In single-site / local deployment mode:
     # Match if incoming host matches local site, frontend, or localhost test domain
     current_site = frappe.local.site
     if norm in {current_site, f"{current_site}.local", "frontend", "localhost", "127.0.0.1"}:

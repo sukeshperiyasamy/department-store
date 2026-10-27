@@ -11,11 +11,13 @@ Implements the multi-tenant SaaS control plane:
 import json
 import os
 import re
+import shutil
 import subprocess
 import frappe
 from frappe import _
 
 API_VERSION = 1
+HEARTBEAT_TIMEOUT_SECONDS = 600
 
 ALLOWED_STATE_TRANSITIONS = {
     "PENDING_REVIEW": ["APPROVED", "REJECTED"],
@@ -56,7 +58,9 @@ def sanitize_error(message: str) -> str:
     if not message:
         return "Unknown error during provisioning execution"
     msg = str(message)
-    # Redact common password / secret patterns
+    # Redact CLI argument password patterns (--admin-password <pass>, --db-root-password <pass>, etc)
+    msg = re.sub(r"(--(?:admin-password|db-root-password|db-password|password)[=\s]+)([^\s'\";]+)", r"\1[REDACTED]", msg, flags=re.IGNORECASE)
+    # Redact key-value / json / assignment password patterns
     msg = re.sub(r"(password|pwd|admin_password|db_password|secret|token|key)[:=]\s*['\"]?[^\s'\";]+['\"]?", r"\1=[REDACTED]", msg, flags=re.IGNORECASE)
     # Redact raw filesystem paths if too verbose
     msg = re.sub(r"/home/frappe/[^/]+/[^/]+", "[INTERNAL_PATH]", msg)
@@ -416,6 +420,18 @@ def approve_onboarding_request(request_id: str, notes: str = None) -> dict:
     )
     frappe.db.commit()
 
+    # Enqueue background provisioning worker if not running in unit test mode
+    if not getattr(frappe.flags, "in_test", False):
+        try:
+            frappe.enqueue(
+                "departmental_store.api.provisioning.process_provisioning_job",
+                queue="long",
+                timeout=600,
+                job_id=job_id,
+            )
+        except Exception as e:
+            frappe.log_error(f"Failed to enqueue provisioning job: {sanitize_error(str(e))}")
+
     return {
         "api_version": API_VERSION,
         "request_id": request_id,
@@ -527,6 +543,18 @@ def retry_provisioning_job(request_id: str, reason: str = None) -> dict:
     )
     frappe.db.commit()
 
+    # Enqueue background retry execution into Frappe long queue if not running in unit test mode
+    if not getattr(frappe.flags, "in_test", False):
+        try:
+            frappe.enqueue(
+                "departmental_store.api.provisioning.process_provisioning_job",
+                queue="long",
+                timeout=600,
+                job_id=new_job_id,
+            )
+        except Exception as e:
+            frappe.log_error(f"Failed to enqueue retry provisioning job: {sanitize_error(str(e))}")
+
     return {
         "api_version": API_VERSION,
         "request_id": request_id,
@@ -594,45 +622,53 @@ def set_tenant_status(tenant_id: str, new_status: str, reason: str) -> dict:
 # -------------------------------------------------------------------------
 
 def claim_next_provisioning_job(worker_id: str = "worker-default") -> dict:
-    """Atomically claim the next eligible PENDING provisioning job."""
+    """Atomically claim the next eligible PENDING job or stale RUNNING job (>600s inactive)."""
     ensure_provisioning_tables()
     # Atomic claim using row-level locking
     frappe.db.sql("BEGIN")
-    pending = frappe.db.sql(
-        """SELECT job_id, request_id, tenant_slug, site_name, retry_count
+    eligible = frappe.db.sql(
+        """SELECT job_id, request_id, tenant_slug, site_name, retry_count, status, worker_id, heartbeat_at
            FROM `tabSaaS Provisioning Job`
            WHERE status = 'PENDING'
+              OR (status = 'RUNNING' AND heartbeat_at < NOW() - INTERVAL 600 SECOND)
            ORDER BY creation ASC
            LIMIT 1
            FOR UPDATE""",
         as_dict=True,
     )
-    if not pending:
+    if not eligible:
         frappe.db.sql("COMMIT")
         return None
 
-    job = pending[0]
+    job = eligible[0]
+    is_stale_reclaim = (job["status"] == "RUNNING")
+    new_retry_count = (job.get("retry_count") or 0) + (1 if is_stale_reclaim else 0)
+
     frappe.db.sql(
         """UPDATE `tabSaaS Provisioning Job`
            SET status = 'RUNNING', current_step = 'INIT', worker_id = %s,
-               started_at = NOW(), heartbeat_at = NOW()
+               retry_count = %s, started_at = NOW(), heartbeat_at = NOW()
            WHERE job_id = %s""",
-        (worker_id, job["job_id"]),
+        (worker_id, new_retry_count, job["job_id"]),
     )
     frappe.db.sql(
         """UPDATE `tabSaaS Onboarding Request`
-           SET status = 'PROVISIONING', modified = NOW()
+           SET status = 'PROVISIONING', retry_count = %s, modified = NOW()
            WHERE name = %s""",
-        (job["request_id"],),
+        (new_retry_count, job["request_id"]),
     )
     frappe.db.commit()
 
     record_audit_log(
         request_id=job["request_id"],
-        from_status="APPROVED",
+        from_status="PROVISIONING" if is_stale_reclaim else "APPROVED",
         to_status="PROVISIONING",
         actor=worker_id,
-        reason="Claimed by provisioning worker",
+        reason=(
+            f"Reclaimed orphaned job (previous worker '{job.get('worker_id')}' inactive > {HEARTBEAT_TIMEOUT_SECONDS}s)"
+            if is_stale_reclaim
+            else "Claimed by provisioning worker"
+        ),
         job_id=job["job_id"],
     )
     return job
@@ -690,27 +726,31 @@ def execute_provisioning_pipeline(job_id: str, test_mode: bool = False) -> dict:
         update_step("CREATE_SITE")
         if not test_mode:
             # Production: execute bench new-site with strict argument list (no shell injection)
+            bench_bin = shutil.which("bench") or "/home/frappe/frappe-bench/env/bin/bench" or "bench"
+            db_root_pwd = os.environ.get("MARIADB_ROOT_PASSWORD") or os.environ.get("MYSQL_ROOT_PASSWORD") or "admin"
+            admin_pwd = frappe.generate_hash(length=24)
             cmd = [
-                "bench", "new-site",
+                bench_bin, "new-site",
                 "--mariadb-user-host-login-scope=%",
-                "--admin-password", "admin",
+                "--admin-password", admin_pwd,
                 "--db-root-username", "root",
-                "--db-root-password", "admin",
+                "--db-root-password", db_root_pwd,
                 "--install-app", "erpnext",
                 "--no-mariadb-socket",
                 site_name,
             ]
             res = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
             if res.returncode != 0:
-                raise RuntimeError(f"bench new-site failed (exit {res.returncode}): {res.stderr}")
+                raise RuntimeError(f"bench new-site failed (exit {res.returncode}): {sanitize_error(res.stderr)}")
 
         # STEP 3: INSTALL_APPS
         update_step("INSTALL_APPS")
         if not test_mode:
-            cmd = ["bench", "--site", site_name, "install-app", "departmental_store"]
+            bench_bin = shutil.which("bench") or "/home/frappe/frappe-bench/env/bin/bench" or "bench"
+            cmd = [bench_bin, "--site", site_name, "install-app", "departmental_store"]
             res = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
             if res.returncode != 0:
-                raise RuntimeError(f"install-app departmental_store failed: {res.stderr}")
+                raise RuntimeError(f"install-app departmental_store failed: {sanitize_error(res.stderr)}")
 
         # STEP 4: INITIALIZE_STORE
         update_step("INITIALIZE_STORE")
@@ -800,6 +840,30 @@ def execute_provisioning_pipeline(job_id: str, test_mode: bool = False) -> dict:
             "status": "PROVISIONING_FAILED",
             "error": err_sanitized,
         }
+
+
+def process_provisioning_job(job_id: str = None, worker_id: str = "worker-default", test_mode: bool = False) -> dict:
+    """Worker entry point to process a specific or next available job in the queue."""
+    if not job_id:
+        job = claim_next_provisioning_job(worker_id=worker_id)
+        if not job:
+            return {"processed": False, "reason": "No pending or orphaned jobs found"}
+        job_id = job["job_id"]
+
+    return execute_provisioning_pipeline(job_id, test_mode=test_mode)
+
+
+def process_stale_jobs_and_queue():
+    """Periodic maintenance hook (scheduler) to claim and advance queued jobs."""
+    try:
+        ensure_provisioning_tables()
+        while True:
+            job = claim_next_provisioning_job(worker_id="scheduler-worker")
+            if not job:
+                break
+            execute_provisioning_pipeline(job["job_id"])
+    except Exception as exc:
+        frappe.log_error(f"Error in process_stale_jobs_and_queue: {sanitize_error(str(exc))}")
 
 
 def check_tenant_site_health(site_name: str, test_mode: bool = False) -> dict:

@@ -16,6 +16,7 @@ from departmental_store.api.provisioning import (
     retry_provisioning_job,
     sanitize_error,
     set_tenant_status,
+    process_provisioning_job,
 )
 
 
@@ -238,3 +239,47 @@ class TestProvisioningApi(unittest.TestCase):
         self.assertNotIn("secret_password_123", redacted)
         self.assertNotIn("bearer_xyz987", redacted)
         self.assertIn("[REDACTED]", redacted)
+
+    def test_provisioning_worker_stale_job_reclamation(self):
+        app_res = approve_onboarding_request(self.request_id, "Testing stale job reclaim")
+        job_id = app_res["job_id"]
+
+        # Simulate a worker that crashed (heartbeat older than 600 seconds)
+        frappe.db.sql(
+            """UPDATE `tabSaaS Provisioning Job`
+               SET status = 'RUNNING', worker_id = 'crashed-worker-99',
+                   heartbeat_at = NOW() - INTERVAL 900 SECOND
+               WHERE job_id = %s""",
+            (job_id,),
+        )
+        frappe.db.commit()
+
+        # Recovery worker claims next eligible job
+        claimed = claim_next_provisioning_job(worker_id="recovery-worker-1")
+        self.assertIsNotNone(claimed)
+        self.assertEqual(claimed["job_id"], job_id)
+
+        # Verify job was reclaimed with incremented retry count
+        job_row = frappe.db.sql(
+            "SELECT status, worker_id, retry_count FROM `tabSaaS Provisioning Job` WHERE job_id = %s",
+            (job_id,),
+            as_dict=True,
+        )[0]
+        self.assertEqual(job_row["status"], "RUNNING")
+        self.assertEqual(job_row["worker_id"], "recovery-worker-1")
+        self.assertEqual(job_row["retry_count"], 1)
+
+    def test_cli_argument_password_redaction(self):
+        raw_cli_err = "Error: bench new-site failed with command: bench new-site --admin-password secret_pass_xyz --db-root-password mariadb_root_pwd_99 shop.localhost"
+        redacted = sanitize_error(raw_cli_err)
+        self.assertNotIn("secret_pass_xyz", redacted)
+        self.assertNotIn("mariadb_root_pwd_99", redacted)
+        self.assertIn("[REDACTED]", redacted)
+
+    def test_process_provisioning_job_entry_point(self):
+        app_res = approve_onboarding_request(self.request_id, "Testing worker entry point")
+        job_id = app_res["job_id"]
+
+        res = process_provisioning_job(job_id=job_id, test_mode=True)
+        self.assertTrue(res["success"])
+        self.assertEqual(res["status"], "VERIFICATION_PENDING")

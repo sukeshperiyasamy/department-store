@@ -7,6 +7,14 @@ app_license = "mit"
 
 after_install = "departmental_store.install.after_install"
 
+scheduler_events = {
+    "cron": {
+        "*/5 * * * *": [
+            "departmental_store.api.provisioning.process_stale_jobs_and_queue"
+        ]
+    }
+}
+
 # API version advertised to clients; POS validates it before submitting.
 API_VERSION = 1
 

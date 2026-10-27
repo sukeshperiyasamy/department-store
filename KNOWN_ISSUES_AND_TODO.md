@@ -116,7 +116,13 @@ Last updated: 2026-10-27 (fresh-stack validation pass). Full defect register: `d
 - **Dedicated Platform Admin Boundary (ADR-0009)**: Strict role separation; tenant `System Manager` role denied access to global control plane.
 - **Durable Provisioning Queue & Worker**: `tabSaaS Provisioning Job` with atomic row claiming (`SELECT ... FOR UPDATE`), step tracking (`INIT` -> `COMPLETED`), timeout recovery, bounded retries (max 3), and sanitized error logs (zero secret/credential leakage).
 - **Platform Admin Console**: Full administrative UI at `apps/owner-dashboard/src/app/(admin)/admin/onboarding` with 4 KPI cards, filter tabs, instant search, inspect drawer with job steps and audit history, and approval/rejection/retry/suspension modals.
-- **Verification Evidence**: 159 vitest tests pass, 64 backend Frappe tests pass, 4/4 reliability tests pass, 24/24 API suite tests pass, 11/11 multi-counter tests pass, browser subagent verified rendering and operations.
+### Multi-Tenant SaaS Platform Phase 4A (Provisioning Security, Tenant Isolation & Subdomain Routing) — IMPLEMENTED 2026-10-27
+- **Privileged Provisioning Security**: Subprocess credential redaction (`--admin-password`, `--db-root-password`) via `sanitize_error()`, dynamic `MARIADB_ROOT_PASSWORD` env lookup, per-tenant 24-character cryptographic password generation (`frappe.generate_hash(24)`), atomic stale-job reclamation (`heartbeat_at < NOW() - INTERVAL 600 SECOND`) with bounded retries, and scheduled worker entry point (`process_stale_jobs_and_queue`).
+- **Server-Side Authorization & Canonical Role Reconciled**: Investigated and reconciled canonical role naming (`Cashier` in `install.py`). Verified that store-level `System Manager` and `Cashier` cannot execute platform operations.
+- **Local Subdomain Routing Middleware**: Next.js `middleware.ts` enforces RFC 1123 normalization, rejects untrusted client forwarding headers, extracts tenant slug, locks out `/admin` access on tenant subdomains (`403 Forbidden`), and sets cache isolation (`Vary: Host, Cookie`) plus security headers.
+- **Tenant Context Server Guard**: `apps/owner-dashboard/src/lib/tenant-context.ts` provides server-side `getTenantContext()` and `verifyTenantAccess()`.
+- **Two-Tenant Isolation Test Suite**: End-to-end suite `erpnext-app/departmental_store/departmental_store/tests/test_tenant_isolation.py` proves physical database separation, independent sessions, zero default fallbacks, and cross-tenant rejection between Shop A and Shop B.
+- **Verification Evidence**: 166 vitest tests pass (80 POS + 53 shared-types + 33 dashboard), 73 Frappe tests pass (40 core + 12 provisioning + 17 tenant + 4 isolation), 24 API suite pass, 11 multi-counter pass, 4 reliability pass.
 
 ## Open issues
 - ISSUE-03 (HTML in error messages) and ISSUE-04 (bench quirks) above.
@@ -124,9 +130,8 @@ Last updated: 2026-10-27 (fresh-stack validation pass). Full defect register: `d
 ## TODO — prioritized
 
 ### SaaS Evolution Next Modules
-1. **Production Reverse Proxy / TLS Automation & Wildcard DNS** (Phase 4): Traefik / Caddy ingress automation with automated Let's Encrypt certificates, tenant slug routing, and Next.js middleware subdomain extraction.
-2. **Customer Portal Multi-Tenant Routing**: Subdomain tenancy resolution middleware in owner-dashboard linking logged-in shop owners directly to their provisioned tenant site.
-3. **Shared Mobile Application Foundation** (Phase 5): React Native / Flutter or Tauri mobile companion with QR-code counter pairing and tenant switcher.
+1. **Production Reverse Proxy / TLS Automation & Wildcard DNS (Phase 4B)**: Traefik / Caddy ingress automation with automated Let's Encrypt certificates, tenant slug routing, and production DNS mapping.
+2. **Shared Mobile Application Foundation (Phase 5)**: React Native / Flutter or Tauri mobile companion with QR-code counter pairing and tenant switcher.
 
 ### Core Store Operations
 4. **Accountant GST sign-off** → real GSTIN/HSN data; then evaluate e-invoicing/e-waybill.

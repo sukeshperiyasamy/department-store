@@ -32,6 +32,12 @@ A departmental-store ERP for a single store with 2–3 Windows POS counters:
     - Asynchronous worker queue (`tabSaaS Provisioning Job`) with atomic row claiming, step tracking, bounded retries, and sanitized error logs.
     - Protected Platform Admin Console at `apps/owner-dashboard/src/app/(admin)/admin/onboarding` with KPIs, tabs, search, inspect drawer, approve/reject/retry/suspend modals.
     - Immutable audit trail in `tabSaaS Provisioning Audit Log` with zero secret leakage. ADR-0009 accepted.
+  * Phase 4A: Provisioning Security, Tenant Isolation, and Local Subdomain Routing:
+    - Privileged provisioning security: subprocess argument password redaction, dynamic credential retrieval, atomic stale-job reclamation (>600s heartbeat timeout), worker entry point with bounded retries.
+    - Server-side role audit: reconciled canonical role `Cashier` (in `install.py`), verified `Platform Admin` exclusive access.
+    - Local subdomain routing: Next.js `middleware.ts` with RFC 1123 normalization, trusted proxy IP enforcement (`TRUSTED_PROXY_IPS`), `/admin` lockout on tenant subdomains, and cache isolation (`Vary: Host, Cookie`).
+    - 5 authenticated session models formally defined and verified.
+    - Two-tenant isolation test suite (`test_tenant_isolation.py`) proving Shop A and Shop B database, auth, and record separation with zero fallback defaults.
 - Pushed to `https://github.com/sukeshperiyasamy/department-store` (origin/main). **Never force-push.**
 
 ## 3. Module map (where things live)
@@ -224,22 +230,20 @@ certified accountant GST sign-off on legal GSTIN; speech-engine accuracy.
 **NOT STARTED**: e-invoicing/e-waybill (disabled pending legal turnover determination);
 GSTR tooling validation; k6 load tests; mobile-native app (responsive PWA covers v1).
 
-## Verified commands (run at Phase 2 completion)
+## Verified commands (run at Phase 4A completion)
 
-- `bench --site frontend run-tests --app departmental_store` → 55 PASS (28 sales/returns, 4 catalog, 8 settings, 15 tenancy & leads)
+- `bench --site frontend run-tests --app departmental_store` → 73 PASS (40 core store tests + 12 provisioning + 17 tenant registry + 4 tenant isolation)
 - `npm run typecheck` → 0 errors across all workspaces (@departmental/owner-dashboard, @departmental/windows-pos, @departmental/shared-types)
-- `npm run test` → 145 tests PASS (80 POS + 47 shared-types + 18 owner-dashboard)
-- `npm run build --prefix apps/owner-dashboard` → PASS (All 11 routes built and static/dynamic optimized)
+- `npm run test` → 166 tests PASS (80 POS + 53 shared-types + 33 owner-dashboard)
+- `npm run build --prefix apps/owner-dashboard` → PASS (All 13 routes and Middleware (51.2 kB) built and optimized)
 - `node tests/integration/api_suite.mjs` → 24/24 PASS (including STOCK-01, IDEMP-01, SEC-01..04)
-- Browser subagent verification: `/`, `/features`, `/pricing`, `/request-demo`, `/register`, `/privacy`, `/terms` verified in browser
-- Live MariaDB tables: `tabSaaS Demo Request` and `tabSaaS Onboarding Request` verified with indexes
+- `npx tsx tests/integration/multi_counter.ts` → 11/11 PASS (multi-counter sales, offline sync, idempotency)
+- `node tests/integration/reliability_check.mjs` → 4/4 PASS (RELY-01 through RELY-04 across container restarts)
 - Git: clean tree; `git ls-files` contains NO credential files
 
 ## Exact next steps (priority)
 
-1. Next module: Tenant provisioning lifecycle worker / background queue (converting approved onboarding requests into isolated Frappe tenant sites).
+1. Next module: Phase 4B — Production Ingress, Wildcard TLS & Reverse-Proxy Automation (Traefik/Caddy integration, automated Let's Encrypt certificates, production DNS mapping).
 2. Store owner / accountant GST review with the store's legal 15-digit GSTIN using `docs/release/PRODUCTION_DEPLOYMENT_CHECKLIST.md`.
 3. Physical printer + camera validation when hardware arrives at the store.
 4. Build Tamil voice parser + transcript fixtures; gate on `voice_assistant_enabled`.
-
-

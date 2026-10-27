@@ -180,3 +180,67 @@ class TestTenantApi(FrappeTestCase):
         # Submitting the same slug again is rejected
         with self.assertRaises(frappe.ValidationError):
             tenant.submit_onboarding_request(onboard_data)
+
+    def test_resolve_tenant_by_host_registry(self):
+        # 1. Active tenant in registry
+        slug_a = f"shopa-{frappe.generate_hash(length=6).lower()}"
+        tid_a = f"TID-{frappe.generate_hash(length=8).upper()}"
+        frappe.db.sql(
+            """INSERT INTO `tabSaaS Tenant Registry`
+               (`tenant_id`, `slug`, `name`, `legal_name`, `frappe_site_name`, `primary_hostname`,
+                `hostname_status`, `lifecycle_status`, `plan_id`)
+               VALUES (%s, %s, 'Shop A Enterprise', 'Shop A LLP', %s, %s, 'VERIFIED', 'ACTIVE', 'growth')""",
+            (tid_a, slug_a, f"{slug_a}.local", f"{slug_a}.localhost"),
+        )
+
+        # 2. Suspended tenant in registry
+        slug_s = f"shopsus-{frappe.generate_hash(length=6).lower()}"
+        tid_s = f"TID-{frappe.generate_hash(length=8).upper()}"
+        frappe.db.sql(
+            """INSERT INTO `tabSaaS Tenant Registry`
+               (`tenant_id`, `slug`, `name`, `legal_name`, `frappe_site_name`, `primary_hostname`,
+                `hostname_status`, `lifecycle_status`, `plan_id`)
+               VALUES (%s, %s, 'Suspended Shop', 'Suspended Shop LLP', %s, %s, 'VERIFIED', 'SUSPENDED', 'starter')""",
+            (tid_s, slug_s, f"{slug_s}.local", f"{slug_s}.localhost"),
+        )
+        frappe.db.commit()
+
+        try:
+            # Active resolution by primary host
+            res_a = tenant.resolve_tenant_by_host(f"{slug_a}.localhost")
+            self.assertTrue(res_a.get("matched"))
+            self.assertEqual(res_a["tenant"]["slug"], slug_a)
+            self.assertEqual(res_a["tenant"]["lifecycle_status"], "ACTIVE")
+
+            # Active resolution by subdomain pattern
+            res_sub = tenant.resolve_tenant_by_host(f"{slug_a}.localhost")
+            self.assertTrue(res_sub.get("matched"))
+            self.assertEqual(res_sub["tenant"]["tenant_id"], tid_a)
+
+            # Suspended resolution returns error TENANT_SUSPENDED
+            res_sus = tenant.resolve_tenant_by_host(f"{slug_s}.localhost")
+            self.assertFalse(res_sus.get("matched"))
+            self.assertEqual(res_sus["error"]["code"], "TENANT_SUSPENDED")
+
+            # Unknown host returns TENANT_NOT_FOUND
+            res_unk = tenant.resolve_tenant_by_host("completely-unknown-shop.localhost")
+            self.assertFalse(res_unk.get("matched"))
+            self.assertEqual(res_unk["error"]["code"], "TENANT_NOT_FOUND")
+        finally:
+            frappe.db.sql("DELETE FROM `tabSaaS Tenant Registry` WHERE tenant_id IN (%s, %s)", (tid_a, tid_s))
+            frappe.db.commit()
+
+    def test_cross_tenant_info_access_denial(self):
+        # Ordinary user cannot query arbitrary tenant_id
+        frappe.set_user("Administrator")
+        cashier_email = "isolated_cashier@example.com"
+        if not frappe.db.exists("User", cashier_email):
+            u = frappe.new_doc("User")
+            u.email = cashier_email
+            u.first_name = "Cashier"
+            u.append("roles", {"role": "Cashier"})
+            u.insert(ignore_permissions=True)
+
+        frappe.set_user(cashier_email)
+        with self.assertRaises(frappe.PermissionError):
+            tenant.get_tenant_info(tenant_id="00000000-0000-4000-8000-999999999999")
