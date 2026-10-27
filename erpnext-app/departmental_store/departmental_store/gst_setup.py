@@ -23,7 +23,6 @@ def setup(run: bool = False) -> str:
             "india_compliance" not in frappe.get_installed_apps():
         return "india_compliance is NOT installed on this site"
 
-    demo.run(True) if False else None  # noqa: ensure demo fixtures exist via import below
     from departmental_store.seeds import demo
     demo(run=True)
 

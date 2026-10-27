@@ -14,7 +14,6 @@ Count check (no creation): ...regional_catalog.seed --kwargs "{'dry_run': True}"
 """
 
 import frappe
-from frappe.utils import random_string
 
 DEMO_GROUP = "Demo Regional (TN)"
 ITEM_CODE_PREFIX = "TN-DEMO-"
@@ -215,7 +214,6 @@ def _ean13_instore(seq: int) -> str:
 
 def seed(dry_run: bool = False) -> str:
     """Idempotent regional catalog seed. Existing item codes are never touched."""
-    import json
 
     from departmental_store.seeds import demo
 

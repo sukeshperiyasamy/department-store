@@ -10,14 +10,12 @@ Implements the multi-dimensional operations layer:
 """
 
 import hashlib
-import hmac
-import json
-import os
 import secrets
 import uuid
+
 import frappe
 from frappe import _
-from frappe.utils import now_datetime, add_days, add_to_date, get_datetime
+from frappe.utils import add_to_date, get_datetime, now_datetime
 
 API_VERSION = 1
 TOKEN_EXPIRY_HOURS = 24
@@ -543,7 +541,7 @@ def get_onboarding_journey(request_id: str, email: str = None, token: str = None
 @frappe.whitelist()
 def get_platform_operations_overview() -> dict:
     """Platform operations summary metrics across all onboarding and tenant lifecycle dimensions."""
-    actor = require_platform_admin()
+    require_platform_admin()
     ensure_saas_onboarding_operations_tables()
 
     total_regs = frappe.db.count("SaaS Onboarding Request") if frappe.db.table_exists("SaaS Onboarding Request") else 0

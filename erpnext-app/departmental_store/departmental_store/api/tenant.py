@@ -6,7 +6,7 @@ and mobile clients.
 """
 
 import re
-import urllib.parse
+
 import frappe
 from frappe import _
 

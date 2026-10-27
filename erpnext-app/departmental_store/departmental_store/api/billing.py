@@ -15,9 +15,10 @@ import hmac
 import json
 import os
 import uuid
+
 import frappe
 from frappe import _
-from frappe.utils import now_datetime, add_days
+from frappe.utils import add_days, now_datetime
 
 API_VERSION = 1
 DEFAULT_WEBHOOK_SECRET = "whsec_sandbox_departmentstore_2026"
@@ -673,7 +674,7 @@ def create_checkout_session(tenant_id: str, plan_id: str, billing_interval: str 
     """Create a verified checkout session for plan upgrade or activation."""
     caller = require_tenant_billing_access(tenant_id)
     ensure_saas_billing_tables()
-    gw_status = validate_payment_gateway_mode()
+    validate_payment_gateway_mode()
 
     plan_row = frappe.db.sql(
         """SELECT name as plan_id, version, plan_name, price_paise, currency, max_counters
@@ -1314,7 +1315,7 @@ def handle_subscription_cancelled(data: dict, event_id: str):
 @frappe.whitelist()
 def admin_list_subscriptions(status: str = None, query: str = None, limit: int = 50) -> dict:
     """List SaaS customer accounts, subscriptions, and reconciliation state for platform admins."""
-    actor = require_platform_admin()
+    require_platform_admin()
     ensure_saas_billing_tables()
 
     conds = []
@@ -1452,7 +1453,7 @@ def admin_manual_billing_correction(subscription_id: str,
 @frappe.whitelist()
 def admin_list_webhook_events(limit: int = 50) -> dict:
     """List recent webhook events for payment reconciliation and debugging."""
-    actor = require_platform_admin()
+    require_platform_admin()
     ensure_saas_billing_tables()
 
     rows = frappe.db.sql(

@@ -11,12 +11,11 @@ Validates:
 - Platform operations dashboard metrics.
 """
 
-import hashlib
-import json
 import uuid
+
 import frappe
 from frappe.tests.utils import FrappeTestCase
-from frappe.utils import now_datetime, add_to_date
+from frappe.utils import add_to_date, now_datetime
 
 from departmental_store.api import onboarding, provisioning
 

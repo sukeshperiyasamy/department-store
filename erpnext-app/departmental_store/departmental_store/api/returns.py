@@ -11,35 +11,27 @@ Guarantees mirror submit_pos_sale (api/sales.py):
   Store Manager role (configurable window).
 """
 
-import json
-from typing import Any
 
 import frappe
-from frappe.utils import add_to_date, cint, flt, get_datetime, now_datetime, today
+from frappe.utils import add_to_date, cint, flt, get_datetime, now_datetime
 
-from departmental_store.hooks import (
-    API_VERSION,
-    ERROR_DEVICE_DISABLED,
-    ERROR_DEVICE_UNKNOWN,
-    ERROR_INVOICE_POSTING_FAILED,
-    ERROR_VALIDATION_FAILED,
-    SUPPORTED_API_VERSIONS,
-)
-from departmental_store.departmental_store.doctype.pos_sale_sync_log.pos_sale_sync_log import (
-    PROCESSING_STALE_MINUTES,
-)
 from departmental_store.api.sales import (
+    TRANSACTION_ID_RE,
     SaleReviewError,
     _claim_transaction,
     _classify_error,
     _existing_result,
-    _resolve_log,
-    _require,
-    _review_result,
-    _validate_device,
     _parse_payload,
     _posting_date,
-    TRANSACTION_ID_RE,
+    _require,
+    _resolve_log,
+    _review_result,
+    _validate_device,
+)
+from departmental_store.hooks import (
+    API_VERSION,
+    ERROR_INVOICE_POSTING_FAILED,
+    SUPPORTED_API_VERSIONS,
 )
 
 # Cashiers may return bills from the last N days without a manager.

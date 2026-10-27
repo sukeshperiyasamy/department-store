@@ -1,6 +1,5 @@
 """Tiny helpers for the apps.txt regression guard (no-arg bench execute targets)."""
 
-import json
 
 import frappe
 

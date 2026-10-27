@@ -1,9 +1,11 @@
 import os
-import time
 import shutil
+import time
 import uuid
+
 import frappe
 from frappe import _
+
 
 def _get_request_header(header_name):
     req = getattr(frappe.local, "request", None)
@@ -29,14 +31,14 @@ def get_liveness():
 def get_system_health(token=None):
     """
     Comprehensive operational telemetry and dependency readiness check.
-    
+
     Protected: Requires Platform Admin / System Manager role or matching HEALTH_CHECK_TOKEN.
     """
     correlation_id = _get_request_header("X-Correlation-ID") or str(uuid.uuid4())
-    
+
     # 1. Authorization Gate
     is_authorized = False
-    
+
     # Check user session role
     if frappe.session.user and frappe.session.user != "Guest":
         roles = frappe.get_roles(frappe.session.user)
@@ -54,7 +56,7 @@ def get_system_health(token=None):
         is_authorized = True
 
     if not is_authorized:
-        frappe.throw(_("Unauthorized: Telemetry requires Platform Admin role or valid health token"), 
+        frappe.throw(_("Unauthorized: Telemetry requires Platform Admin role or valid health token"),
                      frappe.PermissionError)
 
     health_status = "ok"
@@ -86,7 +88,7 @@ def get_system_health(token=None):
         cache_client = frappe.cache()
         cache_ok = bool(cache_client.ping())
         cache_latency_ms = round((time.perf_counter() - cache_start) * 1000, 2)
-        
+
         from frappe.utils.background_jobs import get_redis_conn
         queue_client = get_redis_conn()
         queue_start = time.perf_counter()

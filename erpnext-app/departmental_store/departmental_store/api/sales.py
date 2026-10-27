@@ -30,6 +30,9 @@ from frappe.utils import (
     today,
 )
 
+from departmental_store.departmental_store.doctype.pos_sale_sync_log.pos_sale_sync_log import (
+    PROCESSING_STALE_MINUTES,
+)
 from departmental_store.hooks import (
     API_VERSION,
     ERROR_BATCH_INVALID,
@@ -43,9 +46,6 @@ from departmental_store.hooks import (
     ERROR_REQUIRES_POS_PROFILE,
     ERROR_VALIDATION_FAILED,
     SUPPORTED_API_VERSIONS,
-)
-from departmental_store.departmental_store.doctype.pos_sale_sync_log.pos_sale_sync_log import (
-    PROCESSING_STALE_MINUTES,
 )
 
 MAX_LINES = 500
@@ -143,8 +143,8 @@ def _parse_payload(payload: str | dict | None) -> dict:
     if isinstance(payload, str):
         try:
             data = json.loads(payload)
-        except json.JSONDecodeError:
-            raise frappe.ValidationError(_("payload is not valid JSON"))
+        except json.JSONDecodeError as err:
+            raise frappe.ValidationError(_("payload is not valid JSON")) from err
     elif isinstance(payload, dict):
         data = payload
     else:
@@ -368,8 +368,7 @@ def _post_sale(data: dict, device: dict | None) -> dict:
 
     if manager_override and override_notes:
         invoice.add_comment("Comment",
-                            "POS rate override used by %s. Lines: %s"
-                            % (frappe.session.user, ", ".join(override_notes)))
+                            f"POS rate override used by {frappe.session.user}. Lines: {', '.join(override_notes)}")
         frappe.logger("departmental_store").info({
             "event": "pos_rate_override", "invoice": invoice.name,
             "user": frappe.session.user, "lines": override_notes,

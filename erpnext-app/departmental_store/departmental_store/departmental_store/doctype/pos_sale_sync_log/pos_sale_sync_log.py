@@ -1,6 +1,4 @@
-from datetime import timedelta
 
-import frappe
 from frappe.model.document import Document
 from frappe.utils import add_to_date, get_datetime, now_datetime
 

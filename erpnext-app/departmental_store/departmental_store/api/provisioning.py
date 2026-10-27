@@ -13,6 +13,7 @@ import os
 import re
 import shutil
 import subprocess
+
 import frappe
 from frappe import _
 
@@ -638,7 +639,7 @@ def verify_tenant_hostname(tenant_id: str, hostname: str = None) -> dict:
         frappe.throw(_("Tenant not found in registry"), frappe.DoesNotExistError)
 
     target_host = hostname.strip().lower() if hostname else tenant[0]["primary_hostname"]
-    from departmental_store.api.tenant import validate_hostname, is_reserved_hostname
+    from departmental_store.api.tenant import is_reserved_hostname, validate_hostname
 
     valid, norm, reason = validate_hostname(target_host)
     if not valid:
@@ -701,7 +702,7 @@ def activate_tenant(tenant_id: str, reason: str = None) -> dict:
         frappe.throw(_(f"Cannot activate tenant in lifecycle status '{t['lifecycle_status']}'. Must be 'VERIFICATION_PENDING'."), frappe.ValidationError)
 
     if t.get("hostname_status") != "VERIFIED":
-        frappe.throw(_("Cannot activate tenant without verified hostname. Hostname status is currently '%s'." % t.get("hostname_status")), frappe.ValidationError)
+        frappe.throw(_(f"Cannot activate tenant without verified hostname. Hostname status is currently '{t.get('hostname_status')}'."), frappe.ValidationError)
 
     # Verify subscription status if SaaS Subscription table exists
     if frappe.db.table_exists("SaaS Subscription"):

@@ -218,7 +218,21 @@ Last updated: 2026-10-27 (fresh-stack validation pass). Full defect register: `d
 - **Comprehensive Documentation**:
   - `docs/launch/STAGING_DEPLOYMENT_AND_RECOVERY_RUNBOOK.md` — Host OS, sizing, secret management, Docker Compose validation, migration rollback, health endpoints.
   - `docs/launch/OFFSITE_BACKUP_AND_DR_SPECIFICATION.md` — Multi-cloud S3 architecture, SigV4, AES256, RTO/RPO metrics, and retention lifecycle.
-  - `docs/launch/LAUNCH_BLOCKER_REGISTER.md` — Updated BLK-OPS-01 (Off-Site Cloud Backup) and BLK-OPS-02 (Staging Deployment Verification) to LOCAL READY / BLOCKED on external cloud prerequisites.
+### GitHub Actions Lint Failure, Backup Safety & Release Revalidation — RESOLVED & HARDENED 2026-10-27 (Phase 15A)
+- **CI Lint Quality Gate Remediation**: Resolved 54 errors in `erpnext-app/departmental_store` under `ruff check departmental_store`. Cleaned unused imports (`F401`), unused local variables (`F841`), format specifiers (`UP031`), ambiguous variable names (`E741`), and dead code (`F821`). Command exits 0 with zero warnings. All 120 Frappe backend tests (`test_sales_api`, `test_provisioning_api`, `test_health_api`, `test_tenant_isolation`, `test_returns_api`, `test_catalog_api`, `test_settings_api`, `test_onboarding_api`, `test_billing_api`, `test_tenant_api`) PASS.
+- **Off-Site S3 Replication Safety Hardening**:
+  * Implemented strict validation for S3 bucket names, regions, prefix paths, and object keys in `deployment/backup/replicate_offsite.py`.
+  * Path traversal attempts (`..`, `\`, null bytes) and invalid bucket names fail closed immediately.
+  * Enforced mandatory HTTPS for all remote S3 endpoints (plain HTTP blocked unless `localhost` / `127.0.0.1`).
+  * Distinguishes `UPLOAD_ACKNOWLEDGED` (HTTP 200 on PUT) from `REMOTE_VERIFIED` (post-upload HEAD probe verifies existence, byte count, and SHA-256 metadata).
+  * Implemented safe retention pruning `evaluate_retention_pruning()`: guarantees newest backup set and minimum retained backups (at least 1) can NEVER be pruned.
+  * Verified: 19 unit tests in `tests/integration/test_replicate_offsite.py` PASS; CLI dry-run and SHA-256 integrity verification verified against 12 local backup archives.
+- **Enhanced Disaster Recovery Scratch Site Drill**:
+  * Added site collision guard preventing accidental overwrite of existing sites or databases.
+  * Validates application ping availability (`frappe.ping` -> `PONG`).
+  * Validates financial ledger integrity (`gl_ledger_balanced: True` with 0.0 imbalance).
+  * Validates tenant isolation in sync logs and 1:1 record parity.
+  * Rehearsal completed in 127.6s with **70.59s RTO benchmark**; scratch site dropped cleanly.
 
 5. **Live Payment Gateway Activation (Blocker for Live Billing)**: Production Razorpay Merchant account KYC, production webhook secret configuration.
 6. **Legal & Tax Sign-Off (Blocker for Live Billing)**: Commercial approval of pricing tiers (Starter ₹1,499 / Growth ₹2,999 / Enterprise ₹4,999); legal counsel review of Terms of Service & refund policy; CA sign-off on SAC 998315 and operator GSTIN.

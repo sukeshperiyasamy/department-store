@@ -73,8 +73,8 @@ def update_store_profile(profile: dict | str | None = None) -> dict:
     if isinstance(profile, str):
         try:
             profile = json.loads(profile)
-        except Exception:
-            raise frappe.ValidationError("Invalid profile JSON payload")
+        except Exception as err:
+            raise frappe.ValidationError("Invalid profile JSON payload") from err
 
     if not isinstance(profile, dict):
         raise frappe.ValidationError("Profile payload must be an object")

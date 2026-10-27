@@ -10,9 +10,11 @@ Validates:
 """
 
 import unittest
+
 import frappe
-from departmental_store.api.tenant import resolve_tenant_by_host, get_tenant_info
+
 from departmental_store.api.provisioning import ensure_provisioning_tables
+from departmental_store.api.tenant import get_tenant_info, resolve_tenant_by_host
 
 
 class TestTenantIsolation(unittest.TestCase):

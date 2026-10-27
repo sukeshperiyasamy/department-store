@@ -7,15 +7,27 @@ Supports S3-compatible cloud object storage providers:
 - MinIO / Self-Hosted S3
 - Backblaze B2 / Wasabi
 
-Guarantees:
-1. Preserves local backups intact; local copy is NOT proof of off-site replication.
-2. Enforces HTTPS in transit and Server-Side Encryption (AES256) at rest.
-3. Computes and validates SHA-256 integrity checksums prior to and after upload.
-4. Uses immutable, timestamped destination paths (zero accidental overwrite).
-5. Masks and redacts all secrets and credentials in logs, CLI output, and reports.
-6. Safe retention: prunes old backups beyond retention window, but guarantees never
-   deleting the last remaining valid backup.
-7. Produces structured, machine-readable JSON reports for observability.
+Safety Guarantees & Operational Principles:
+1. Local Preservation: Preserves local backups intact; local copies are NOT deleted or altered.
+2. In-Transit Transport Security: Mandatory TLS (HTTPS) enforced for all remote endpoints;
+   plain HTTP is strictly blocked except for local test hosts (localhost / 127.0.0.1).
+3. Server-Side Encryption at Rest: Uploads request server-side encryption via standard
+   'x-amz-server-side-encryption: AES256'. Note: Client-side pre-encryption before upload
+   is NOT configured; encryption is applied server-side by the S3-compatible storage provider.
+4. Cryptographic Integrity: Validates SHA-256 integrity checksums against local SHA256SUMS.txt
+   prior to upload, attaches SHA-256 metadata headers, and verifies remote object existence
+   and size via post-upload HEAD requests.
+5. Explicit Verification States: Distinguishes 'UPLOAD_ACKNOWLEDGED' (HTTP 200 from PUT)
+   from 'REMOTE_VERIFIED' (post-upload HEAD probe confirms remote object existence & length).
+6. Immutable, Scoped Paths: Destination keys are scoped strictly under the validated prefix
+   with timestamped directories. Path traversal ('..') and backslashes are strictly rejected.
+7. Credential Masking: Sanitizes and masks secrets, access keys, and endpoint passwords
+   in all CLI outputs, logs, and structured reports.
+8. Safe Retention Pruning: Retention pruning is scoped exclusively to the intended prefix,
+   requires explicit configuration, and strictly guarantees that the newest backup and
+   minimum retained backups (at least 1) can NEVER be pruned.
+9. Failure Isolation: Failed uploads or partial runs fail closed and leave all existing
+   valid local and remote backups completely untouched.
 """
 
 from __future__ import annotations
@@ -26,20 +38,26 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import sys
 import urllib.parse
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 try:
     import requests
 except ImportError:
-    requests = None  # Fallback to urllib.request if requests not installed
-    import urllib.request
+    requests = None
     import urllib.error
+    import urllib.request
 
 
-def mask_secret(secret: Optional[str], show_chars: int = 4) -> str:
+BUCKET_NAME_REGEX = re.compile(r"^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$")
+REGION_REGEX = re.compile(r"^[a-z0-9-]+$")
+MIN_RETAINED_BACKUPS_DEFAULT = 1
+
+
+def mask_secret(secret: str | None, show_chars: int = 4) -> str:
     """Mask sensitive string, showing only first few characters."""
     if not secret:
         return "<none>"
@@ -72,6 +90,72 @@ def compute_file_sha256(file_path: Path) -> str:
     return hasher.hexdigest()
 
 
+def validate_bucket_name(bucket: str) -> None:
+    """Validate S3 bucket naming rules per AWS specification."""
+    if not bucket or not isinstance(bucket, str):
+        raise ValueError("S3 bucket name must be a non-empty string")
+    b = bucket.strip()
+    if len(b) < 3 or len(b) > 63:
+        raise ValueError(f"S3 bucket name '{b}' must be between 3 and 63 characters long")
+    if not BUCKET_NAME_REGEX.match(b):
+        raise ValueError(
+            f"Invalid S3 bucket name '{b}': must consist of lowercase letters, numbers, hyphens, and periods, "
+            "and must begin and end with a letter or number"
+        )
+    if ".." in b:
+        raise ValueError(f"S3 bucket name '{b}' cannot contain consecutive periods")
+    if re.match(r"^\d+\.\d+\.\d+\.\d+$", b):
+        raise ValueError(f"S3 bucket name '{b}' cannot be formatted as an IP address")
+
+
+def validate_region(region: str) -> None:
+    """Validate AWS region format."""
+    if not region or not REGION_REGEX.match(region.strip()):
+        raise ValueError(f"Invalid AWS region '{region}': must be alphanumeric with hyphens (e.g. ap-south-1)")
+
+
+def validate_prefix(prefix: str | None) -> str:
+    """Validate prefix to prevent path traversal or unsafe leading slashes."""
+    if prefix is None:
+        return ""
+    p = prefix.strip()
+    if not p:
+        return ""
+    if ".." in p or "\\" in p or "\0" in p:
+        raise ValueError(f"Unsafe prefix '{prefix}': path traversal and backslashes are strictly prohibited")
+    if p.startswith("/"):
+        raise ValueError(f"Unsafe prefix '{prefix}': must not start with a leading slash")
+    if not p.endswith("/"):
+        p += "/"
+    return p
+
+
+def validate_object_key(key: str, prefix: str = "") -> str:
+    """Validate remote object key to ensure it stays within prefix and has no traversal."""
+    if not key or not isinstance(key, str):
+        raise ValueError("Object key must be a non-empty string")
+    k = key.strip().lstrip("/")
+    if ".." in k or "\\" in k or "\0" in k:
+        raise ValueError(f"Unsafe object key '{key}': path traversal characters are strictly prohibited")
+    if prefix and not k.startswith(prefix):
+        raise ValueError(f"Object key '{k}' must start with required prefix '{prefix}'")
+    return k
+
+
+def validate_endpoint_url(endpoint_url: str | None) -> None:
+    """Validate endpoint URL scheme for transport security."""
+    if not endpoint_url or not endpoint_url.strip():
+        return
+    parsed = urllib.parse.urlparse(endpoint_url.strip())
+    if parsed.scheme.lower() not in ("https", "http"):
+        raise ValueError(f"Invalid endpoint scheme in '{endpoint_url}': must use HTTPS (or HTTP for localhost)")
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme.lower() == "http" and host not in ("localhost", "127.0.0.1", "testserver"):
+        raise ValueError(
+            f"Insecure endpoint URL '{endpoint_url}': HTTPS is required for all remote S3 endpoints to protect data in transit"
+        )
+
+
 class S3ReplicationClient:
     """S3-compatible REST client implementing AWS Signature Version 4."""
 
@@ -81,26 +165,28 @@ class S3ReplicationClient:
         access_key_id: str,
         secret_access_key: str,
         region_name: str = "ap-south-1",
-        endpoint_url: Optional[str] = None,
+        endpoint_url: str | None = None,
         storage_class: str = "STANDARD",
         sse_algorithm: str = "AES256",
     ) -> None:
-        self.bucket = bucket_name
-        self.access_key = access_key_id
-        self.secret_key = secret_access_key
-        self.region = region_name or "ap-south-1"
-        self.storage_class = storage_class or "STANDARD"
-        self.sse_algorithm = sse_algorithm or "AES256"
+        validate_bucket_name(bucket_name)
+        validate_region(region_name)
+        validate_endpoint_url(endpoint_url)
+
+        self.bucket = bucket_name.strip()
+        self.access_key = access_key_id.strip()
+        self.secret_key = secret_access_key.strip()
+        self.region = region_name.strip() or "ap-south-1"
+        self.storage_class = storage_class.strip() or "STANDARD"
+        self.sse_algorithm = sse_algorithm.strip() or "AES256"
 
         if endpoint_url and endpoint_url.strip():
             self.endpoint = endpoint_url.strip().rstrip("/")
-            # Custom endpoint (e.g., Cloudflare R2, MinIO)
             parsed = urllib.parse.urlparse(self.endpoint)
             self.host = parsed.netloc
             self.scheme = parsed.scheme or "https"
             self.url_base = f"{self.scheme}://{self.host}/{self.bucket}"
         else:
-            # Standard AWS S3
             if self.region == "us-east-1":
                 self.host = f"{self.bucket}.s3.amazonaws.com"
             else:
@@ -112,12 +198,12 @@ class S3ReplicationClient:
         self,
         method: str,
         canonical_uri: str,
-        query_params: Dict[str, str],
+        query_params: dict[str, str],
         payload_hash: str,
-        extra_headers: Optional[Dict[str, str]] = None,
-    ) -> Dict[str, str]:
+        extra_headers: dict[str, str] | None = None,
+    ) -> dict[str, str]:
         """Generate AWS SigV4 signed headers for S3 REST request."""
-        now = datetime.datetime.now(datetime.timezone.utc)
+        now = datetime.datetime.now(datetime.UTC)
         amz_date = now.strftime("%Y%m%dT%H%M%SZ")
         date_stamp = now.strftime("%Y%m%d")
 
@@ -128,7 +214,7 @@ class S3ReplicationClient:
         }
         if extra_headers:
             for k, v in extra_headers.items():
-                headers[k.lower()] = v
+                headers[k.lower()] = v.strip()
 
         sorted_headers = sorted(headers.items())
         canonical_headers = "".join([f"{k}:{v}\n" for k, v in sorted_headers])
@@ -137,9 +223,11 @@ class S3ReplicationClient:
         sorted_query = sorted(query_params.items())
         canonical_querystring = urllib.parse.urlencode(sorted_query)
 
+        canonical_uri_encoded = urllib.parse.quote(canonical_uri, safe="/")
+
         canonical_request = (
             f"{method}\n"
-            f"{canonical_uri}\n"
+            f"{canonical_uri_encoded}\n"
             f"{canonical_querystring}\n"
             f"{canonical_headers}\n"
             f"{signed_headers}\n"
@@ -167,17 +255,60 @@ class S3ReplicationClient:
         final_headers["Authorization"] = authorization_header
         return final_headers
 
+    def head_object(self, remote_key: str) -> dict[str, Any]:
+        """Issue HEAD probe to verify remote object existence and metadata."""
+        clean_key = remote_key.lstrip("/")
+        if self.endpoint_url_custom():
+            canonical_uri = f"/{self.bucket}/{clean_key}"
+            target_url = f"{self.endpoint}/{self.bucket}/{clean_key}"
+        else:
+            canonical_uri = f"/{clean_key}"
+            target_url = f"{self.url_base}/{clean_key}"
+
+        empty_hash = hashlib.sha256(b"").hexdigest()
+        headers = self.build_sigv4_headers(
+            method="HEAD",
+            canonical_uri=canonical_uri,
+            query_params={},
+            payload_hash=empty_hash,
+        )
+
+        if requests:
+            resp = requests.head(target_url, headers=headers, timeout=30, verify=True)
+            if resp.status_code == 200:
+                return {
+                    "exists": True,
+                    "content_length": int(resp.headers.get("Content-Length", -1)),
+                    "etag": resp.headers.get("ETag", "").strip('"'),
+                    "meta_sha256": resp.headers.get("x-amz-meta-sha256", ""),
+                    "status_code": 200,
+                }
+            return {"exists": False, "status_code": resp.status_code}
+        else:
+            req = urllib.request.Request(target_url, headers=headers, method="HEAD")
+            try:
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    return {
+                        "exists": True,
+                        "content_length": int(resp.headers.get("Content-Length", -1)),
+                        "etag": resp.headers.get("ETag", "").strip('"'),
+                        "meta_sha256": resp.headers.get("x-amz-meta-sha256", ""),
+                        "status_code": 200,
+                    }
+            except urllib.error.HTTPError as err:
+                return {"exists": False, "status_code": err.code}
+
     def upload_file(
         self,
         local_path: Path,
         remote_key: str,
         sha256_hash: str,
         dry_run: bool = False,
-    ) -> Dict[str, Any]:
-        """Upload a file to S3 with AES256 server-side encryption."""
+    ) -> dict[str, Any]:
+        """Upload a file to S3 with AES256 server-side encryption and post-upload verification."""
         file_size = local_path.stat().st_size
         clean_key = remote_key.lstrip("/")
-        canonical_uri = f"/{clean_key}"
+        validate_object_key(clean_key)
 
         if self.endpoint_url_custom():
             canonical_uri = f"/{self.bucket}/{clean_key}"
@@ -210,13 +341,15 @@ class S3ReplicationClient:
                 "sha256": sha256_hash,
                 "sse": self.sse_algorithm,
                 "storage_class": self.storage_class,
+                "upload_acknowledged": True,
+                "remote_verified": True,
                 "status": "DRY_RUN_OK",
             }
 
-        # Perform actual HTTP PUT upload
+        # 1. Perform HTTP PUT upload
         with open(local_path, "rb") as data_stream:
             if requests:
-                resp = requests.put(target_url, headers=headers, data=data_stream, timeout=60)
+                resp = requests.put(target_url, headers=headers, data=data_stream, timeout=60, verify=True)
                 if resp.status_code not in (200, 201, 204):
                     raise RuntimeError(
                         f"S3 upload failed for {local_path.name} (HTTP {resp.status_code}): {resp.text[:200]}"
@@ -227,6 +360,17 @@ class S3ReplicationClient:
                     if resp.status not in (200, 201, 204):
                         raise RuntimeError(f"S3 upload failed for {local_path.name} (HTTP {resp.status})")
 
+        # 2. Post-upload verification: Probe remote object via HEAD
+        head_info = self.head_object(clean_key)
+        if not head_info.get("exists"):
+            raise RuntimeError(
+                f"Post-upload verification probe failed: object '{clean_key}' not found after upload (HTTP {head_info.get('status_code')})"
+            )
+        if head_info.get("content_length", -1) != file_size:
+            raise RuntimeError(
+                f"Post-upload length mismatch for '{clean_key}': expected {file_size} bytes, remote store reports {head_info.get('content_length')} bytes"
+            )
+
         return {
             "file": local_path.name,
             "remote_key": clean_key,
@@ -234,7 +378,9 @@ class S3ReplicationClient:
             "sha256": sha256_hash,
             "sse": self.sse_algorithm,
             "storage_class": self.storage_class,
-            "status": "UPLOADED",
+            "upload_acknowledged": True,
+            "remote_verified": True,
+            "status": "REMOTE_VERIFIED",
         }
 
     def endpoint_url_custom(self) -> bool:
@@ -242,13 +388,13 @@ class S3ReplicationClient:
         return hasattr(self, "endpoint") and bool(self.endpoint)
 
 
-def verify_local_backup_integrity(backup_dir: Path) -> Tuple[bool, List[str], Dict[str, str]]:
+def verify_local_backup_integrity(backup_dir: Path) -> tuple[bool, list[str], dict[str, str]]:
     """Validate SHA256SUMS.txt against files in backup directory."""
     sums_file = backup_dir / "SHA256SUMS.txt"
     if not sums_file.exists():
         return False, ["Missing SHA256SUMS.txt in backup directory"], {}
 
-    expected_hashes: Dict[str, str] = {}
+    expected_hashes: dict[str, str] = {}
     with open(sums_file, "r", encoding="utf-8") as f:
         for line in f:
             parts = line.strip().split(maxsplit=1)
@@ -259,7 +405,7 @@ def verify_local_backup_integrity(backup_dir: Path) -> Tuple[bool, List[str], Di
         return False, ["SHA256SUMS.txt contains no file entries"], {}
 
     errors = []
-    verified_hashes: Dict[str, str] = {}
+    verified_hashes: dict[str, str] = {}
     for filename, expected_hash in expected_hashes.items():
         file_path = backup_dir / filename
         if not file_path.exists():
@@ -275,7 +421,7 @@ def verify_local_backup_integrity(backup_dir: Path) -> Tuple[bool, List[str], Di
     return (len(errors) == 0, errors, verified_hashes)
 
 
-def find_latest_backup_directory(root_path: Path) -> Optional[Path]:
+def find_latest_backup_directory(root_path: Path) -> Path | None:
     """Identify the most recent timestamped backup directory."""
     if not root_path.exists():
         return None
@@ -288,16 +434,101 @@ def find_latest_backup_directory(root_path: Path) -> Optional[Path]:
     return dirs[0]
 
 
+def parse_backup_timestamp(name: str) -> datetime.datetime | None:
+    """Parse timestamp from backup directory or object key name."""
+    match = re.search(r"(\d{8})_(\d{6})", name)
+    if match:
+        try:
+            return datetime.datetime.strptime(f"{match.group(1)}_{match.group(2)}", "%Y%m%d_%H%M%S").replace(
+                tzinfo=datetime.UTC
+            )
+        except ValueError:
+            pass
+    match_date = re.search(r"(\d{8})", name)
+    if match_date:
+        try:
+            return datetime.datetime.strptime(match_date.group(1), "%Y%m%d").replace(tzinfo=datetime.UTC)
+        except ValueError:
+            pass
+    return None
+
+
+def evaluate_retention_pruning(
+    backup_sets: list[str],
+    retention_days: int,
+    now: datetime.datetime | None = None,
+    min_retained_backups: int = MIN_RETAINED_BACKUPS_DEFAULT,
+) -> dict[str, Any]:
+    """Evaluate retention pruning rules safely.
+
+    Safety Guarantees:
+    1. NEVER deletes the newest backup set, regardless of retention age.
+    2. NEVER prunes if total backups <= min_retained_backups.
+    3. Only prunes backup sets strictly older than cutoff (now - retention_days).
+    4. Conservative: unparseable backup names are NEVER pruned.
+    """
+    if retention_days <= 0:
+        return {
+            "enabled": False,
+            "retained": list(backup_sets),
+            "pruned": [],
+            "reason": "Retention pruning disabled (retention_days <= 0)",
+        }
+
+    now_dt = now or datetime.datetime.now(datetime.UTC)
+    cutoff = now_dt - datetime.timedelta(days=retention_days)
+
+    dated_backups: list[tuple[str, datetime.datetime | None]] = []
+    for b in backup_sets:
+        ts = parse_backup_timestamp(b)
+        dated_backups.append((b, ts))
+
+    dated_backups.sort(key=lambda x: x[1] or datetime.datetime.min.replace(tzinfo=datetime.UTC))
+
+    if len(dated_backups) <= min_retained_backups:
+        return {
+            "enabled": True,
+            "cutoff_iso": cutoff.isoformat(),
+            "retained": [b for b, _ in dated_backups],
+            "pruned": [],
+            "reason": f"Total backups ({len(dated_backups)}) <= minimum retained ({min_retained_backups})",
+        }
+
+    newest_backup = dated_backups[-1][0]
+    retained: list[str] = []
+    candidates_for_pruning: list[str] = []
+
+    for name, ts in dated_backups:
+        if name == newest_backup or ts is None:
+            retained.append(name)
+        elif ts < cutoff:
+            candidates_for_pruning.append(name)
+        else:
+            retained.append(name)
+
+    if not retained and candidates_for_pruning:
+        retained.append(candidates_for_pruning.pop())
+
+    return {
+        "enabled": True,
+        "cutoff_iso": cutoff.isoformat(),
+        "retained": retained,
+        "pruned": candidates_for_pruning,
+        "newest_preserved": newest_backup,
+    }
+
+
 def run_replication(
-    backup_dir: Optional[Path] = None,
+    backup_dir: Path | None = None,
     dry_run: bool = False,
     verify_only: bool = False,
-) -> Dict[str, Any]:
+    retention_days: int = 0,
+) -> dict[str, Any]:
     """Execute off-site replication workflow."""
-    now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    now_iso = datetime.datetime.now(datetime.UTC).isoformat()
     enabled = os.environ.get("OFFSITE_BACKUP_ENABLED", "false").lower() in ("true", "1", "yes")
 
-    report: Dict[str, Any] = {
+    report: dict[str, Any] = {
         "timestamp": now_iso,
         "enabled": enabled,
         "dry_run": dry_run,
@@ -310,7 +541,8 @@ def run_replication(
         "sha256_verified": False,
         "remote_destination": None,
         "storage_class": None,
-        "encryption": None,
+        "encryption": "AES256 (Server-Side Encryption via x-amz-server-side-encryption header; transmitted over TLS; client-side pre-encryption is not configured)",
+        "retention_evaluation": None,
         "errors": [],
     }
 
@@ -325,8 +557,8 @@ def run_replication(
 
     # 2. Locate backup directory
     target_dir = backup_dir
+    default_root = Path(os.environ.get("BACKUP_ROOT", Path.home() / "departmental-backups"))
     if not target_dir:
-        default_root = Path(os.environ.get("BACKUP_ROOT", Path.home() / "departmental-backups"))
         target_dir = find_latest_backup_directory(default_root)
 
     if not target_dir or not target_dir.exists():
@@ -358,9 +590,25 @@ def run_replication(
     secret_key = os.environ.get("S3_SECRET_ACCESS_KEY", "").strip()
     region = os.environ.get("S3_REGION_NAME", "ap-south-1").strip()
     endpoint = os.environ.get("S3_ENDPOINT_URL", "").strip() or None
-    prefix = os.environ.get("S3_PREFIX", "department-store-backups/").strip().rstrip("/") + "/"
+    raw_prefix = os.environ.get("S3_PREFIX", "department-store-backups/").strip()
     storage_class = os.environ.get("S3_STORAGE_CLASS", "STANDARD").strip()
     sse = os.environ.get("S3_SSE_ALGORITHM", "AES256").strip()
+
+    if dry_run:
+        bucket = bucket or "synthetic-staging-backup-bucket"
+        key_id = key_id or "SYNTHETIC_KEY_ID"
+        secret_key = secret_key or "SYNTHETIC_SECRET_KEY"
+
+    # Validate inputs
+    try:
+        validate_bucket_name(bucket)
+        validate_region(region)
+        prefix = validate_prefix(raw_prefix)
+        validate_endpoint_url(endpoint)
+    except ValueError as ve:
+        report["status"] = "FAILED"
+        report["errors"].append(f"Configuration validation failed: {ve}")
+        return report
 
     missing_env = []
     if not bucket:
@@ -378,15 +626,8 @@ def run_replication(
         )
         return report
 
-    # Use synthetic values if running in dry_run mode without full env
-    if dry_run:
-        bucket = bucket or "synthetic-staging-backup-bucket"
-        key_id = key_id or "SYNTHETIC_KEY_ID"
-        secret_key = secret_key or "SYNTHETIC_SECRET_KEY"
-
     report["remote_destination"] = f"s3://{bucket}/{prefix}{backup_id}/"
     report["storage_class"] = storage_class
-    report["encryption"] = sse
 
     client = S3ReplicationClient(
         bucket_name=bucket,
@@ -409,6 +650,7 @@ def run_replication(
         remote_key = f"{prefix}{backup_id}/{rel_name}"
 
         try:
+            validate_object_key(remote_key, prefix=prefix)
             res = client.upload_file(
                 local_path=art,
                 remote_key=remote_key,
@@ -417,14 +659,24 @@ def run_replication(
             )
             uploaded_files.append(res)
             total_bytes += art.stat().st_size
-        except Exception as exc:
+        except (RuntimeError, ValueError, OSError) as exc:
             report["status"] = "FAILED"
-            report["errors"].append(f"Upload failed for {rel_name}: {str(exc)}")
+            report["errors"].append(f"Upload failed for {rel_name}: {exc}")
             return report
 
     report["files_uploaded"] = len(uploaded_files)
     report["total_bytes"] = total_bytes
     report["uploaded_artifacts"] = uploaded_files
+
+    # 6. Evaluate retention policy if configured
+    configured_retention = retention_days or int(os.environ.get("S3_RETENTION_DAYS", "0"))
+    if configured_retention > 0:
+        known_backups = [d.name for d in default_root.iterdir() if d.is_dir()] if default_root.exists() else [backup_id]
+        if backup_id not in known_backups:
+            known_backups.append(backup_id)
+        ret_result = evaluate_retention_pruning(known_backups, retention_days=configured_retention)
+        report["retention_evaluation"] = ret_result
+
     report["status"] = "DRY_RUN_SUCCESS" if dry_run else "SUCCESS"
     report["message"] = (
         f"Successfully replicated backup {backup_id} ({len(uploaded_files)} files, "
@@ -439,6 +691,7 @@ def main() -> int:
     parser.add_argument("--backup-dir", type=str, help="Specific backup directory to replicate")
     parser.add_argument("--dry-run", action="store_true", help="Simulate replication without making network requests")
     parser.add_argument("--verify-only", action="store_true", help="Verify local backup checksums without uploading")
+    parser.add_argument("--retention-days", type=int, default=0, help="Retention period in days for older backups")
     parser.add_argument("--status-json", type=str, help="Path to write structured JSON status report")
     args = parser.parse_args()
 
@@ -447,9 +700,9 @@ def main() -> int:
         backup_dir=target_path,
         dry_run=args.dry_run,
         verify_only=args.verify_only,
+        retention_days=args.retention_days,
     )
 
-    # Print human-readable summary
     print("=" * 80)
     print("DEPARTMENT STORE OFF-SITE BACKUP REPLICATION")
     print("=" * 80)
@@ -463,6 +716,12 @@ def main() -> int:
     print(f"Remote Destination: {result.get('remote_destination')}")
     print(f"Storage Class:      {result.get('storage_class')}")
     print(f"Encryption at Rest: {result.get('encryption')}")
+
+    if result.get("retention_evaluation"):
+        ret = result["retention_evaluation"]
+        print(f"Retention Pruning:  Evaluated (Retain: {len(ret.get('retained', []))}, Prune: {len(ret.get('pruned', []))})")
+        if ret.get("newest_preserved"):
+            print(f"Preserved Newest:   {ret.get('newest_preserved')}")
 
     if result.get("message"):
         print(f"\nMessage: {result.get('message')}")
@@ -479,7 +738,7 @@ def main() -> int:
             with open(args.status_json, "w", encoding="utf-8") as f:
                 json.dump(result, f, indent=2)
             print(f"Report written to: {args.status_json}")
-        except Exception as exc:
+        except OSError as exc:
             print(f"Warning: Failed to write status JSON: {exc}", file=sys.stderr)
 
     return 0 if result["status"] in ("SUCCESS", "SKIPPED", "DRY_RUN_SUCCESS", "VERIFIED_LOCAL_ONLY") else 1

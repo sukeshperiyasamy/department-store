@@ -286,7 +286,7 @@ def demo(run: bool = False) -> str:
             code: ean13(f"8901234{i:05d}")
             for i, (code, _n, _r, _s, _b, _h) in enumerate(items)
         }
-        for code, name, rate, stock, batch, hsn in items:
+        for code, name, rate, _stock, batch, hsn in items:
             frappe.get_doc({
                 "doctype": "Item", "item_code": code, "item_name": name,
                 "item_group": "All Item Groups", "stock_uom": "Nos",
@@ -346,7 +346,7 @@ def demo(run: bool = False) -> str:
             [("RICE-BASMATI-5KG", 1)],
             [("MILK-500ML", 4), ("SHAMPOO-340", 1), ("BISCUIT-PARLE", 2)],
         ]
-        for i, lines in enumerate(sales_list):
+        for lines in sales_list:
             payload = {
                 "api_version": 1,
                 "transaction_id": f"demo-seed-{uuid.uuid4().hex[:8]}",

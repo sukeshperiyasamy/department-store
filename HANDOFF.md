@@ -418,3 +418,41 @@ Phase 15 focused on staging deployment reproducibility, disaster-recovery automa
 - `npm --prefix apps/owner-dashboard test` → 68/68 PASS (exit code 0)
 - `npm --prefix apps/mobile test` → 11/11 PASS (exit code 0)
 - `bench --site frontend run-tests --app departmental_store --module departmental_store.tests.test_billing_api` → 21/21 PASS (exit code 0)
+
+---
+
+# PHASE 15A HANDOFF AUDIT — 2026-10-27 (Lint Failure Resolution, Backup Safety & Release Revalidation)
+
+## Root Cause of CI Failure & Resolution
+- **Failed Job:** `Lint Frappe Custom App` (Job ID 122247248737 in Run 40520861239).
+- **Exact Command:** `ruff check departmental_store` in `erpnext-app/departmental_store`.
+- **Root Cause:** 54 linting errors in Frappe custom app Python code including unused imports (`F401`), unused local variables (`F841`), format specifier violations (`UP031`), ambiguous single-letter variable names (`E741`), and undefined names (`F821`).
+- **Remediation:** Resolved all 54 issues without suppressing or weakening any lint configuration.
+- **Verification:** `ruff check departmental_store` exits 0 with zero errors/warnings. All 120 Frappe backend tests pass cleanly.
+
+## Off-Site S3 Replication Safety Hardening
+- **Path Traversal Guards:** Implemented `validate_bucket_name()`, `validate_region()`, `validate_prefix()`, and `validate_object_key()`. Path traversal attempts (`..`, `\`, null bytes) fail closed immediately.
+- **Transport Security:** Mandatory HTTPS for all remote endpoints; plain HTTP rejected unless `localhost` / `127.0.0.1`.
+- **Verification State Distinction:** Distinguishes `UPLOAD_ACKNOWLEDGED` (HTTP 200 on PUT) from `REMOTE_VERIFIED` (post-upload HEAD probe verifies remote object existence, byte count, and SHA-256 metadata).
+- **Safe Retention Pruning:** Implemented `evaluate_retention_pruning()` with strict guarantees: newest backup set and minimum retained backups (at least 1) can NEVER be pruned.
+- **Unit Test Coverage:** 19 automated tests in `tests/integration/test_replicate_offsite.py` PASS (exit code 0).
+
+## Disaster Recovery Scratch Site Rehearsal Hardening
+- **Site Collision Guard:** Probes whether target site exists before creation; refuses to overwrite existing sites or databases.
+- **Deep Parity & Integrity:** Validates application ping availability (`frappe.ping` -> `PONG`), installed apps, table record counts, GL ledger balance (`gl_ledger_balanced: True` with 0.0 imbalance), and tenant isolation.
+- **Empirical RTO Benchmark:** Scratch site created in 41.79s, database restored in 70.59s (RTO benchmark: **70.59s** vs <900s target), total duration 127.6s. Cleanly dropped scratch site with zero side effects on production `frontend`.
+
+## Full Workspace Regression Verification (All Tests Run & Verified)
+- `ruff check departmental_store` → PASS (0 errors, exit code 0)
+- `python -m ruff check deployment/backup tests/integration/test_replicate_offsite.py` → PASS (0 errors, exit code 0)
+- `npm --prefix apps/windows-pos test` → 80/80 PASS (exit code 0)
+- `python -m unittest tests/integration/test_replicate_offsite.py` → 19/19 PASS (exit code 0)
+- `node tests/integration/staging_preflight_check.mjs` → 25 PASS, 6 BLOCKED (exit code 0)
+- `python deployment/backup/test_restore_scratch.py` → 70.59s RTO, balanced GL, 1:1 parity PASS (exit code 0)
+- `python deployment/backup/replicate_offsite.py --dry-run` → 13 files, 5.12 MB verified PASS (exit code 0)
+- `npm --prefix packages/shared-types test` → 80/80 PASS (exit code 0)
+- `npm --prefix apps/owner-dashboard test` → 68/68 PASS (exit code 0)
+- `npm --prefix apps/mobile test` → 11/11 PASS (exit code 0)
+- `bench --site frontend run-tests --app departmental_store` → 120/120 PASS (exit code 0)
+- `python scripts/ci/secret_scan.py` → 380 tracked files, 0 secrets (exit code 0)
+- `git diff --check` → 0 whitespace errors (exit code 0)

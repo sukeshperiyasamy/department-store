@@ -9,7 +9,6 @@ import json
 import uuid
 
 import frappe
-from frappe.tests.utils import FrappeTestCase
 from frappe.utils import flt
 
 from departmental_store.api import returns, sales
@@ -45,7 +44,7 @@ class TestOriginalInvoiceLookup(SubmitPosReturnTestCase):
 
         lookup = returns.get_original_invoice(sale["invoice"]["name"])
         self.assertEqual(lookup["invoice"]["name"], sale["invoice"]["name"])
-        line = next(l for l in lookup["lines"] if l["item_code"] == item)
+        line = next(ln for ln in lookup["lines"] if ln["item_code"] == item)
         self.assertEqual(flt(line["sold_qty"]), 4.0)
         self.assertEqual(flt(line["returnable_qty"]), 4.0)
         self.assertEqual(flt(line["rate"]), 10.0)
@@ -103,7 +102,7 @@ class TestSubmitPosReturn(SubmitPosReturnTestCase):
 
         # Returnable qty reduced
         lookup = returns.get_original_invoice(sale["invoice"]["name"])
-        line = next(l for l in lookup["lines"] if l["item_code"] == item)
+        line = next(ln for ln in lookup["lines"] if ln["item_code"] == item)
         self.assertEqual(flt(line["returnable_qty"]), 3.0)
 
     def test_duplicate_return_submission_is_idempotent(self):

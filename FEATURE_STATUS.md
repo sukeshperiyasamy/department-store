@@ -184,3 +184,12 @@ Evidence pointers: docs/testing/, docs/artifacts/. Date of last verification: 20
 | Automated Staging & Recovery Preflight Check Suite | ✅ | `tests/integration/staging_preflight_check.mjs` (25 PASS, 0 FAIL, 6 BLOCKED external dependencies) validating config, non-exposure of DB/Redis ports, backup freshness, and health |
 | 10 Operational Incident Response Runbooks | ✅ | `docs/operations/STAGING_AND_DR_INCIDENT_RUNBOOKS.md` covering outages, routing, DB, Redis, provisioning, webhooks, backups, leaks, rollback, and DR |
 | Universal Promise Compatibility for POS Sync Engine | ✅ | Replaced `Promise.withResolvers` in `sync-engine.test.ts` with universal Promise constructor; 80/80 POS vitest tests PASS on Node 20+ |
+
+## GitHub Actions Lint Remediation, Backup Safety & Release Revalidation (Phase 15A)
+
+| Feature | Status | Evidence |
+| --- | --- | --- |
+| CI Lint Quality Gate Remediation | ✅ | Resolved 54 errors in `erpnext-app/departmental_store`; `ruff check departmental_store` exits 0 with zero warnings; all 120 Frappe backend tests PASS |
+| Hardened S3 Off-Site Replication Tool | ✅ Script Verified / ⛔ Cloud Bucket Pending | `deployment/backup/replicate_offsite.py` hardened with strict bucket, region, prefix traversal guards, mandatory HTTPS, remote HEAD verification, and safe retention pruning; 19 unit tests in `test_replicate_offsite.py` PASS |
+| Enhanced Non-Destructive DR Scratch Site Drill | ✅ Local Verified | `deployment/backup/test_restore_scratch.py` hardened with site collision guards, financial GL balance validation (`gl_ledger_balanced: True`), application ping availability, and automatic teardown; 70.59s RTO benchmark verified |
+| Full Workspace Regression Suite | ✅ | 80 Windows POS, 80 shared-types, 68 owner-dashboard, 11 mobile, 120 Frappe backend, 19 off-site backup tests PASS (378 automated tests total); 25 preflight checks PASS; 0 secrets detected |
