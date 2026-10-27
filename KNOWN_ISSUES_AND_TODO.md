@@ -146,9 +146,10 @@ Last updated: 2026-10-27 (fresh-stack validation pass). Full defect register: `d
 
 ## TODO — prioritized
 
-### SaaS Evolution Next Modules
-1. **Shared Mobile Application Foundation (Phase 5)**: React Native / Flutter or Tauri mobile companion with QR-code counter pairing and tenant switcher.
+### SaaS Evolution Status & Next Modules
+1. **Shared Multi-Tenant Mobile App (Phase 5) — COMPLETED**: Expo SDK 52 + React Native 0.76 client in `apps/mobile`; multi-tenant discovery, secure storage, tenant-bound session, role-based screens, offline cache; 11 vitest tests PASS, 9 live integration checks PASS.
 2. **Staging Domain Live Deployment**: Execute `docs/operations/STAGING_ACCEPTANCE_RUNBOOK.md` once owner supplies staging domain and DNS credentials.
+3. **Mobile Physical Device Builds**: Generate Android APK via EAS / local Gradle, and configure iOS TestFlight build on macOS CI runner.
 
 ### Core Store Operations
 3. **Accountant GST sign-off** → real GSTIN/HSN data; then evaluate e-invoicing/e-waybill.

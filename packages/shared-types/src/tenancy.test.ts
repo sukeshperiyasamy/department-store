@@ -20,6 +20,9 @@ import {
   TenantRecord,
   TenantRecordSchema,
   TenantSlugSchema,
+  UserProfileResponseSchema,
+  UserTenantSummarySchema,
+  UserTenantsResponseSchema,
   validateHostname,
 } from "./tenancy";
 
@@ -551,6 +554,56 @@ describe("OnboardingRequestSchema", () => {
         reason: "Billing overdue by 60 days",
       });
       expect(setStatus.new_status).toBe("SUSPENDED");
+    });
+  });
+
+  describe("User Tenant Discovery and Profile Contracts", () => {
+    it("validates authorized user tenant summary and response envelope", () => {
+      const parsed = UserTenantsResponseSchema.parse({
+        api_version: 1,
+        tenants: [
+          {
+            tenant_id: "a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1",
+            slug: "shop-a",
+            name: "Shop A Supermarket",
+            role: "TENANT_OWNER",
+            status: "ACTIVE",
+            primary_hostname: "shop-a.departmentstore.in",
+          },
+          {
+            tenant_id: "b2b2b2b2-b2b2-4b2b-8b2b-b2b2b2b2b2b2",
+            slug: "shop-b",
+            name: "Shop B Mini Mart",
+            role: "STORE_MANAGER",
+            status: "SUSPENDED",
+          },
+        ],
+      });
+      expect(parsed.tenants).toHaveLength(2);
+      expect(parsed.tenants[0]?.role).toBe("TENANT_OWNER");
+      expect(parsed.tenants[1]?.status).toBe("SUSPENDED");
+    });
+
+    it("validates authenticated user profile with roles and authorized shops", () => {
+      const profile = UserProfileResponseSchema.parse({
+        api_version: 1,
+        user_id: "employee@example.com",
+        full_name: "Karthik Raja",
+        email: "employee@example.com",
+        roles: ["Store Manager", "Cashier"],
+        tenants: [
+          {
+            tenant_id: "a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1",
+            slug: "shop-a",
+            name: "Shop A",
+            role: "CASHIER",
+            status: "ACTIVE",
+          },
+        ],
+      });
+      expect(profile.user_id).toBe("employee@example.com");
+      expect(profile.roles).toContain("Cashier");
+      expect(profile.tenants[0]?.slug).toBe("shop-a");
     });
   });
 });

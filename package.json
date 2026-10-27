@@ -13,8 +13,10 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test:pos": "npm run test --workspace @departmental/windows-pos",
     "test:dashboard": "npm run test --workspace @departmental/owner-dashboard",
+    "test:mobile": "npm run test --workspace @departmental/mobile",
     "dev:pos": "npm run dev --workspace @departmental/windows-pos",
-    "dev:dashboard": "npm run dev --workspace @departmental/owner-dashboard"
+    "dev:dashboard": "npm run dev --workspace @departmental/owner-dashboard",
+    "dev:mobile": "npm run start --workspace @departmental/mobile"
   },
   "engines": {
     "node": ">=20"

@@ -80,7 +80,7 @@ Evidence pointers: docs/testing/, docs/artifacts/. Date of last verification: 20
 | Production Ingress & Wildcard TLS Automation (Phase 4B) | ✅ | Traefik v3 deployment templates (`deployment/ingress/`), Let's Encrypt DNS-01 challenge, ADR-0010 accepted, dual-upstream routing (`owner-dashboard` vs `frontend`), HSTS, Vary: Host/Cookie, 26 integration checks PASS |
 | Hostname Verification & Tenant Activation Lifecycle (Phase 4B) | ✅ | Explicit separation of site provisioning (`PROVISIONED`), hostname verification (`VERIFIED`), and commercial activation (`ACTIVE`); server-side guards in `provisioning.py` & `tenant.py`, 78 Frappe tests PASS |
 | Staging Deployment & Real-World Acceptance (Phase 4C) | 🟡 BLOCKED (Prerequisites) | Preflight validated (13 checks PASS); exact prerequisites checklist documented in `STAGING_ACCEPTANCE_RUNBOOK.md`; external cloud deployment stopped pending owner domain & credentials |
-| Shared Mobile Application & Auth Flow | ⬜ | Roadmap Phase 5 (transparent roadmap disclosures published) |
+| Shared Multi-Tenant Mobile App & Auth Flow (Phase 5) | ✅ | Expo SDK 52 + React Native 0.76 client in `apps/mobile`; multi-tenant discovery, secure storage, tenant-bound session, role-based screens, offline cache; 11 vitest tests PASS, 9 live integration checks PASS |
 | Production deployment checklist | ✅ | docs/release/PRODUCTION_DEPLOYMENT_CHECKLIST.md |
 | e-invoicing / e-waybill | ⬜ disabled pending legal determination | settings UI verified |
 | Tamil voice speech engine | ⬜ | spec only |

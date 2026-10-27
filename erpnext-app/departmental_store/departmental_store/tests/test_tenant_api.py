@@ -244,3 +244,106 @@ class TestTenantApi(FrappeTestCase):
         frappe.set_user(cashier_email)
         with self.assertRaises(frappe.PermissionError):
             tenant.get_tenant_info(tenant_id="00000000-0000-4000-8000-999999999999")
+
+    def test_get_current_user_profile(self):
+        # Guest is rejected
+        frappe.set_user("Guest")
+        with self.assertRaises(frappe.PermissionError):
+            tenant.get_current_user_profile()
+
+        # Authenticated user gets valid profile
+        frappe.set_user("Administrator")
+        profile = tenant.get_current_user_profile()
+        self.assertEqual(profile.get("api_version"), 1)
+        self.assertEqual(profile.get("user_id"), "Administrator")
+        self.assertIn("System Manager", profile.get("roles", []))
+        self.assertTrue(len(profile.get("tenants", [])) > 0)
+
+    def test_multi_tenant_user_discovery_and_membership(self):
+        frappe.set_user("Administrator")
+        tenant.ensure_saas_membership_table()
+
+        user_email = f"multi_owner_{frappe.generate_hash(length=6).lower()}@example.com"
+        if not frappe.db.exists("User", user_email):
+            u = frappe.new_doc("User")
+            u.email = user_email
+            u.first_name = "Multi"
+            u.last_name = "Owner"
+            u.append("roles", {"role": "Store Manager"})
+            u.insert(ignore_permissions=True)
+
+        tid_1 = f"TID-{frappe.generate_hash(length=8).upper()}"
+        slug_1 = f"shop-m1-{frappe.generate_hash(length=6).lower()}"
+        tid_2 = f"TID-{frappe.generate_hash(length=8).upper()}"
+        slug_2 = f"shop-m2-{frappe.generate_hash(length=6).lower()}"
+
+        # Insert 2 tenants in tabSaaS Tenant Registry
+        frappe.db.sql(
+            """INSERT INTO `tabSaaS Tenant Registry`
+               (`tenant_id`, `slug`, `name`, `legal_name`, `frappe_site_name`, `primary_hostname`,
+                `hostname_status`, `lifecycle_status`, `plan_id`)
+               VALUES (%s, %s, 'Multi Shop 1', 'Shop 1 Ltd', %s, %s, 'VERIFIED', 'ACTIVE', 'starter')""",
+            (tid_1, slug_1, f"{slug_1}.local", f"{slug_1}.localhost"),
+        )
+        frappe.db.sql(
+            """INSERT INTO `tabSaaS Tenant Registry`
+               (`tenant_id`, `slug`, `name`, `legal_name`, `frappe_site_name`, `primary_hostname`,
+                `hostname_status`, `lifecycle_status`, `plan_id`)
+               VALUES (%s, %s, 'Multi Shop 2', 'Shop 2 Ltd', %s, %s, 'VERIFIED', 'SUSPENDED', 'growth')""",
+            (tid_2, slug_2, f"{slug_2}.local", f"{slug_2}.localhost"),
+        )
+
+        # Insert 2 memberships in tabSaaS Tenant Membership
+        mid_1 = f"MEM-{frappe.generate_hash(length=8).upper()}"
+        mid_2 = f"MEM-{frappe.generate_hash(length=8).upper()}"
+        frappe.db.sql(
+            """INSERT INTO `tabSaaS Tenant Membership`
+               (`membership_id`, `user_id`, `tenant_id`, `role`, `status`)
+               VALUES (%s, %s, %s, 'TENANT_OWNER', 'ACTIVE')""",
+            (mid_1, user_email, tid_1),
+        )
+        frappe.db.sql(
+            """INSERT INTO `tabSaaS Tenant Membership`
+               (`membership_id`, `user_id`, `tenant_id`, `role`, `status`)
+               VALUES (%s, %s, %s, 'STORE_MANAGER', 'ACTIVE')""",
+            (mid_2, user_email, tid_2),
+        )
+        frappe.db.commit()
+
+        try:
+            frappe.set_user(user_email)
+            res = tenant.list_user_tenants()
+            self.assertEqual(res["api_version"], 1)
+            tenants = res["tenants"]
+            self.assertEqual(len(tenants), 2)
+
+            t1 = next((t for t in tenants if t["tenant_id"] == tid_1), None)
+            self.assertIsNotNone(t1)
+            self.assertEqual(t1["role"], "TENANT_OWNER")
+            self.assertEqual(t1["status"], "ACTIVE")
+
+            t2 = next((t for t in tenants if t["tenant_id"] == tid_2), None)
+            self.assertIsNotNone(t2)
+            self.assertEqual(t2["role"], "STORE_MANAGER")
+            self.assertEqual(t2["status"], "SUSPENDED")
+
+            # Verify profile returns both tenants
+            profile = tenant.get_current_user_profile()
+            self.assertEqual(len(profile["tenants"]), 2)
+
+            # Accessing active tenant tid_1 succeeds
+            info_1 = tenant.get_tenant_info(tenant_id=tid_1)
+            self.assertEqual(info_1["tenant"]["tenant_id"], tid_1)
+
+            # Accessing suspended tenant tid_2 raises PermissionError
+            with self.assertRaises(frappe.PermissionError):
+                tenant.get_tenant_info(tenant_id=tid_2)
+
+            # Accessing foreign tenant tid_x (no membership) raises PermissionError
+            with self.assertRaises(frappe.PermissionError):
+                tenant.get_tenant_info(tenant_id="TID-NONEXISTENT-MEMBERSHIP")
+        finally:
+            frappe.set_user("Administrator")
+            frappe.db.sql("DELETE FROM `tabSaaS Tenant Membership` WHERE membership_id IN (%s, %s)", (mid_1, mid_2))
+            frappe.db.sql("DELETE FROM `tabSaaS Tenant Registry` WHERE tenant_id IN (%s, %s)", (tid_1, tid_2))
+            frappe.db.commit()

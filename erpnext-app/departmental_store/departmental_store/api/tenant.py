@@ -254,20 +254,104 @@ def resolve_tenant_by_host(hostname: str = None) -> dict:
     }
 
 
+def ensure_saas_membership_table():
+    """Idempotently ensure tabSaaS Tenant Membership table exists."""
+    frappe.db.sql("""
+        CREATE TABLE IF NOT EXISTS `tabSaaS Tenant Membership` (
+            `membership_id` VARCHAR(140) PRIMARY KEY,
+            `user_id` VARCHAR(140) NOT NULL,
+            `tenant_id` VARCHAR(140) NOT NULL,
+            `role` VARCHAR(40) NOT NULL,
+            `status` VARCHAR(40) DEFAULT 'ACTIVE',
+            `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+            `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX (`user_id`),
+            INDEX (`tenant_id`),
+            INDEX (`user_id`, `tenant_id`),
+            INDEX (`status`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    """)
+    frappe.db.commit()
+
+
 @frappe.whitelist()
 def get_tenant_info(tenant_id: str = None) -> dict:
     """Return verified tenant metadata for the authenticated user session."""
     if frappe.session.user == "Guest":
         frappe.throw(_("Authentication required"), frappe.PermissionError)
 
+    user = frappe.session.user
+    roles = frappe.get_roles(user)
+    is_admin = ("System Manager" in roles or user in {"Administrator", "admin"})
+
     local_tenant = get_local_site_tenant()
 
-    # If tenant_id specified, enforce match with current site context
-    if tenant_id and tenant_id != local_tenant["tenant_id"]:
-        frappe.throw(
-            _("Tenant access denied: requested tenant does not match site context"),
-            frappe.PermissionError,
-        )
+    # If tenant_id specified, check tabSaaS Tenant Registry if it exists
+    if tenant_id:
+        if frappe.db.table_exists("SaaS Tenant Registry"):
+            records = frappe.db.sql(
+                """SELECT tenant_id, slug, name, legal_name, frappe_site_name,
+                          primary_hostname, hostname_status, lifecycle_status, plan_id,
+                          state_code, currency, created_at, updated_at, created_by
+                   FROM `tabSaaS Tenant Registry`
+                   WHERE tenant_id = %s""",
+                (tenant_id,),
+                as_dict=True,
+            )
+            if records:
+                t = records[0]
+                # Enforce membership check for non-admin
+                if not is_admin and frappe.db.table_exists("SaaS Tenant Membership"):
+                    mem = frappe.db.sql(
+                        """SELECT status FROM `tabSaaS Tenant Membership`
+                           WHERE user_id = %s AND tenant_id = %s AND status = 'ACTIVE'""",
+                        (user, tenant_id),
+                        as_dict=True,
+                    )
+                    if not mem:
+                        frappe.throw(
+                            _("Tenant access denied: user does not have active membership in this tenant"),
+                            frappe.PermissionError,
+                        )
+
+                if t["lifecycle_status"] == "SUSPENDED":
+                    frappe.throw(
+                        _(f"Tenant workspace '{t['name']}' has been suspended"),
+                        frappe.PermissionError,
+                    )
+                if t["lifecycle_status"] == "ARCHIVED":
+                    frappe.throw(
+                        _(f"Tenant workspace '{t['name']}' has been archived"),
+                        frappe.PermissionError,
+                    )
+
+                return {
+                    "api_version": API_VERSION,
+                    "tenant": {
+                        "tenant_id": t["tenant_id"],
+                        "slug": t["slug"],
+                        "name": t["name"],
+                        "legal_name": t["legal_name"],
+                        "lifecycle_status": t["lifecycle_status"],
+                        "primary_hostname": t["primary_hostname"],
+                        "hostname_status": t["hostname_status"],
+                        "custom_domains": [],
+                        "frappe_site_name": t["frappe_site_name"],
+                        "plan_id": t["plan_id"],
+                        "state_code": t.get("state_code", "33"),
+                        "currency": t.get("currency", "INR"),
+                        "created_at": str(t["created_at"]),
+                        "updated_at": str(t["updated_at"]),
+                        "created_by": t.get("created_by", "Platform Admin"),
+                    },
+                }
+
+        # Otherwise check if tenant_id matches local_tenant
+        if tenant_id != local_tenant["tenant_id"]:
+            frappe.throw(
+                _("Tenant access denied: requested tenant does not match site context"),
+                frappe.PermissionError,
+            )
 
     return {
         "api_version": API_VERSION,
@@ -297,10 +381,58 @@ def list_user_tenants() -> dict:
     if frappe.session.user == "Guest":
         frappe.throw(_("Authentication required"), frappe.PermissionError)
 
-    local_tenant = get_local_site_tenant()
+    user = frappe.session.user
+    ensure_saas_membership_table()
 
-    # Determine user role within this tenant
-    roles = frappe.get_roles(frappe.session.user)
+    # 1. Check if user has explicit memberships in tabSaaS Tenant Membership
+    memberships = []
+    if frappe.db.table_exists("SaaS Tenant Membership") and frappe.db.table_exists("SaaS Tenant Registry"):
+        rows = frappe.db.sql(
+            """SELECT m.membership_id, m.tenant_id, m.role, m.status AS membership_status,
+                      t.slug, t.name, t.primary_hostname, t.lifecycle_status, t.hostname_status
+               FROM `tabSaaS Tenant Membership` m
+               JOIN `tabSaaS Tenant Registry` t ON m.tenant_id = t.tenant_id
+               WHERE m.user_id = %s
+               ORDER BY t.name ASC""",
+            (user,),
+            as_dict=True,
+        )
+        for r in rows:
+            if r.get("lifecycle_status") == "ARCHIVED":
+                continue
+            status = "SUSPENDED" if (r.get("membership_status") == "SUSPENDED" or r.get("lifecycle_status") == "SUSPENDED") else r.get("lifecycle_status", "ACTIVE")
+            memberships.append({
+                "tenant_id": r["tenant_id"],
+                "slug": r["slug"],
+                "name": r["name"],
+                "role": r["role"],
+                "status": status,
+                "primary_hostname": r.get("primary_hostname", ""),
+            })
+
+    if memberships:
+        return {
+            "api_version": API_VERSION,
+            "tenants": memberships,
+        }
+
+    # 2. Check if multi-tenant registry has active tenants but this non-admin user has NO memberships
+    # (Strict tenant isolation: unassigned users see empty tenant list)
+    roles = frappe.get_roles(user)
+    has_registry_records = False
+    if frappe.db.table_exists("SaaS Tenant Registry"):
+        has_registry_records = bool(frappe.db.sql("SELECT 1 FROM `tabSaaS Tenant Registry` LIMIT 1"))
+
+    is_admin = ("System Manager" in roles or user in {"Administrator", "admin"})
+
+    if has_registry_records and not is_admin:
+        return {
+            "api_version": API_VERSION,
+            "tenants": [],
+        }
+
+    # 3. Fallback for administrator / single-site local store
+    local_tenant = get_local_site_tenant()
     if "System Manager" in roles:
         role = "TENANT_OWNER"
     elif "Store Manager" in roles:
@@ -322,6 +454,28 @@ def list_user_tenants() -> dict:
                 "primary_hostname": local_tenant["primary_hostname"],
             }
         ],
+    }
+
+
+@frappe.whitelist()
+def get_current_user_profile() -> dict:
+    """Return user profile and authorized tenants for the active session."""
+    if frappe.session.user == "Guest":
+        frappe.throw(_("Authentication required"), frappe.PermissionError)
+
+    user = frappe.session.user
+    full_name = frappe.db.get_value("User", user, "full_name") or user
+    email = frappe.db.get_value("User", user, "email") or user
+    roles = frappe.get_roles(user)
+    tenants_result = list_user_tenants()
+
+    return {
+        "api_version": API_VERSION,
+        "user_id": user,
+        "full_name": full_name,
+        "email": email,
+        "roles": roles,
+        "tenants": tenants_result.get("tenants", []),
     }
 
 

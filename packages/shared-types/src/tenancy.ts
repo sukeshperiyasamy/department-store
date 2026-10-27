@@ -201,6 +201,37 @@ export const ResolveTenantResponseSchema = z.object({
 });
 export type ResolveTenantResponse = z.infer<typeof ResolveTenantResponseSchema>;
 
+/** Summary of a tenant workspace authorized for an authenticated user session */
+export const UserTenantSummarySchema = z
+  .object({
+    tenant_id: z.string(),
+    slug: TenantSlugSchema,
+    name: z.string().min(1).max(100),
+    role: TenantRoleSchema,
+    status: TenantLifecycleStatusSchema,
+    primary_hostname: z.string().optional(),
+  })
+  .strict();
+export type UserTenantSummary = z.infer<typeof UserTenantSummarySchema>;
+
+/** Response envelope for user authorized tenants listing */
+export const UserTenantsResponseSchema = z.object({
+  api_version: API_V1_SCHEMA,
+  tenants: z.array(UserTenantSummarySchema),
+});
+export type UserTenantsResponse = z.infer<typeof UserTenantsResponseSchema>;
+
+/** Response envelope for authenticated user profile with authorized tenants */
+export const UserProfileResponseSchema = z.object({
+  api_version: API_V1_SCHEMA,
+  user_id: z.string().min(1),
+  full_name: z.string(),
+  email: z.string().optional(),
+  roles: z.array(z.string()).default([]),
+  tenants: z.array(UserTenantSummarySchema),
+});
+export type UserProfileResponse = z.infer<typeof UserProfileResponseSchema>;
+
 /** Demo Request input schema */
 export const DemoRequestSchema = z
   .object({

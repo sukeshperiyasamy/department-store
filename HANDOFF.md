@@ -240,16 +240,18 @@ voice assistant (parser spec only); MCP adapter (boundary only).
 certified accountant GST sign-off on legal GSTIN; speech-engine accuracy.
 
 **NOT STARTED**: e-invoicing/e-waybill (disabled pending legal turnover determination);
-GSTR tooling validation; k6 load tests; mobile-native app (responsive PWA covers v1).
+GSTR tooling validation; k6 load tests.
 
-## Verified commands (run at Phase 4C completion)
+## Verified commands (run at Phase 5 completion)
 
+- `npm run test` → 183 tests PASS (80 POS + 55 shared-types + 37 owner-dashboard + 11 mobile)
+- `npm run typecheck` → 0 errors across all 4 workspaces (@departmental/mobile, @departmental/owner-dashboard, @departmental/windows-pos, @departmental/shared-types)
+- `node tests/integration/mobile_discovery_check.mjs` → 9/9 PASS (live session capture, user profile, multi-tenant discovery, isolation, logout invalidation)
+- `bench --site frontend run-tests --app departmental_store` → 80 PASS (40 core store + 14 provisioning + 19 tenant registry & profile + 7 tenant isolation)
 - `node tests/integration/staging_preflight_check.mjs` → 13/13 PASS (compose rendering, port exposure, ACME staging, prerequisite audit)
 - `node tests/integration/ingress_routing_check.mjs` → 26/26 PASS (static, dynamic, ports, and simulated ingress routing)
-- `bench --site frontend run-tests --app departmental_store` → 78 PASS (40 core store tests + 14 provisioning + 17 tenant registry + 7 tenant isolation)
-- `npm run typecheck` → 0 errors across all workspaces (@departmental/owner-dashboard, @departmental/windows-pos, @departmental/shared-types)
-- `npm run test` → 170 tests PASS (80 POS + 53 shared-types + 37 owner-dashboard)
 - `npm run build --prefix apps/owner-dashboard` → PASS (All 13 routes and Middleware (51.3 kB) built and optimized)
+- `npm run build --prefix apps/windows-pos` → PASS (Vite + TS build successful)
 - `node tests/integration/api_suite.mjs` → 24/24 PASS (including STOCK-01, IDEMP-01, SEC-01..04)
 - `npx tsx tests/integration/multi_counter.ts` → 11/11 PASS (multi-counter sales, offline sync, idempotency)
 - `node tests/integration/reliability_check.mjs` → 4/4 PASS (RELY-01 through RELY-04 across container restarts)
@@ -257,8 +259,8 @@ GSTR tooling validation; k6 load tests; mobile-native app (responsive PWA covers
 
 ## Exact next steps (priority)
 
-1. Next module: Phase 5 — Shared Mobile Application Foundation (React Native / Flutter / Tauri companion app with QR counter pairing, tenant switcher, and offline sync).
-2. Staging domain validation runbook execution once owner provides staging domain, authoritative DNS, and DNS-01 API token using `docs/operations/STAGING_ACCEPTANCE_RUNBOOK.md`.
+1. Staging deployment and acceptance test run once owner provides staging domain, authoritative DNS zone access, and DNS-01 API token using `docs/operations/STAGING_ACCEPTANCE_RUNBOOK.md`.
+2. Mobile physical device testing (Android APK generation via EAS / Gradle, iOS testflight build on macOS host).
 3. Store owner / accountant GST review with the store's legal 15-digit GSTIN using `docs/release/PRODUCTION_DEPLOYMENT_CHECKLIST.md`.
-4. Physical printer + camera validation when hardware arrives at the store.
+4. Physical printer + barcode scanner validation when hardware arrives at the store.
 5. Build Tamil voice parser + transcript fixtures; gate on `voice_assistant_enabled`.
