@@ -209,19 +209,30 @@ Last updated: 2026-10-27 (fresh-stack validation pass). Full defect register: `d
 - **Commercial Release Gates Matrix**: 20 release criteria evaluated across Technical (11 PASS), Operational (4 PASS, 1 BLOCKED, 1 NOT TESTED), Business (2 PASS, 4 BLOCKED), and Physical Validation (4 NOT TESTED) in `docs/launch/COMMERCIAL_RELEASE_GATES.md`.
 - **Multi-Tier Release Decision**: Separate decisions issued for Local Technical Validation (GO), Staging Readiness (CONDITIONAL GO), Supervised Real-Shop Pilot (CONDITIONAL GO for 1–3 stores with documented limits), and Public Commercial Launch (NO-GO / BLOCKED pending external approvals) in `docs/launch/FINAL_RELEASE_DECISION.md`.
 
+### Staging Deployment Readiness, Off-Site Backup Design & Operational Runbooks — IMPLEMENTED 2026-10-27 (Phase 15)
+- **CI Node 20 Compatibility**: Fixed Windows POS CI test failure where `Promise.withResolvers` (ECMAScript 2024 / Node 22+) crashed in GitHub Actions Node 20 runners. Replaced with universal `new Promise` constructor in `apps/windows-pos/src/domain/sync-engine.test.ts`. All 80 POS tests PASS across Node 18, 20, 22, 24.
+- **Provider-Independent Off-Site Backup Replication Tool**: Built `deployment/backup/replicate_offsite.py` with zero heavy SDK dependencies (pure Python + `requests`), supporting any S3-compatible object store (AWS S3, Cloudflare R2, MinIO, Backblaze B2, Ceph). Features AWS SigV4 streaming upload, AES256 server-side encryption header (`x-amz-server-side-encryption: AES256`), SHA-256 pre- and post-upload integrity verification, retry safety, credential masking, and configurable retention pruning. Comprehensive test suite in `tests/integration/test_replicate_offsite.py` (5 unit tests PASS) and verified CLI dry-run and SHA-256 integrity check against 12 local backup archives.
+- **Disaster Recovery Scratch Site Restoration Drill**: Implemented non-destructive scratch restore rehearsal script `deployment/backup/test_restore_scratch.py`. Executed against the live container stack: created temporary site `scratch-phase15-restore.local` in 24.7s, restored full gzipped production database dump (`20261027_102247-frontend-database.sql.gz`, 1.7 MB) in **36.6 seconds** (RTO measured: 36.6s, well below the 15-minute SLA target), verified 1:1 database record parity (4 installed apps, 254 sales invoices, 545 catalog items, 353 POS sync logs, 2 subscriptions, 2 invoices), and cleanly dropped scratch site with zero impact on production `frontend` site.
+- **Automated Staging Preflight Check Suite**: Updated `tests/integration/staging_preflight_check.mjs` with 25 automated assertion checks covering system prerequisites, Docker Compose topology, strict network isolation (0 public DB/Redis ports), Traefik v3 reverse proxy routing, and app health endpoints. All 25 checks PASS with 6 external cloud dependencies explicitly reported as BLOCKED.
+- **Operational & Disaster Recovery Runbooks**: Authored 10 operational incident runbooks in `docs/operations/STAGING_AND_DR_INCIDENT_RUNBOOKS.md` covering full platform outage, routing failure, DB lock contention, Redis memory exhaustion, stuck tenant provisioning, webhook replay storm, off-site backup upload failure, secret exposure, failed migration rollback, and complete site disaster recovery.
+- **Comprehensive Documentation**:
+  - `docs/launch/STAGING_DEPLOYMENT_AND_RECOVERY_RUNBOOK.md` — Host OS, sizing, secret management, Docker Compose validation, migration rollback, health endpoints.
+  - `docs/launch/OFFSITE_BACKUP_AND_DR_SPECIFICATION.md` — Multi-cloud S3 architecture, SigV4, AES256, RTO/RPO metrics, and retention lifecycle.
+  - `docs/launch/LAUNCH_BLOCKER_REGISTER.md` — Updated BLK-OPS-01 (Off-Site Cloud Backup) and BLK-OPS-02 (Staging Deployment Verification) to LOCAL READY / BLOCKED on external cloud prerequisites.
+
 5. **Live Payment Gateway Activation (Blocker for Live Billing)**: Production Razorpay Merchant account KYC, production webhook secret configuration.
 6. **Legal & Tax Sign-Off (Blocker for Live Billing)**: Commercial approval of pricing tiers (Starter ₹1,499 / Growth ₹2,999 / Enterprise ₹4,999); legal counsel review of Terms of Service & refund policy; CA sign-off on SAC 998315 and operator GSTIN.
-7. **Staging Domain Live Deployment**: Execute `docs/operations/STAGING_ACCEPTANCE_RUNBOOK.md` once owner supplies staging domain and DNS credentials.
-8. **Production SMTP / SMS Provider Configuration**: Configure production SendGrid/AWS SES credentials for live verification emails and SMS notifications.
-9. **Mobile Physical Device Builds**: Generate Android APK via EAS / local Gradle, and configure iOS TestFlight build on macOS CI runner.
+7. **Staging Domain Live Deployment**: Execute `docs/launch/STAGING_DEPLOYMENT_AND_RECOVERY_RUNBOOK.md` once owner supplies staging domain and DNS credentials.
+8. **Off-site backup cloud storage bucket**: Provide S3/R2 bucket credentials and activate scheduled cron for `deployment/backup/replicate_offsite.py`.
+9. **Production SMTP / SMS Provider Configuration**: Configure production SendGrid/AWS SES credentials for live verification emails and SMS notifications.
+10. **Mobile Physical Device Builds**: Generate Android APK via EAS / local Gradle, and configure iOS TestFlight build on macOS CI runner.
 
 ### Core Store Operations
 3. **Accountant GST sign-off** → real GSTIN/HSN data; then evaluate e-invoicing/e-waybill.
 5. **Physical printer + camera validation** when hardware arrives.
 6. **Tamil voice assistant**: deterministic parser + transcript fixtures → Ctrl+Space + speech provider decision.
 7. **Camera/OCR batch capture** per spec.
-8. **Off-site backup replication** (rclone / external cold storage mirror).
-9. **k6 load test** + 20k-item catalog performance pass.
+8. **k6 load test** + 20k-item catalog performance pass.
 
 
 ## Fresh-stack provisioning notes (for reproducibility)

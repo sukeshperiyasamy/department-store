@@ -264,12 +264,15 @@ describe("SyncEngine", () => {
 
   it("single-flight: overlapping runs do not double-process", async () => {
     repo.add({ transaction_id: "t1" });
-    const gate = Promise.withResolvers<SaleResponse>();
+    let resolveGate!: (value: SaleResponse) => void;
+    const gatePromise = new Promise<SaleResponse>((resolve) => {
+      resolveGate = resolve;
+    });
     let submitCalls = 0;
     const transport = {
       submit: () => {
         submitCalls += 1;
-        return gate.promise;
+        return gatePromise;
       },
       checkTransaction: async () => {
         throw new Error("should not be called");
@@ -282,7 +285,7 @@ describe("SyncEngine", () => {
     const second = await engine.runOnce();
     expect(second.committed).toBe(0);
 
-    gate.resolve(committedResponse("SINV-0001", "t1"));
+    resolveGate(committedResponse("SINV-0001", "t1"));
     await first;
     expect(submitCalls).toBe(1);
     expect(repo.records.get("t1")!.state).toBe(T.ServerCommitted);

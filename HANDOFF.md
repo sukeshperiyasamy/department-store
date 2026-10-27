@@ -360,8 +360,61 @@ GSTR tooling validation; k6 load tests.
 
 ## Exact next steps (priority)
 
-1. Staging deployment and acceptance test run once owner provides staging domain, authoritative DNS zone access, and DNS-01 API token using `docs/operations/STAGING_ACCEPTANCE_RUNBOOK.md`.
+1. Staging deployment and acceptance test run once owner provides staging domain, authoritative DNS zone access, and DNS-01 API token using `docs/launch/STAGING_DEPLOYMENT_AND_RECOVERY_RUNBOOK.md`.
 2. Mobile physical device testing (Android APK generation via EAS / Gradle, iOS testflight build on macOS host).
 3. Store owner / accountant GST review with the store's legal 15-digit GSTIN using `docs/release/PRODUCTION_DEPLOYMENT_CHECKLIST.md`.
 4. Physical printer + barcode scanner validation when hardware arrives at the store.
 5. Build Tamil voice parser + transcript fixtures; gate on `voice_assistant_enabled`.
+
+---
+
+# PHASE 15 HANDOFF AUDIT — 2026-10-27 (Staging Deployment Readiness & Disaster Recovery)
+
+## Overview & Objectives Completed
+Phase 15 focused on staging deployment reproducibility, disaster-recovery automation, CI test compatibility, and operational incident runbooks:
+
+1. **CI Node 20 Compatibility Resolved**:
+   - Fixed `TypeError: Promise.withResolvers is not a function` in `apps/windows-pos/src/domain/sync-engine.test.ts`.
+   - Replaced ES2024 / Node 22+ feature with standard `new Promise` constructor.
+   - All 80 Windows POS unit/domain tests pass across Node 18, 20, 22, and 24.
+
+2. **Provider-Independent Off-Site Backup Replication Tool**:
+   - Implemented `deployment/backup/replicate_offsite.py` with zero heavy SDK dependencies (pure Python + `requests`).
+   - Supports any S3-compatible storage: AWS S3, Cloudflare R2, MinIO, Backblaze B2, Ceph.
+   - Uses AWS Signature Version 4 (SigV4) with canonical request hashing.
+   - Enforces AES256 server-side encryption via `x-amz-server-side-encryption: AES256`.
+   - Performs SHA-256 integrity verification before and after upload.
+   - Masks secret keys (`*` characters) in all log messages and terminal output.
+   - Supports `--dry-run`, `--verify-only`, `--retention-days <N>`, and configurable timeouts.
+   - Tested: 5 unit tests in `tests/integration/test_replicate_offsite.py` PASS; CLI dry-run and SHA-256 integrity verification verified against 12 local backup archives.
+
+3. **Disaster Recovery Scratch Restoration Drill (Empirical RTO Benchmark)**:
+   - Built `deployment/backup/test_restore_scratch.py` for automated, non-destructive disaster recovery rehearsals.
+   - Executed against the running Docker stack:
+     * Provisioned temporary site `scratch-phase15-restore.local` in 24.7s.
+     * Restored gzipped database dump `20261027_102247-frontend-database.sql.gz` (1.7 MB) in **36.6 seconds**.
+     * Verified 1:1 database record parity: 4 installed apps (`frappe`, `erpnext`, `departmental_store`, `india_compliance`), 254 sales invoices, 545 catalog items, 353 POS sync logs, 2 subscriptions, 2 invoices.
+     * Cleanly dropped scratch site and database with zero side effects on production `frontend` site.
+     * Target RTO: <15 minutes. Empirical RTO achieved: 36.6 seconds.
+
+4. **Automated Staging Preflight Check Suite**:
+   - Updated `tests/integration/staging_preflight_check.mjs` with 25 automated checks.
+   - Executed: **25 PASSED**, 0 FAILED, 6 BLOCKED (external cloud dependencies) with exit code 0.
+   - Verifies system prerequisites, Docker Compose topology, strict network isolation (0 public DB/Redis ports), Traefik v3 reverse proxy routing, and app health endpoints.
+
+5. **Operational Incident Runbooks & Launch Documentation**:
+   - `docs/launch/STAGING_DEPLOYMENT_AND_RECOVERY_RUNBOOK.md`: Host OS, sizing, secret management, Docker Compose validation, migration rollback, health endpoints.
+   - `docs/launch/OFFSITE_BACKUP_AND_DR_SPECIFICATION.md`: S3 multi-cloud architecture, SigV4, AES256, RTO/RPO metrics, and retention lifecycle.
+   - `docs/operations/STAGING_AND_DR_INCIDENT_RUNBOOKS.md`: 10 operational runbooks (RB-01 through RB-10) for outages, routing, DB locks, Redis, provisioning, webhooks, backups, leaks, rollbacks, and DR.
+   - `docs/launch/LAUNCH_BLOCKER_REGISTER.md`: BLK-OPS-01 & BLK-OPS-02 updated to LOCAL READY / BLOCKED on external cloud prerequisites.
+
+## Verified Test Commands & Suite Status
+- `npm --prefix apps/windows-pos test` → 80/80 PASS (exit code 0)
+- `python -m unittest tests/integration/test_replicate_offsite.py` → 5/5 PASS (exit code 0)
+- `node tests/integration/staging_preflight_check.mjs` → 25 PASS, 6 BLOCKED (exit code 0)
+- `python deployment/backup/test_restore_scratch.py` → RTO 36.6s, 1:1 parity PASS (exit code 0)
+- `python deployment/backup/replicate_offsite.py --dry-run` → 12 files verified PASS (exit code 0)
+- `npm --prefix packages/shared-types test` → 80/80 PASS (exit code 0)
+- `npm --prefix apps/owner-dashboard test` → 68/68 PASS (exit code 0)
+- `npm --prefix apps/mobile test` → 11/11 PASS (exit code 0)
+- `bench --site frontend run-tests --app departmental_store --module departmental_store.tests.test_billing_api` → 21/21 PASS (exit code 0)

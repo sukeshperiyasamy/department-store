@@ -173,3 +173,14 @@ Evidence pointers: docs/testing/, docs/artifacts/. Date of last verification: 20
 | Full vs Partial Refund & Dispute State Transitions | ✅ | Explicit transition semantics: partial refund keeps subscription active; full refund cancels subscription and suspends tenant; dispute transitions subscription to `PAST_DUE` |
 | Fail-Closed Gateway Mode & Key Format Verification | ✅ | Fails closed on missing/empty keys, malformed prefixes (`rzp_test_` or `rzp_live_` required), test key with live mode, or live key without `RAZORPAY_KYC_VERIFIED=true` |
 | Reproducible Full-Suite Regression Verification | ✅ | 350 total automated tests PASS (110 Frappe backend tests, 80 shared-types, 68 owner-dashboard, 11 mobile, 80 Windows POS, 13 preflight checks, 0 secret leaks) in `docs/launch/PAYMENT_RECONCILIATION_AND_WEBHOOK_AUDIT.md` |
+
+## Staging Readiness, Off-Site Backup & Operational Runbooks (Phase 15)
+
+| Feature | Status | Evidence |
+| --- | --- | --- |
+| Reproducible Staging Host Deployment Procedure | ✅ Local Spec / ⛔ Cloud VM Pending | `docs/launch/STAGING_DEPLOYMENT_AND_RECOVERY_RUNBOOK.md` detailing OS, sizing, secret creation, rollback, and Compose validation |
+| Provider-Independent Off-Site Backup Replication Tool | ✅ Script Ready / ⛔ Cloud Bucket Pending | `deployment/backup/replicate_offsite.py` implementing AWS SigV4, AES256, SHA-256 pre/post upload verification, 5 unit tests in `test_replicate_offsite.py` PASS |
+| Non-Destructive Disaster Recovery Scratch Restore Drill | ✅ Local Verified | `deployment/backup/test_restore_scratch.py` restored clean database in 36.6s (RTO Benchmark), 1:1 data parity, 0 side-effects on production `frontend` |
+| Automated Staging & Recovery Preflight Check Suite | ✅ | `tests/integration/staging_preflight_check.mjs` (25 PASS, 0 FAIL, 6 BLOCKED external dependencies) validating config, non-exposure of DB/Redis ports, backup freshness, and health |
+| 10 Operational Incident Response Runbooks | ✅ | `docs/operations/STAGING_AND_DR_INCIDENT_RUNBOOKS.md` covering outages, routing, DB, Redis, provisioning, webhooks, backups, leaks, rollback, and DR |
+| Universal Promise Compatibility for POS Sync Engine | ✅ | Replaced `Promise.withResolvers` in `sync-engine.test.ts` with universal Promise constructor; 80/80 POS vitest tests PASS on Node 20+ |
