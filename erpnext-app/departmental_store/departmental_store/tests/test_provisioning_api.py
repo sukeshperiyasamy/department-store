@@ -26,6 +26,8 @@ class TestProvisioningApi(unittest.TestCase):
     def setUp(self):
         ensure_provisioning_tables()
         frappe.set_user("Administrator")
+        frappe.db.sql("DELETE FROM `tabSaaS Provisioning Job` WHERE status = 'PENDING'")
+        frappe.db.commit()
         self.test_slug = f"test-shop-{frappe.generate_hash(length=6).lower()}"
         self.request_id = f"ONB-TEST-{frappe.generate_hash(length=8).upper()}"
 

@@ -99,6 +99,13 @@ Evidence pointers: docs/testing/, docs/artifacts/. Date of last verification: 20
 | Comprehensive Incident Response Runbooks (Phase 8) | ✅ | 13 actionable runbooks covering security breaches, data leaks, outages, disk exhaustion, webhook failures, and deployment rollbacks in `INCIDENT_RESPONSE_RUNBOOKS.md` |
 | Production Readiness Scorecard & Verdict (Phase 8) | ✅ | Complete readiness matrix across PASS, BLOCKED, NOT TESTED categories; release verdict CONDITIONAL GO — Supervised Pilot in `PRODUCTION_READINESS_SCORECARD.md` |
 | Automated Security & Hardening Check Suite (Phase 8) | ✅ | `tests/integration/security_and_hardening_check.mjs` (15/15 checks PASS) validating port exposure, liveness, telemetry roles, checksums, and tenant isolation |
+| Controlled Pilot Readiness Checklist (Phase 9) | ✅ | Audit of 12 operational launch areas, evidence, and PASS/BLOCKED/NOT TESTED status in `docs/pilot/PILOT_READINESS_CHECKLIST.md` |
+| Documented Pilot Scope & Cohort Plan (Phase 9) | ✅ | Target cohort (1–3 shops), 14-day duration, supported retail workflows, device specs, support SLAs, and stop criteria in `docs/pilot/CONTROLLED_PILOT_PLAN.md` |
+| End-to-End Pilot Acceptance Test Suite (Phase 9) | ✅ | `tests/integration/pilot_acceptance_suite.mjs` (24/24 PASS) validating registration, token expiry, privacy boundary, approval, provisioning, routing, POS sales, idempotency, returns, requires-review queue, suspension, reactivation, and telemetry |
+| Pilot Telemetry API & Monitoring Cockpit (Phase 9) | ✅ | Authenticated `@frappe.whitelist() get_pilot_status()` API in Frappe reporting active/suspended tenants, in-flight/failed jobs, POS sync backlog, DB latency (0.06ms), and escalation thresholds; documented in `docs/pilot/PILOT_MONITORING_AND_ESCALATION.md` |
+| Customer Feedback & Issue Tracking Workflow (Phase 9) | ✅ | Structured feedback intake schema (task, expected vs actual, Sev 1–4, correlation ID, financial impact) with strict zero-secret and zero-PII guardrails in `docs/pilot/CUSTOMER_FEEDBACK_AND_INCIDENT_WORKFLOW.md` |
+| Pilot Success Scorecard & Release Gates (Phase 9) | ✅ | 10 measurable release gates, quantitative SLA benchmarks (DB latency, POS submission latency, sync drain speed), and scorecard in `docs/pilot/PILOT_SUCCESS_SCORECARD.md` |
+| Formal Go / No-Go Pilot Review (Phase 9) | ✅ | Tri-pillar review (Technical PASS, Operational PASS, Business CONDITIONAL) and formal verdict CONDITIONAL GO — Supervised Real-Shop Pilot in `docs/pilot/GO_NO_GO_PILOT_REVIEW.md` |
 | Production deployment checklist | ✅ | docs/release/PRODUCTION_DEPLOYMENT_CHECKLIST.md |
 | e-invoicing / e-waybill | ⬜ disabled pending legal determination | settings UI verified |
 | Tamil voice speech engine | ⬜ | spec only |

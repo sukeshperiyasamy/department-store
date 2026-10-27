@@ -267,6 +267,7 @@ def _post_return(data: dict, device: dict | None) -> dict:
         "doctype": "Sales Invoice",
         "is_pos": 1,
         "is_return": 1,
+        "is_created_using_pos": 1,
         "return_against": invoice_name,
         "company": original.company,
         "customer": original.customer,
@@ -306,6 +307,7 @@ def _post_return(data: dict, device: dict | None) -> dict:
             if abs(diff) >= 0.01:
                 last = invoice.payments[-1]
                 last.amount = -(round(abs(flt(last.amount)) + diff, 2))
+            invoice.save()
 
     invoice.submit()
 

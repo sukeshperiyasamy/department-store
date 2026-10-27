@@ -82,6 +82,14 @@ A departmental-store ERP for a single store with 2–3 Windows POS counters:
     - Operational incident response runbooks: authored 13 actionable runbooks covering cross-tenant data leaks, admin credential compromises, provisioning failures, DNS/TLS outages, DB crash recovery, disk exhaustion, webhook failures, and release rollbacks in `docs/operations/INCIDENT_RESPONSE_RUNBOOKS.md`.
     - Automated security check suite: `tests/integration/security_and_hardening_check.mjs` (15/15 PASS).
     - Production readiness scorecard: full matrix across PASS, BLOCKED, NOT TESTED categories with release verdict: `CONDITIONAL GO — Supervised Pilot` in `docs/release/PRODUCTION_READINESS_SCORECARD.md`.
+  * Phase 9: Controlled Pilot Launch and Real-Shop Validation:
+    - Launch prerequisites checklist: created `docs/pilot/PILOT_READINESS_CHECKLIST.md` auditing all 12 operational areas with status and evidence.
+    - Pilot scope and cohort plan: defined 1–3 shop cohort, 14-day duration, supported retail workflows, hardware specs, support SLAs, and stop criteria in `docs/pilot/CONTROLLED_PILOT_PLAN.md`.
+    - End-to-end customer acceptance test suite: authored and executed `tests/integration/pilot_acceptance_suite.mjs` (24/24 PASS) validating customer registration, token expiry, privacy boundary enforcement, Platform Admin review and approval, atomic provisioning, tenant hostname routing, ERPNext native POS sales and returns, duplicate idempotency, requires-review error queues, tenant suspension without data loss, reactivation, and central telemetry.
+    - Pilot telemetry & monitoring: added `@frappe.whitelist() get_pilot_status()` API in `erpnext-app/.../api/health.py` reporting active/suspended shops, provisioning queues, POS sync backlog, DB latency (0.06ms), and disk capacity; authored `docs/pilot/PILOT_MONITORING_AND_ESCALATION.md`.
+    - Customer feedback and defect workflow: authored `docs/pilot/CUSTOMER_FEEDBACK_AND_INCIDENT_WORKFLOW.md` with structured intake schema, Sev 1–4 classification, and strict zero-PII/zero-credential guardrails.
+    - Success scorecard and release gates: defined 10 release gates and quantitative SLA targets in `docs/pilot/PILOT_SUCCESS_SCORECARD.md`.
+    - Formal Go / No-Go review: produced tri-pillar evaluation (Technical PASS, Operational PASS, Business CONDITIONAL) and formal verdict: `CONDITIONAL GO — Supervised Real-Shop Pilot (1–3 stores with explicit owner authorization & listed limitations)` in `docs/pilot/GO_NO_GO_PILOT_REVIEW.md`.
 - Pushed to `https://github.com/sukeshperiyasamy/department-store` (origin/main). **Never force-push.**
 
 ## 3. Module map (where things live)

@@ -233,3 +233,95 @@ def verify_restore_stats():
         "feature_flags": feature_flags,
     }
 
+@frappe.whitelist()
+def get_pilot_status():
+    """
+    Lightweight pilot monitoring telemetry endpoint for platform operations.
+    Requires Platform Admin or System Manager role.
+    """
+    if frappe.session.user == "Guest":
+        frappe.throw(_("Unauthorized: Pilot telemetry requires authentication"), frappe.PermissionError)
+    roles = frappe.get_roles(frappe.session.user)
+    if "Platform Admin" not in roles and "System Manager" not in roles:
+        frappe.throw(_("Unauthorized: Pilot telemetry requires Platform Admin or System Manager role"), frappe.PermissionError)
+
+    # 1. Tenants summary
+    tenant_map = {}
+    if frappe.db.table_exists("SaaS Tenant Registry"):
+        tenants = frappe.db.sql("""
+            SELECT lifecycle_status, count(*) as count
+            FROM `tabSaaS Tenant Registry`
+            GROUP BY lifecycle_status
+        """, as_dict=True)
+        tenant_map = {r.lifecycle_status: r.count for r in tenants}
+
+    # 2. In-flight and failed provisioning jobs
+    job_map = {}
+    if frappe.db.table_exists("SaaS Provisioning Job"):
+        jobs = frappe.db.sql("""
+            SELECT status, count(*) as count
+            FROM `tabSaaS Provisioning Job`
+            GROUP BY status
+        """, as_dict=True)
+        job_map = {r.status: r.count for r in jobs}
+
+    # 3. POS Synchronization backlog & review queue
+    pos_backlog = frappe.db.sql("""
+        SELECT status, count(*) as count
+        FROM `tabPOS Sale Sync Log`
+        GROUP BY status
+    """, as_dict=True)
+    pos_map = {r.status: r.count for r in pos_backlog}
+
+    # 4. System readiness (latency & storage)
+    t0 = time.perf_counter()
+    frappe.db.sql("SELECT 1")
+    db_latency_ms = round((time.perf_counter() - t0) * 1000, 2)
+    disk = shutil.disk_usage("/")
+    used_percent = round(((disk.total - disk.free) / disk.total) * 100, 1)
+
+    # 5. Last backup evidence
+    site_path = frappe.get_site_path()
+    backup_dir = os.path.join(site_path, "private", "backups")
+    latest_backup = None
+    if os.path.exists(backup_dir):
+        files = [f for f in os.listdir(backup_dir) if f.endswith(".sql.gz")]
+        if files:
+            files.sort()
+            latest_backup = files[-1]
+
+    return {
+        "api_version": 1,
+        "timestamp": frappe.utils.now(),
+        "pilot_tenants": {
+            "active": tenant_map.get("ACTIVE", 0),
+            "suspended": tenant_map.get("SUSPENDED", 0),
+            "provisioning": tenant_map.get("PROVISIONING", 0) + tenant_map.get("PROVISIONED", 0),
+            "total": sum(tenant_map.values()),
+        },
+        "provisioning_jobs": {
+            "pending": job_map.get("pending", 0),
+            "claimed": job_map.get("claimed", 0),
+            "completed": job_map.get("completed", 0),
+            "failed": job_map.get("failed", 0),
+        },
+        "pos_sync": {
+            "synced": pos_map.get("synced", 0),
+            "requires_review": pos_map.get("requires_review", 0),
+            "error": pos_map.get("error", 0),
+            "total": sum(pos_map.values()),
+        },
+        "system_health": {
+            "database_latency_ms": db_latency_ms,
+            "disk_used_percent": used_percent,
+            "latest_backup_dump": latest_backup,
+            "status": "HEALTHY" if db_latency_ms < 100 and used_percent < 90 else "DEGRADED",
+        },
+        "escalation_thresholds": {
+            "max_tolerable_db_latency_ms": 250,
+            "max_tolerable_sync_backlog": 50,
+            "max_tolerable_disk_used_percent": 85,
+            "max_failed_provisioning_jobs": 1,
+        }
+    }
+

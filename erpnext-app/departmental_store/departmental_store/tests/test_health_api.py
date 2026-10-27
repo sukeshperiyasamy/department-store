@@ -43,3 +43,20 @@ class TestHealthApi(unittest.TestCase):
             self.assertIn("database", res["checks"])
         finally:
             frappe.conf.pop("health_check_token", None)
+
+    def test_pilot_status_guest_denied(self):
+        frappe.set_user("Guest")
+        from departmental_store.api.health import get_pilot_status
+        with self.assertRaises(frappe.PermissionError):
+            get_pilot_status()
+
+    def test_pilot_status_admin_authorized(self):
+        frappe.set_user("Administrator")
+        from departmental_store.api.health import get_pilot_status
+        res = get_pilot_status()
+        self.assertEqual(res["api_version"], 1)
+        self.assertIn("pilot_tenants", res)
+        self.assertIn("provisioning_jobs", res)
+        self.assertIn("pos_sync", res)
+        self.assertIn("system_health", res)
+        self.assertIn("escalation_thresholds", res)

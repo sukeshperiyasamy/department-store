@@ -973,8 +973,13 @@ def execute_provisioning_pipeline(job_id: str, test_mode: bool = False) -> dict:
         }
 
 
+@frappe.whitelist()
 def process_provisioning_job(job_id: str = None, worker_id: str = "worker-default", test_mode: bool = False) -> dict:
     """Worker entry point to process a specific or next available job in the queue."""
+    require_platform_admin()
+    if isinstance(test_mode, str):
+        test_mode = test_mode.lower() in ("true", "1")
+
     if not job_id:
         job = claim_next_provisioning_job(worker_id=worker_id)
         if not job:

@@ -200,7 +200,10 @@ def make_pos_opening_entry(company: str, pos_profile: str, mop: str) -> str:
     for row in frappe.get_all("POS Opening Entry",
                               filters={"user": frappe.session.user, "status": "Open"},
                               pluck="name"):
-        frappe.get_doc("POS Opening Entry", row).cancel()
+        try:
+            frappe.get_doc("POS Opening Entry", row).cancel()
+        except Exception:
+            frappe.db.set_value("POS Opening Entry", row, "status", "Closed")
     doc = frappe.get_doc({
         "doctype": "POS Opening Entry",
         "company": company,
