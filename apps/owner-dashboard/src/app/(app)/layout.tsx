@@ -8,7 +8,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!hasSession && !hasToken) redirect("/login");
 
   const items: NavItem[] = [
-    { href: "/", label: "Dashboard", icon: "▤" },
+    { href: "/app", label: "Dashboard", icon: "▤" },
     { href: "/catalog", label: "Catalog", icon: "❑" },
     { href: "/sales", label: "Sales", icon: "₹" },
     { href: "/inventory", label: "Inventory", icon: "◱" },

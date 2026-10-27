@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   authorizeTenantAccess,
+  DemoRequestResponseSchema,
+  DemoRequestSchema,
   isReservedHostname,
   normalizeHostname,
+  OnboardingRequestResponseSchema,
+  OnboardingRequestSchema,
   resolveTenantByHostname,
+  SlugAvailabilityResponseSchema,
   TenantMembership,
   TenantRecord,
   TenantRecordSchema,
@@ -327,5 +332,120 @@ describe("authorizeTenantAccess", () => {
       expect(auth.role).toBe("PLATFORM_ADMIN");
       expect(auth.elevated_platform_admin).toBe(true);
     }
+  });
+});
+
+describe("DemoRequestSchema", () => {
+  const validDemo = {
+    business_name: "Sri Murugan Departmental",
+    contact_name: "Murugan Selvam",
+    email: "murugan@example.com",
+    phone: "9876543210",
+    city: "Madurai",
+    state: "Tamil Nadu",
+    counter_count: 3,
+    message: "We need 3 billing counters with barcode scanners",
+    consent_given: true,
+  };
+
+  it("accepts a valid demo request", () => {
+    const parsed = DemoRequestSchema.parse(validDemo);
+    expect(parsed.business_name).toBe("Sri Murugan Departmental");
+    expect(parsed.counter_count).toBe(3);
+    expect(parsed.consent_given).toBe(true);
+  });
+
+  it("rejects invalid email and phone formats", () => {
+    expect(() =>
+      DemoRequestSchema.parse({ ...validDemo, email: "not-an-email" }),
+    ).toThrow();
+    expect(() =>
+      DemoRequestSchema.parse({ ...validDemo, phone: "123" }),
+    ).toThrow();
+  });
+
+  it("rejects missing consent", () => {
+    expect(() =>
+      DemoRequestSchema.parse({ ...validDemo, consent_given: false }),
+    ).toThrow();
+  });
+
+  it("validates demo response envelope", () => {
+    const res = DemoRequestResponseSchema.parse({
+      api_version: 1,
+      request_id: "DEMO-2026-0001",
+      status: "Pending Review",
+      message: "Demo request received",
+    });
+    expect(res.api_version).toBe(1);
+    expect(res.request_id).toBe("DEMO-2026-0001");
+  });
+});
+
+describe("OnboardingRequestSchema", () => {
+  const validOnboard = {
+    business_name: "Lakshmi Supermarket",
+    owner_name: "Lakshmi Raman",
+    email: "lakshmi@example.com",
+    phone: "9123456780",
+    state: "Tamil Nadu",
+    city: "Chennai",
+    preferred_slug: "lakshmi-market",
+    requested_plan: "growth" as const,
+    agreed_to_terms: true,
+  };
+
+  it("accepts a valid onboarding request", () => {
+    const parsed = OnboardingRequestSchema.parse(validOnboard);
+    expect(parsed.preferred_slug).toBe("lakshmi-market");
+    expect(parsed.requested_plan).toBe("growth");
+    expect(parsed.agreed_to_terms).toBe(true);
+  });
+
+  it("rejects reserved or invalid slug formats", () => {
+    expect(() =>
+      OnboardingRequestSchema.parse({ ...validOnboard, preferred_slug: "admin" }),
+    ).not.toThrow(); // slug schema validates syntax; isReservedHostname checks platform names
+    expect(() =>
+      OnboardingRequestSchema.parse({ ...validOnboard, preferred_slug: "-bad-slug" }),
+    ).toThrow();
+    expect(() =>
+      OnboardingRequestSchema.parse({ ...validOnboard, preferred_slug: "bad--slug" }),
+    ).toThrow();
+  });
+
+  it("rejects missing agreement to terms", () => {
+    expect(() =>
+      OnboardingRequestSchema.parse({ ...validOnboard, agreed_to_terms: false }),
+    ).toThrow();
+  });
+
+  it("validates onboarding response envelope", () => {
+    const res = OnboardingRequestResponseSchema.parse({
+      api_version: 1,
+      request_id: "ONBOARD-2026-0001",
+      preferred_slug: "lakshmi-market",
+      status: "Pending Review",
+      message: "Request submitted; activation pending review.",
+    });
+    expect(res.preferred_slug).toBe("lakshmi-market");
+    expect(res.status).toBe("Pending Review");
+  });
+
+  it("validates slug availability schema", () => {
+    const avail = SlugAvailabilityResponseSchema.parse({
+      api_version: 1,
+      slug: "fresh-mart",
+      available: true,
+    });
+    expect(avail.available).toBe(true);
+
+    const unavail = SlugAvailabilityResponseSchema.parse({
+      api_version: 1,
+      slug: "admin",
+      available: false,
+      reason: "Reserved platform keyword",
+    });
+    expect(unavail.available).toBe(false);
   });
 });

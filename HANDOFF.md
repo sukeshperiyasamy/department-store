@@ -13,18 +13,20 @@ A departmental-store ERP for a single store with 2–3 Windows POS counters:
   submission, catalog snapshot, device registry, reporting APIs, feature-flag settings, seeds, GST setup helpers.
 - **Windows POS**: Tauri 2 + React + TypeScript (`apps/windows-pos`) with counter-local SQLite (durable outbox,
   offline queue), ESC/POS + ZPL/TSPL builders, Tamil/Tanglish-ready catalog search.
-- **Manager Console**: Next.js 15 + TS (`apps/owner-dashboard`, port 3100) — dashboard, catalog, sales,
-  inventory alerts, sync health; all data from real ERP APIs, zod-validated.
-- **Shared contracts**: `packages/shared-types` (zod schemas = single source of API truth).
+- **Manager Console & SaaS Marketing**: Next.js 15 + TS (`apps/owner-dashboard`, port 3100):
+  * Public Marketing Website (`/`, `/features`, `/pricing`, `/request-demo`, `/register`, `/privacy`, `/terms`).
+  * Customer Onboarding Foundation (live slug availability check against reserved keywords, lead persistence in Frappe MariaDB + resilient `.leads-outbox/`).
+  * Authenticated Manager Console (`/app`, `/catalog`, `/sales`, `/inventory`, `/sync`, `/settings`); all data from real ERP APIs, zod-validated.
+- **Shared contracts**: `packages/shared-types` (zod schemas = single source of API truth, including tenancy and onboarding contracts).
 - **India Compliance** app (branch `version-16`) installed on the test site with synthetic GSTIN.
 
 ## 2. Current state (git)
 
-- Branch `main`, clean tree. Recent commits: `e3ddacd` (gitignore creds doc) → `f9508fd` (untrack leaked
-  tok.env, rotate tokens) → `51d86d9` (Windows/GST/returns/multi-counter phase) → `27e308f` (returns) →
-  earlier phases in `git log`.
+- Branch `main`.
+- Recent phases:
+  * Phase 1: Tenancy contracts, hostname resolution, Frappe tenant API, ADR-0008.
+  * Phase 2: Public SaaS marketing website, customer onboarding entry point, demo request persistence, Next.js route groups (`(marketing)` vs `(app)`).
 - Pushed to `https://github.com/sukeshperiyasamy/department-store` (origin/main). **Never force-push.**
-- All work through 2026-10-27 is committed and pushed unless noted in §7.
 
 ## 3. Module map (where things live)
 
@@ -36,7 +38,7 @@ A departmental-store ERP for a single store with 2–3 Windows POS counters:
 | Devices | `erpnext-app/.../api/devices.py` | manager-only `register_device`; cashier-readable `get_device` |
 | Reports | `erpnext-app/.../api/reports.py` | `owner_summary`, `server_status`, `stock_alerts`, `recent_invoices` |
 | Settings/flags | `erpnext-app/.../api/settings.py` + `.../doctype/departmental_store_settings/` | 10 feature flags; `require_flag()` server guard |
-| Tenancy API | `erpnext-app/.../api/tenant.py` | `resolve_tenant_by_host`, `get_tenant_info`, `list_user_tenants` (ADR-0008) |
+| Tenancy & Leads API | `erpnext-app/.../api/tenant.py` | `resolve_tenant_by_host`, `get_tenant_info`, `list_user_tenants`, `check_slug_availability`, `submit_demo_request`, `submit_onboarding_request` |
 | Install/self-heal | `erpnext-app/.../install.py` | roles, permissions, language, **apps.txt + module-map repair** |
 | Seeds | `erpnext-app/.../seeds.py` | demo fixtures, cashier/manager users, race items, perf items |
 | Regional catalog | `erpnext-app/.../regional_catalog.py` | 160 TN demo products w/ Tamil+Tanglish aliases (see §7 BLOCKED) |
@@ -46,8 +48,10 @@ A departmental-store ERP for a single store with 2–3 Windows POS counters:
 | POS transport | `apps/windows-pos/src/transport/frappe.ts` | zod-validated; Tauri HTTP plugin fetch (no CORS) |
 | POS UI | `apps/windows-pos/src/ui/` | Billing/Payment/Returns/Sync screens, preview harness (`preview.html`) |
 | Tauri shell | `apps/windows-pos/src-tauri/` | sql + http plugins, `print_raw` spool command, capabilities |
-| Dashboard | `apps/owner-dashboard/src/` | shell + (app) route group; lib/frappe-server.ts fetchers |
-| Contracts & Tenancy | `packages/shared-types/src/index.ts` + `tenancy.ts` | API zod schemas + SaaS tenant registry contracts & resolution engine |
+| SaaS Marketing Site | `apps/owner-dashboard/src/app/(marketing)/` | Public pages: `/`, `/features`, `/pricing`, `/request-demo`, `/register`, `/privacy`, `/terms` |
+| Manager Dashboard | `apps/owner-dashboard/src/app/(app)/` | Authenticated shell: `/app`, `/catalog`, `/sales`, `/inventory`, `/sync`, `/settings` |
+| Lead Outbox | `apps/owner-dashboard/src/lib/lead-storage.ts` | Resilient local outbox in `.leads-outbox/` mirroring Frappe MariaDB leads |
+| Contracts & Tenancy | `packages/shared-types/src/index.ts` + `tenancy.ts` | API zod schemas + SaaS tenant registry contracts, demo/onboarding schemas |
 
 ## 4. Authoritative docs (read next)
 
@@ -212,23 +216,22 @@ certified accountant GST sign-off on legal GSTIN; speech-engine accuracy.
 **NOT STARTED**: e-invoicing/e-waybill (disabled pending legal turnover determination);
 GSTR tooling validation; k6 load tests; mobile-native app (responsive PWA covers v1).
 
-## Verified commands (run at audit)
+## Verified commands (run at Phase 2 completion)
 
-- `bench --site frontend run-tests --app departmental_store` → 40 PASS (28 sales/returns, 4 catalog, 8 settings & security)
-- `npm run typecheck` → 0 errors across all workspaces
-- `npm run test` → 103 tests PASS (80 POS + 14 shared-types + 9 dashboard)
+- `bench --site frontend run-tests --app departmental_store` → 55 PASS (28 sales/returns, 4 catalog, 8 settings, 15 tenancy & leads)
+- `npm run typecheck` → 0 errors across all workspaces (@departmental/owner-dashboard, @departmental/windows-pos, @departmental/shared-types)
+- `npm run test` → 145 tests PASS (80 POS + 47 shared-types + 18 owner-dashboard)
+- `npm run build --prefix apps/owner-dashboard` → PASS (All 11 routes built and static/dynamic optimized)
 - `node tests/integration/api_suite.mjs` → 24/24 PASS (including STOCK-01, IDEMP-01, SEC-01..04)
-- `npx tsx tests/integration/multi_counter.ts` → 11/11 PASS
-- `node tests/integration/reliability_check.mjs` → 4/4 PASS
-- `deployment\backup\run_backup.ps1` + `schedule_backup.ps1` → SUCCESS, Task Scheduler state `Ready`
-- Scratch site restore rehearsal → PASS (4 apps, 95 sales invoices, 501 items, 134 sync logs restored; site dropped cleanly)
-- Live MariaDB deadlock counter → `Innodb_deadlocks = 0`
+- Browser subagent verification: `/`, `/features`, `/pricing`, `/request-demo`, `/register`, `/privacy`, `/terms` verified in browser
+- Live MariaDB tables: `tabSaaS Demo Request` and `tabSaaS Onboarding Request` verified with indexes
 - Git: clean tree; `git ls-files` contains NO credential files
 
 ## Exact next steps (priority)
 
-1. Push a release tag (`git tag v0.1.0 && git push origin v0.1.0`) to trigger GitHub Actions NSIS installer build.
+1. Next module: Tenant provisioning lifecycle worker / background queue (converting approved onboarding requests into isolated Frappe tenant sites).
 2. Store owner / accountant GST review with the store's legal 15-digit GSTIN using `docs/release/PRODUCTION_DEPLOYMENT_CHECKLIST.md`.
 3. Physical printer + camera validation when hardware arrives at the store.
 4. Build Tamil voice parser + transcript fixtures; gate on `voice_assistant_enabled`.
+
 

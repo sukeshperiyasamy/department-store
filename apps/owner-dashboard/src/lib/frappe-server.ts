@@ -12,23 +12,32 @@ import { cookies } from "next/headers";
 import {
   API_VERSION_SCHEMA,
   CatalogSnapshotSchema,
+  DemoRequestResponseSchema,
+  OnboardingRequestResponseSchema,
   OwnerSummarySchema,
   ResolveTenantResponseSchema,
   ServerStatusSchema,
   SetFlagResultSchema,
+  SlugAvailabilityResponseSchema,
   StockAlertsSchema,
   StoreSettingsSchema,
   TenantInfoResponseSchema,
   type CatalogSnapshot,
+  type DemoRequest,
+  type DemoRequestResponse,
   type FeatureFlagName,
+  type OnboardingRequest,
+  type OnboardingRequestResponse,
   type OwnerSummary,
   type ResolveTenantResponse,
   type ServerStatus,
   type SetFlagResult,
+  type SlugAvailabilityResponse,
   type StockAlerts,
   type StoreSettings,
   type TenantRecord,
 } from "@departmental/shared-types";
+import { saveDemoRequestLocal, saveOnboardingRequestLocal } from "./lead-storage";
 import { z, type ZodType, type ZodTypeDef } from "zod";
 
 const ERP_BASE_URL = process.env.ERP_BASE_URL ?? "http://localhost:8080";
@@ -230,6 +239,95 @@ export async function fetchTenantInfo(): Promise<TenantRecord> {
     TenantInfoResponseSchema,
   );
   return result.tenant;
+}
+
+export async function checkSlugAvailability(slug: string): Promise<SlugAvailabilityResponse> {
+  try {
+    const response = await fetch(
+      `${ERP_BASE_URL}/api/method/departmental_store.api.tenant.check_slug_availability`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ slug }),
+        cache: "no-store",
+      },
+    );
+    if (response.ok) {
+      const json = (await response.json()) as { message?: unknown };
+      return SlugAvailabilityResponseSchema.parse(json.message ?? json);
+    }
+  } catch (err) {
+    // If backend unreachable, validate locally using shared rules
+  }
+  const clean = slug.trim().toLowerCase();
+  const valid = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(clean) && !clean.includes("--") && clean.length >= 3 && clean.length <= 63;
+  return {
+    api_version: 1,
+    slug: clean,
+    available: valid,
+    reason: valid ? undefined : "Invalid slug format",
+  };
+}
+
+export async function submitDemoRequest(data: DemoRequest): Promise<DemoRequestResponse> {
+  try {
+    const response = await fetch(
+      `${ERP_BASE_URL}/api/method/departmental_store.api.tenant.submit_demo_request`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ data }),
+        cache: "no-store",
+      },
+    );
+    if (response.ok) {
+      const json = (await response.json()) as { message?: unknown };
+      const parsed = DemoRequestResponseSchema.parse(json.message ?? json);
+      saveDemoRequestLocal(data, parsed.request_id, true);
+      return parsed;
+    }
+  } catch (err) {
+    // Fall back to durable local storage
+  }
+
+  const localRecord = saveDemoRequestLocal(data, undefined, false);
+  return {
+    api_version: 1,
+    request_id: localRecord.id,
+    status: "Pending Review",
+    message: "Demo request received successfully. Our sales engineering team will reach out within 1 business day.",
+  };
+}
+
+export async function submitOnboardingRequest(data: OnboardingRequest): Promise<OnboardingRequestResponse> {
+  try {
+    const response = await fetch(
+      `${ERP_BASE_URL}/api/method/departmental_store.api.tenant.submit_onboarding_request`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ data }),
+        cache: "no-store",
+      },
+    );
+    if (response.ok) {
+      const json = (await response.json()) as { message?: unknown };
+      const parsed = OnboardingRequestResponseSchema.parse(json.message ?? json);
+      saveOnboardingRequestLocal(data, parsed.request_id, true);
+      return parsed;
+    }
+  } catch (err) {
+    // Fall back to durable local storage
+  }
+
+  const localRecord = saveOnboardingRequestLocal(data, undefined, false);
+  return {
+    api_version: 1,
+    request_id: localRecord.id,
+    preferred_slug: data.preferred_slug,
+    status: "Pending Review",
+    message: "Request submitted; shop activation is pending review. You will receive an email once your workspace is verified and provisioned.",
+  };
 }
 
 export const zod = z;

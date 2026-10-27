@@ -105,24 +105,29 @@ Last updated: 2026-10-27 (fresh-stack validation pass). Full defect register: `d
 - **Backend Frappe API**: `departmental_store.api.tenant` (`resolve_tenant_by_host`, `get_tenant_info`, `list_user_tenants`) with 12 bench tests PASS.
 - **Zero single-store regressions**: all 52 backend tests, 103 TypeScript tests, and Next.js production build pass cleanly.
 
+### Multi-Tenant SaaS Platform Phase 2 (Marketing & Onboarding) — IMPLEMENTED 2026-10-27
+- **Public Marketing Website**: Separated from authenticated dashboard via Next.js route groups `(marketing)` and `(app)`. Public routes: `/` (10-section homepage), `/features`, `/pricing`, `/request-demo`, `/register`, `/privacy`, `/terms`. Authenticated dashboard accessible under `/app` and existing modules (`/catalog`, `/sales`, `/inventory`, `/sync`, `/settings`).
+- **Lead Capture & Demo Requests**: Validated `DemoRequestSchema` with server/client Zod checking, rate limiting, and durable storage in both MariaDB `tabSaaS Demo Request` and local `.leads-outbox/`.
+- **Shop Onboarding & Slug Reservation**: Registration entry point at `/register` with live slug availability check (`checkSlugAction`) rejecting reserved keywords (RFC 1123). Truthful status feedback: "Request submitted; activation pending review." No unverified live provisioning claimed.
+- **Verification Evidence**: 145 vitest tests pass, 55 backend Frappe tests pass, Next.js production build passes with all 11 routes optimized, browser subagent verified visual rendering and interactivity.
+
 ## Open issues
 - ISSUE-03 (HTML in error messages) and ISSUE-04 (bench quirks) above.
 
 ## TODO — prioritized
 
 ### SaaS Evolution Next Modules
-1. **Public Marketing Website & Lead Capture** (Phase 2): product overview, screenshots, feature comparison, demo request form, plan comparison, and login portal router.
-2. **Customer Portal Multi-Tenant Routing** (Phase 2.5): integrate hostname resolution in dashboard middleware with clean fallback for single-store local development.
-3. **Automated Site Provisioning Pipeline** (Phase 3): template-based site cloning (`bench new-site` automation) for fast onboarding of first 3 test shops (`ramesh`, `lakshmi`, `murugan`).
-4. **Shared Mobile Application Foundation** (Phase 4): mobile app package with tenant workspace selector and token lifecycle.
+1. **Automated Site Provisioning Pipeline** (Phase 3): template-based site cloning (`bench new-site` automation) and background queue for activating pending onboarding requests.
+2. **Customer Portal Multi-Tenant Routing** (Phase 2.5): integrate hostname resolution in dashboard middleware with verified tenant context for subdomains.
+3. **Shared Mobile Application Foundation** (Phase 4): mobile app package with tenant workspace selector and token lifecycle.
 
 ### Core Store Operations
-5. **Accountant GST sign-off** → real GSTIN/HSN data; then evaluate e-invoicing/e-waybill.
-6. **Physical printer + camera validation** when hardware arrives.
-7. **Tamil voice assistant**: deterministic parser + transcript fixtures → Ctrl+Space + speech provider decision.
-8. **Camera/OCR batch capture** per spec.
-9. **Off-site backup replication** (rclone / external cold storage mirror).
-10. **k6 load test** + 20k-item catalog performance pass.
+4. **Accountant GST sign-off** → real GSTIN/HSN data; then evaluate e-invoicing/e-waybill.
+5. **Physical printer + camera validation** when hardware arrives.
+6. **Tamil voice assistant**: deterministic parser + transcript fixtures → Ctrl+Space + speech provider decision.
+7. **Camera/OCR batch capture** per spec.
+8. **Off-site backup replication** (rclone / external cold storage mirror).
+9. **k6 load test** + 20k-item catalog performance pass.
 
 
 ## Fresh-stack provisioning notes (for reproducibility)

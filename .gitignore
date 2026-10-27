@@ -35,3 +35,6 @@ docs/local-demo-credentials.md
 
 # graphify generated knowledge graph (local artifact)
 graphify-out/
+
+# local lead outbox
+.leads-outbox/

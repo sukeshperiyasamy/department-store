@@ -158,6 +158,73 @@ export const ResolveTenantResponseSchema = z.object({
 });
 export type ResolveTenantResponse = z.infer<typeof ResolveTenantResponseSchema>;
 
+/** Demo Request input schema */
+export const DemoRequestSchema = z
+  .object({
+    business_name: z.string().trim().min(2, "Business name must be at least 2 characters").max(100),
+    contact_name: z.string().trim().min(2, "Contact name must be at least 2 characters").max(100),
+    email: z.string().trim().email("Please provide a valid email address").max(140),
+    phone: z
+      .string()
+      .trim()
+      .regex(/^[0-9+ -]{10,18}$/, "Phone number must be between 10 and 18 digits"),
+    city: z.string().trim().min(2, "City name must be at least 2 characters").max(100),
+    state: z.string().trim().min(2, "State must be at least 2 characters").max(100),
+    counter_count: z.number().int().min(1, "Store must have at least 1 counter").max(50).default(1),
+    message: z.string().trim().max(1000).optional().default(""),
+    consent_given: z.literal(true, {
+      errorMap: () => ({ message: "You must consent to be contacted regarding the demo request" }),
+    }),
+  })
+  .strict();
+export type DemoRequest = z.infer<typeof DemoRequestSchema>;
+
+export const DemoRequestResponseSchema = z.object({
+  api_version: API_V1_SCHEMA,
+  request_id: z.string(),
+  status: z.enum(["Pending Review", "Contacted", "Scheduled", "Closed"]),
+  message: z.string(),
+});
+export type DemoRequestResponse = z.infer<typeof DemoRequestResponseSchema>;
+
+/** Onboarding Request input schema */
+export const OnboardingRequestSchema = z
+  .object({
+    business_name: z.string().trim().min(2, "Business name must be at least 2 characters").max(100),
+    owner_name: z.string().trim().min(2, "Owner name must be at least 2 characters").max(100),
+    email: z.string().trim().email("Please provide a valid email address").max(140),
+    phone: z
+      .string()
+      .trim()
+      .regex(/^[0-9+ -]{10,18}$/, "Phone number must be between 10 and 18 digits"),
+    state: z.string().trim().min(2, "State must be at least 2 characters").max(100),
+    city: z.string().trim().min(2, "City name must be at least 2 characters").max(100),
+    preferred_slug: TenantSlugSchema,
+    requested_plan: z.enum(["starter", "growth", "enterprise"]).default("starter"),
+    agreed_to_terms: z.literal(true, {
+      errorMap: () => ({ message: "You must agree to the Terms of Service and Privacy Policy" }),
+    }),
+  })
+  .strict();
+export type OnboardingRequest = z.infer<typeof OnboardingRequestSchema>;
+
+export const OnboardingRequestResponseSchema = z.object({
+  api_version: API_V1_SCHEMA,
+  request_id: z.string(),
+  preferred_slug: z.string(),
+  status: z.enum(["Pending Review", "Under Verification", "Approved", "Provisioned", "Rejected"]),
+  message: z.string(),
+});
+export type OnboardingRequestResponse = z.infer<typeof OnboardingRequestResponseSchema>;
+
+export const SlugAvailabilityResponseSchema = z.object({
+  api_version: API_V1_SCHEMA,
+  slug: z.string(),
+  available: z.boolean(),
+  reason: z.string().optional(),
+});
+export type SlugAvailabilityResponse = z.infer<typeof SlugAvailabilityResponseSchema>;
+
 /** Reserved hostnames that cannot be assigned as tenant domains or subdomains */
 export const RESERVED_HOSTNAMES = new Set([
   "localhost",

@@ -120,3 +120,63 @@ class TestTenantApi(FrappeTestCase):
         tenants = res.get("tenants", [])
         self.assertGreaterEqual(len(tenants), 1)
         self.assertEqual(tenants[0]["role"], "TENANT_OWNER")
+
+    def test_slug_availability(self):
+        # Available slug
+        res = tenant.check_slug_availability("fresh-retail-mart")
+        self.assertEqual(res.get("api_version"), 1)
+        self.assertTrue(res.get("available"))
+
+        # Reserved slug
+        res_res = tenant.check_slug_availability("admin")
+        self.assertFalse(res_res.get("available"))
+        self.assertIn("reserved", res_res.get("reason", "").lower())
+
+        # Invalid format
+        res_inv = tenant.check_slug_availability("bad--slug")
+        self.assertFalse(res_inv.get("available"))
+
+    def test_submit_demo_request(self):
+        demo_data = {
+            "business_name": "Madurai Super Store",
+            "contact_name": "Ramanathan",
+            "email": "raman@example.com",
+            "phone": "9876543210",
+            "city": "Madurai",
+            "state": "Tamil Nadu",
+            "counter_count": 2,
+            "message": "Interested in 2 counters with ESC/POS printers",
+            "consent_given": 1,
+        }
+        res = tenant.submit_demo_request(demo_data)
+        self.assertEqual(res.get("api_version"), 1)
+        self.assertTrue(res.get("request_id", "").startswith("DEMO-"))
+        self.assertEqual(res.get("status"), "Pending Review")
+
+        # Missing consent rejected
+        bad_data = dict(demo_data, consent_given=0)
+        with self.assertRaises(frappe.ValidationError):
+            tenant.submit_demo_request(bad_data)
+
+    def test_submit_onboarding_request(self):
+        unique_slug = f"shop-{frappe.generate_hash(length=6).lower()}"
+        onboard_data = {
+            "business_name": "Covai Retail Hub",
+            "owner_name": "Karthik Subramanian",
+            "email": "karthik@example.com",
+            "phone": "9123456789",
+            "state": "Tamil Nadu",
+            "city": "Coimbatore",
+            "preferred_slug": unique_slug,
+            "requested_plan": "growth",
+            "agreed_to_terms": 1,
+        }
+        res = tenant.submit_onboarding_request(onboard_data)
+        self.assertEqual(res.get("api_version"), 1)
+        self.assertTrue(res.get("request_id", "").startswith("ONBOARD-"))
+        self.assertEqual(res.get("preferred_slug"), unique_slug)
+        self.assertEqual(res.get("status"), "Pending Review")
+
+        # Submitting the same slug again is rejected
+        with self.assertRaises(frappe.ValidationError):
+            tenant.submit_onboarding_request(onboard_data)

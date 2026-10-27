@@ -233,3 +233,237 @@ def list_user_tenants() -> dict:
             }
         ],
     }
+
+
+def ensure_saas_lead_tables():
+    """Idempotently ensure dedicated SaaS lead and onboarding request tables exist."""
+    frappe.db.sql("""
+        CREATE TABLE IF NOT EXISTS `tabSaaS Demo Request` (
+            `name` VARCHAR(140) PRIMARY KEY,
+            `business_name` VARCHAR(140) NOT NULL,
+            `contact_name` VARCHAR(140) NOT NULL,
+            `email` VARCHAR(140) NOT NULL,
+            `phone` VARCHAR(40) NOT NULL,
+            `city` VARCHAR(100) NOT NULL,
+            `state` VARCHAR(100) NOT NULL,
+            `counter_count` INT DEFAULT 1,
+            `message` TEXT,
+            `consent_given` INT DEFAULT 1,
+            `status` VARCHAR(40) DEFAULT 'Pending Review',
+            `creation` DATETIME DEFAULT CURRENT_TIMESTAMP,
+            `modified` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX (`email`),
+            INDEX (`phone`),
+            INDEX (`status`),
+            INDEX (`creation`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    """)
+    frappe.db.sql("""
+        CREATE TABLE IF NOT EXISTS `tabSaaS Onboarding Request` (
+            `name` VARCHAR(140) PRIMARY KEY,
+            `business_name` VARCHAR(140) NOT NULL,
+            `owner_name` VARCHAR(140) NOT NULL,
+            `email` VARCHAR(140) NOT NULL,
+            `phone` VARCHAR(40) NOT NULL,
+            `state` VARCHAR(100) NOT NULL,
+            `city` VARCHAR(100) NOT NULL,
+            `preferred_slug` VARCHAR(63) NOT NULL,
+            `requested_plan` VARCHAR(40) DEFAULT 'starter',
+            `agreed_to_terms` INT DEFAULT 1,
+            `status` VARCHAR(40) DEFAULT 'Pending Review',
+            `creation` DATETIME DEFAULT CURRENT_TIMESTAMP,
+            `modified` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY `unique_slug` (`preferred_slug`),
+            INDEX (`email`),
+            INDEX (`phone`),
+            INDEX (`status`),
+            INDEX (`creation`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    """)
+    frappe.db.commit()
+
+
+@frappe.whitelist(allow_guest=True)
+def check_slug_availability(slug: str = None) -> dict:
+    """Check whether a requested tenant slug is available.
+
+    Validates URL-safe syntax, checks reserved platform keywords,
+    and checks existing registrations or pending onboarding requests.
+    """
+    if not slug or not isinstance(slug, str):
+        return {
+            "api_version": API_VERSION,
+            "slug": "",
+            "available": False,
+            "reason": "Slug cannot be empty",
+        }
+
+    clean_slug = slug.strip().lower()
+
+    # Validate syntax: 3-63 chars, lowercase alphanumeric + hyphen, no double hyphen
+    if len(clean_slug) < 3 or len(clean_slug) > 63:
+        return {
+            "api_version": API_VERSION,
+            "slug": clean_slug,
+            "available": False,
+            "reason": "Slug must be between 3 and 63 characters",
+        }
+
+    if not re.match(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$", clean_slug) or "--" in clean_slug:
+        return {
+            "api_version": API_VERSION,
+            "slug": clean_slug,
+            "available": False,
+            "reason": "Slug must contain only lowercase letters, numbers, and hyphens without consecutive or edge hyphens",
+        }
+
+    if is_reserved_hostname(clean_slug):
+        return {
+            "api_version": API_VERSION,
+            "slug": clean_slug,
+            "available": False,
+            "reason": f"'{clean_slug}' is a reserved platform keyword",
+        }
+
+    ensure_saas_lead_tables()
+
+    # Check existing onboarding requests
+    existing = frappe.db.sql(
+        """SELECT name, status FROM `tabSaaS Onboarding Request`
+           WHERE preferred_slug = %s AND status != 'Rejected'""",
+        (clean_slug,),
+        as_dict=True,
+    )
+    if existing:
+        return {
+            "api_version": API_VERSION,
+            "slug": clean_slug,
+            "available": False,
+            "reason": f"Slug '{clean_slug}' is already registered or pending activation",
+        }
+
+    return {
+        "api_version": API_VERSION,
+        "slug": clean_slug,
+        "available": True,
+        "reason": None,
+    }
+
+
+@frappe.whitelist(allow_guest=True)
+def submit_demo_request(data: dict = None, **kwargs) -> dict:
+    """Submit a validated demo request from the public marketing site."""
+    payload = data or kwargs
+    if isinstance(payload, str):
+        import json
+        payload = json.loads(payload)
+
+    # Required field validation
+    business_name = (payload.get("business_name") or "").strip()
+    contact_name = (payload.get("contact_name") or "").strip()
+    email = (payload.get("email") or "").strip().lower()
+    phone = re.sub(r"[^0-9+]", "", str(payload.get("phone") or "").strip())
+    city = (payload.get("city") or "").strip()
+    state = (payload.get("state") or "").strip()
+    counter_count = int(payload.get("counter_count") or 1)
+    message = (payload.get("message") or "").strip()
+    consent = bool(payload.get("consent_given"))
+
+    if not business_name or len(business_name) < 2:
+        frappe.throw(_("Business name must be at least 2 characters"), frappe.ValidationError)
+    if not contact_name or len(contact_name) < 2:
+        frappe.throw(_("Contact name must be at least 2 characters"), frappe.ValidationError)
+    if not email or "@" not in email:
+        frappe.throw(_("Valid email address is required"), frappe.ValidationError)
+    if not phone or len(phone) < 10:
+        frappe.throw(_("Valid phone number with at least 10 digits is required"), frappe.ValidationError)
+    if not city or len(city) < 2:
+        frappe.throw(_("City must be at least 2 characters"), frappe.ValidationError)
+    if not state or len(state) < 2:
+        frappe.throw(_("State must be at least 2 characters"), frappe.ValidationError)
+    if counter_count < 1 or counter_count > 50:
+        frappe.throw(_("Counter count must be between 1 and 50"), frappe.ValidationError)
+    if not consent:
+        frappe.throw(_("Consent to be contacted is required"), frappe.ValidationError)
+
+    ensure_saas_lead_tables()
+
+    request_id = f"DEMO-{frappe.utils.now_datetime().strftime('%Y%m%d')}-{frappe.generate_hash(length=8).upper()}"
+
+    frappe.db.sql(
+        """INSERT INTO `tabSaaS Demo Request`
+           (`name`, `business_name`, `contact_name`, `email`, `phone`, `city`, `state`,
+            `counter_count`, `message`, `consent_given`, `status`)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 1, 'Pending Review')""",
+        (request_id, business_name, contact_name, email, phone, city, state, counter_count, message),
+    )
+    frappe.db.commit()
+
+    return {
+        "api_version": API_VERSION,
+        "request_id": request_id,
+        "status": "Pending Review",
+        "message": "Demo request received successfully. Our sales engineering team will reach out within 1 business day.",
+    }
+
+
+@frappe.whitelist(allow_guest=True)
+def submit_onboarding_request(data: dict = None, **kwargs) -> dict:
+    """Submit a shop onboarding / registration request from the marketing portal."""
+    payload = data or kwargs
+    if isinstance(payload, str):
+        import json
+        payload = json.loads(payload)
+
+    business_name = (payload.get("business_name") or "").strip()
+    owner_name = (payload.get("owner_name") or "").strip()
+    email = (payload.get("email") or "").strip().lower()
+    phone = re.sub(r"[^0-9+]", "", str(payload.get("phone") or "").strip())
+    state = (payload.get("state") or "").strip()
+    city = (payload.get("city") or "").strip()
+    preferred_slug = (payload.get("preferred_slug") or "").strip().lower()
+    requested_plan = (payload.get("requested_plan") or "starter").strip().lower()
+    agreed = bool(payload.get("agreed_to_terms"))
+
+    if not business_name or len(business_name) < 2:
+        frappe.throw(_("Business name must be at least 2 characters"), frappe.ValidationError)
+    if not owner_name or len(owner_name) < 2:
+        frappe.throw(_("Owner name must be at least 2 characters"), frappe.ValidationError)
+    if not email or "@" not in email:
+        frappe.throw(_("Valid email address is required"), frappe.ValidationError)
+    if not phone or len(phone) < 10:
+        frappe.throw(_("Valid phone number with at least 10 digits is required"), frappe.ValidationError)
+    if not state or len(state) < 2:
+        frappe.throw(_("State must be at least 2 characters"), frappe.ValidationError)
+    if not city or len(city) < 2:
+        frappe.throw(_("City must be at least 2 characters"), frappe.ValidationError)
+    if requested_plan not in {"starter", "growth", "enterprise"}:
+        requested_plan = "starter"
+    if not agreed:
+        frappe.throw(_("Agreement to Terms of Service and Privacy Policy is required"), frappe.ValidationError)
+
+    # Check slug availability
+    slug_check = check_slug_availability(preferred_slug)
+    if not slug_check.get("available"):
+        frappe.throw(_(f"Requested slug '{preferred_slug}' is unavailable: {slug_check.get('reason')}"), frappe.ValidationError)
+
+    ensure_saas_lead_tables()
+
+    request_id = f"ONBOARD-{frappe.utils.now_datetime().strftime('%Y%m%d')}-{frappe.generate_hash(length=8).upper()}"
+
+    frappe.db.sql(
+        """INSERT INTO `tabSaaS Onboarding Request`
+           (`name`, `business_name`, `owner_name`, `email`, `phone`, `state`, `city`,
+            `preferred_slug`, `requested_plan`, `agreed_to_terms`, `status`)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 1, 'Pending Review')""",
+        (request_id, business_name, owner_name, email, phone, state, city, preferred_slug, requested_plan),
+    )
+    frappe.db.commit()
+
+    return {
+        "api_version": API_VERSION,
+        "request_id": request_id,
+        "preferred_slug": preferred_slug,
+        "status": "Pending Review",
+        "message": "Request submitted; shop activation is pending review. You will receive an email once your workspace is verified and provisioned.",
+    }

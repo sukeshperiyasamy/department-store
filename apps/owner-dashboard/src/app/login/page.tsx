@@ -10,7 +10,7 @@ async function loginAction(formData: FormData) {
   } catch (error) {
     redirect(`/login?error=${encodeURIComponent(error instanceof Error ? error.message : "login failed")}`);
   }
-  redirect("/");
+  redirect("/app");
 }
 
 export default async function LoginPage({
