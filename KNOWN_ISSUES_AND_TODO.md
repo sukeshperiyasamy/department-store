@@ -111,15 +111,22 @@ Last updated: 2026-10-27 (fresh-stack validation pass). Full defect register: `d
 - **Shop Onboarding & Slug Reservation**: Registration entry point at `/register` with live slug availability check (`checkSlugAction`) rejecting reserved keywords (RFC 1123). Truthful status feedback: "Request submitted; activation pending review." No unverified live provisioning claimed.
 - **Verification Evidence**: 145 vitest tests pass, 55 backend Frappe tests pass, Next.js production build passes with all 11 routes optimized, browser subagent verified visual rendering and interactivity.
 
+### Multi-Tenant SaaS Platform Phase 3 (Provisioning Pipeline & Platform Admin Console) — IMPLEMENTED 2026-10-27
+- **Tenancy Lifecycle State Machine**: Formally defined 10-state lifecycle in `packages/shared-types/src/tenancy.ts` (`PENDING_REVIEW`, `APPROVED`, `REJECTED`, `PROVISIONING`, `PROVISIONED`, `VERIFICATION_PENDING`, `ACTIVE`, `PROVISIONING_FAILED`, `SUSPENDED`, `ARCHIVED`) with server-side transition rejection (`isValidStateTransition`).
+- **Dedicated Platform Admin Boundary (ADR-0009)**: Strict role separation; tenant `System Manager` role denied access to global control plane.
+- **Durable Provisioning Queue & Worker**: `tabSaaS Provisioning Job` with atomic row claiming (`SELECT ... FOR UPDATE`), step tracking (`INIT` -> `COMPLETED`), timeout recovery, bounded retries (max 3), and sanitized error logs (zero secret/credential leakage).
+- **Platform Admin Console**: Full administrative UI at `apps/owner-dashboard/src/app/(admin)/admin/onboarding` with 4 KPI cards, filter tabs, instant search, inspect drawer with job steps and audit history, and approval/rejection/retry/suspension modals.
+- **Verification Evidence**: 159 vitest tests pass, 64 backend Frappe tests pass, 4/4 reliability tests pass, 24/24 API suite tests pass, 11/11 multi-counter tests pass, browser subagent verified rendering and operations.
+
 ## Open issues
 - ISSUE-03 (HTML in error messages) and ISSUE-04 (bench quirks) above.
 
 ## TODO — prioritized
 
 ### SaaS Evolution Next Modules
-1. **Automated Site Provisioning Pipeline** (Phase 3): template-based site cloning (`bench new-site` automation) and background queue for activating pending onboarding requests.
-2. **Customer Portal Multi-Tenant Routing** (Phase 2.5): integrate hostname resolution in dashboard middleware with verified tenant context for subdomains.
-3. **Shared Mobile Application Foundation** (Phase 4): mobile app package with tenant workspace selector and token lifecycle.
+1. **Production Reverse Proxy / TLS Automation & Wildcard DNS** (Phase 4): Traefik / Caddy ingress automation with automated Let's Encrypt certificates, tenant slug routing, and Next.js middleware subdomain extraction.
+2. **Customer Portal Multi-Tenant Routing**: Subdomain tenancy resolution middleware in owner-dashboard linking logged-in shop owners directly to their provisioned tenant site.
+3. **Shared Mobile Application Foundation** (Phase 5): React Native / Flutter or Tauri mobile companion with QR-code counter pairing and tenant switcher.
 
 ### Core Store Operations
 4. **Accountant GST sign-off** → real GSTIN/HSN data; then evaluate e-invoicing/e-waybill.

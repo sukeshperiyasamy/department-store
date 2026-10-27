@@ -1,18 +1,18 @@
 {
   "base": "http://localhost:8080",
-  "startedAt": "2026-10-27T01:23:35.872Z",
+  "startedAt": "2026-10-27T01:47:45.833Z",
   "tests": [
     {
       "id": "FIXTURES",
       "name": "seed cashier/manager tokens and race items",
       "status": "PASS",
-      "detail": "cashier=true raceA=RACE-ITEM-4FB0CF raceB=RACE-ITEM-9473F7"
+      "detail": "cashier=true raceA=RACE-ITEM-D30D25 raceB=RACE-ITEM-13FA92"
     },
     {
       "id": "HEALTH-01",
       "name": "ERP responds /api/method/ping",
       "status": "PASS",
-      "detail": "status=200 65ms"
+      "detail": "status=200 70ms"
     },
     {
       "id": "AUTH-01",
@@ -36,7 +36,7 @@
       "id": "CONTRACT-01",
       "name": "cashier sale posts; client rate ignored; totals from price list",
       "status": "PASS",
-      "detail": "grand_total=44"
+      "detail": "grand_total=106"
     },
     {
       "id": "RECOVERY-01",
@@ -46,7 +46,7 @@
     },
     {
       "id": "CATALOG-01",
-      "name": "snapshot schema + content (519 items)",
+      "name": "snapshot schema + content (523 items)",
       "status": "PASS",
       "detail": ""
     },
@@ -54,7 +54,7 @@
       "id": "IDEMP-01",
       "name": "HTTP duplicate submission returns same invoice, never duplicates",
       "status": "PASS",
-      "detail": "invoice=SINV-26-00154 duplicate=true"
+      "detail": "invoice=SINV-26-00168 duplicate=true"
     },
     {
       "id": "ERR-01",
@@ -120,7 +120,7 @@
       "id": "STOCK-01",
       "name": "oversell after stock exhausted is blocked with review",
       "status": "PASS",
-      "detail": "full=SERVER_COMMITTED over=REQUIRES_REVIEW code=VALIDATION_FAILED msg=<strong>1.0</strong> units of <a href=\"/desk/item/RACE-ITEM-78DF11\" style=\"font-weight: bo"
+      "detail": "full=SERVER_COMMITTED over=REQUIRES_REVIEW code=VALIDATION_FAILED msg=<strong>1.0</strong> units of <a href=\"/desk/item/RACE-ITEM-2B0637\" style=\"font-weight: bo"
     },
     {
       "id": "RACE-01",
@@ -130,7 +130,7 @@
     },
     {
       "id": "PERF-01",
-      "name": "full catalog snapshot (305 items) p50=31ms p95=38ms (n=15)",
+      "name": "full catalog snapshot (305 items) p50=32ms p95=38ms (n=15)",
       "status": "PASS",
       "detail": "provisional target: p95 < 2000ms on dev container"
     },
@@ -142,23 +142,23 @@
     },
     {
       "id": "PERF-03",
-      "name": "sale submission (stock item, full ERP posting) p50=110ms p95=112ms (n=10)",
+      "name": "sale submission (stock item, full ERP posting) p50=123ms p95=127ms (n=10)",
       "status": "PASS",
       "detail": "provisional target: p95 < 3000ms on dev container"
     }
   ],
   "perf": {
-    "catalog_full_ms_p50": "31",
+    "catalog_full_ms_p50": "32",
     "catalog_full_ms_p95": "38",
     "catalog_full_samples": 15,
     "catalog_full_items": 305,
     "catalog_incremental_ms_p50": "16",
     "catalog_incremental_items": 3,
-    "sale_submit_ms_p50": "110",
-    "sale_submit_ms_p95": "112",
+    "sale_submit_ms_p50": "123",
+    "sale_submit_ms_p95": "127",
     "sale_submit_n": 10
   },
-  "finishedAt": "2026-10-27T01:23:43.671Z",
+  "finishedAt": "2026-10-27T01:47:54.911Z",
   "summary": {
     "pass": 24,
     "fail": 0,

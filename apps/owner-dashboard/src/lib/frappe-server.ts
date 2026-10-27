@@ -17,6 +17,8 @@ import {
   OwnerSummarySchema,
   ResolveTenantResponseSchema,
   ServerStatusSchema,
+  OnboardingDetailRecordSchema,
+  type OnboardingDetailRecord,
   SetFlagResultSchema,
   SlugAvailabilityResponseSchema,
   StockAlertsSchema,
@@ -330,5 +332,136 @@ export async function submitOnboardingRequest(data: OnboardingRequest): Promise<
   };
 }
 
+export async function listPlatformOnboardingRequests(
+  status?: string,
+  search?: string,
+  page = 1,
+): Promise<{
+  api_version: number;
+  total: number;
+  page: number;
+  page_size: number;
+  requests: OnboardingDetailRecord[];
+}> {
+  return callFrappe(
+    "departmental_store.api.provisioning.list_onboarding_requests",
+    { status: status ?? "ALL", search: search ?? "", page },
+    z.object({
+      api_version: z.literal(1),
+      total: z.number(),
+      page: z.number(),
+      page_size: z.number(),
+      requests: z.array(OnboardingDetailRecordSchema),
+    }),
+  );
+}
+
+export async function getPlatformOnboardingDetail(
+  requestId: string,
+): Promise<{ api_version: number; detail: OnboardingDetailRecord }> {
+  return callFrappe(
+    "departmental_store.api.provisioning.get_onboarding_detail",
+    { request_id: requestId },
+    z.object({
+      api_version: z.literal(1),
+      detail: OnboardingDetailRecordSchema,
+    }),
+  );
+}
+
+export async function approvePlatformOnboarding(
+  requestId: string,
+  notes?: string,
+): Promise<{
+  api_version: number;
+  request_id: string;
+  status: string;
+  job_id: string;
+  assigned_site_name: string;
+  message: string;
+}> {
+  return callFrappe(
+    "departmental_store.api.provisioning.approve_onboarding_request",
+    { request_id: requestId, notes: notes ?? "" },
+    z.object({
+      api_version: z.literal(1),
+      request_id: z.string(),
+      status: z.string(),
+      job_id: z.string(),
+      assigned_site_name: z.string(),
+      message: z.string(),
+    }),
+  );
+}
+
+export async function rejectPlatformOnboarding(
+  requestId: string,
+  reason: string,
+): Promise<{
+  api_version: number;
+  request_id: string;
+  status: string;
+  message: string;
+}> {
+  return callFrappe(
+    "departmental_store.api.provisioning.reject_onboarding_request",
+    { request_id: requestId, reason },
+    z.object({
+      api_version: z.literal(1),
+      request_id: z.string(),
+      status: z.string(),
+      message: z.string(),
+    }),
+  );
+}
+
+export async function retryPlatformProvisioning(
+  requestId: string,
+  reason?: string,
+): Promise<{
+  api_version: number;
+  request_id: string;
+  status: string;
+  job_id: string;
+  retry_count: number;
+  message: string;
+}> {
+  return callFrappe(
+    "departmental_store.api.provisioning.retry_provisioning_job",
+    { request_id: requestId, reason: reason ?? "" },
+    z.object({
+      api_version: z.literal(1),
+      request_id: z.string(),
+      status: z.string(),
+      job_id: z.string(),
+      retry_count: z.number(),
+      message: z.string(),
+    }),
+  );
+}
+
+export async function setPlatformTenantStatus(
+  tenantId: string,
+  newStatus: string,
+  reason: string,
+): Promise<{
+  api_version: number;
+  tenant_id: string;
+  status: string;
+  message: string;
+}> {
+  return callFrappe(
+    "departmental_store.api.provisioning.set_tenant_status",
+    { tenant_id: tenantId, new_status: newStatus, reason },
+    z.object({
+      api_version: z.literal(1),
+      tenant_id: z.string(),
+      status: z.string(),
+      message: z.string(),
+    }),
+  );
+}
+
 export const zod = z;
+
 

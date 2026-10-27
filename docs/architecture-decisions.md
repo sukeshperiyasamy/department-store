@@ -111,3 +111,27 @@
   - Low idle resource overhead: 50–100 small shop databases can share a single bench deployment.
 - **Status**: Implemented foundation in Phase 1 (contracts in `packages/shared-types`, Frappe tenant API
   in `departmental_store.api.tenant`, and comprehensive unit tests).
+
+## ADR-0009 — Tenant Provisioning Pipeline and Platform Admin Security Boundary
+- **Context**:
+  - As the departmental store ERP evolves into a multi-tenant SaaS platform, new store registrations must be reviewed, approved, provisioned, and activated safely.
+  - Critical security requirements:
+    1. Public registration requests must NEVER directly execute site-creation commands, choose database credentials, access the Docker socket, or activate tenants without administrative approval.
+    2. Store-level `System Manager` roles on tenant sites must NOT grant access to the global SaaS control plane.
+    3. Site provisioning is long-running and must not block synchronous HTTP requests.
+    4. Passwords, database credentials, encryption keys, and internal filesystem paths must never appear in logs or audit records.
+    5. Partial provisioning failures must not automatically run destructive drop-site commands without operator reconciliation.
+- **Decision**:
+  - Implement an explicit, persisted 10-state lifecycle state machine:
+    `PENDING_REVIEW` -> `APPROVED` -> `PROVISIONING` -> `PROVISIONED` -> `VERIFICATION_PENDING` -> `ACTIVE`, with failure state `PROVISIONING_FAILED`, rejection `REJECTED`, and operational states `SUSPENDED` and `ARCHIVED`.
+  - Introduce a dedicated `Platform Admin` role in Frappe (`ROLE_DEFINITIONS`). The authorization guard `require_platform_admin()` rejects guests, store cashiers, store managers, and tenant System Managers.
+  - Model durable provisioning jobs in `tabSaaS Provisioning Job` with atomic row claiming (`SELECT ... FOR UPDATE`), step tracking (`INIT`, `VALIDATE`, `CREATE_SITE`, `INSTALL_APPS`, `INITIALIZE_STORE`, `VERIFY_HEALTH`, `COMPLETED`), heartbeat timestamps, worker IDs, and bounded retries (max 3).
+  - Model an immutable audit trail in `tabSaaS Provisioning Audit Log` capturing every transition, acting operator, reason, and sanitized metadata with automatic redaction of secret-bearing keys (`sanitize_error()`).
+  - Deploy a dedicated Platform Admin Review Console in `apps/owner-dashboard` under `(admin)/admin/onboarding` separate from ordinary shop owner views.
+  - Secure site creation uses explicit argument lists passed to `bench new-site` without shell interpolation (`shell=False`).
+- **Consequences**:
+  - Robust isolation between platform control plane and tenant store management.
+  - Idempotent and recoverable site provisioning under network hiccups, container restarts, or transient errors.
+  - Complete operational observability with zero secret exposure.
+- **Status**: Implemented in Phase 3 with end-to-end unit, backend, and browser tests.
+

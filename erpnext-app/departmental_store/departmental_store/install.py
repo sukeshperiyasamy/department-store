@@ -132,6 +132,10 @@ ROLE_DEFINITIONS = [
         "role_name": "Inventory Operator",
         "description": "Stock counts, batch entry, label printing",
     },
+    {
+        "role_name": "Platform Admin",
+        "description": "Multi-tenant SaaS platform operator: site provisioning, onboarding reviews, tenant suspension/activation",
+    },
 ]
 
 

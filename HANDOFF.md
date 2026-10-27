@@ -26,6 +26,12 @@ A departmental-store ERP for a single store with 2–3 Windows POS counters:
 - Recent phases:
   * Phase 1: Tenancy contracts, hostname resolution, Frappe tenant API, ADR-0008.
   * Phase 2: Public SaaS marketing website, customer onboarding entry point, demo request persistence, Next.js route groups (`(marketing)` vs `(app)`).
+  * Phase 3: Tenant Provisioning Pipeline and Platform Admin Console:
+    - 10-state lifecycle state machine (`PENDING_REVIEW` -> `ACTIVE`, `PROVISIONING_FAILED`, `SUSPENDED`, `ARCHIVED`).
+    - Dedicated `Platform Admin` role in Frappe; strict server-side denial for store-level `System Manager`.
+    - Asynchronous worker queue (`tabSaaS Provisioning Job`) with atomic row claiming, step tracking, bounded retries, and sanitized error logs.
+    - Protected Platform Admin Console at `apps/owner-dashboard/src/app/(admin)/admin/onboarding` with KPIs, tabs, search, inspect drawer, approve/reject/retry/suspend modals.
+    - Immutable audit trail in `tabSaaS Provisioning Audit Log` with zero secret leakage. ADR-0009 accepted.
 - Pushed to `https://github.com/sukeshperiyasamy/department-store` (origin/main). **Never force-push.**
 
 ## 3. Module map (where things live)
@@ -39,7 +45,8 @@ A departmental-store ERP for a single store with 2–3 Windows POS counters:
 | Reports | `erpnext-app/.../api/reports.py` | `owner_summary`, `server_status`, `stock_alerts`, `recent_invoices` |
 | Settings/flags | `erpnext-app/.../api/settings.py` + `.../doctype/departmental_store_settings/` | 10 feature flags; `require_flag()` server guard |
 | Tenancy & Leads API | `erpnext-app/.../api/tenant.py` | `resolve_tenant_by_host`, `get_tenant_info`, `list_user_tenants`, `check_slug_availability`, `submit_demo_request`, `submit_onboarding_request` |
-| Install/self-heal | `erpnext-app/.../install.py` | roles, permissions, language, **apps.txt + module-map repair** |
+| Provisioning & Admin API | `erpnext-app/.../api/provisioning.py` | `list_onboarding_requests`, `get_onboarding_detail`, `approve_onboarding_request`, `reject_onboarding_request`, `retry_provisioning_job`, `claim_next_provisioning_job`, `execute_provisioning_pipeline`, `set_tenant_status` |
+| Install/self-heal | `erpnext-app/.../install.py` | roles (`Platform Admin`, `Store Manager`, `POS Cashier`), permissions, language, **apps.txt + module-map repair** |
 | Seeds | `erpnext-app/.../seeds.py` | demo fixtures, cashier/manager users, race items, perf items |
 | Regional catalog | `erpnext-app/.../regional_catalog.py` | 160 TN demo products w/ Tamil+Tanglish aliases (see §7 BLOCKED) |
 | GST setup | `erpnext-app/.../gst_setup.py` | synthetic GSTIN, templates, `gst_validation_cases` |
@@ -49,9 +56,10 @@ A departmental-store ERP for a single store with 2–3 Windows POS counters:
 | POS UI | `apps/windows-pos/src/ui/` | Billing/Payment/Returns/Sync screens, preview harness (`preview.html`) |
 | Tauri shell | `apps/windows-pos/src-tauri/` | sql + http plugins, `print_raw` spool command, capabilities |
 | SaaS Marketing Site | `apps/owner-dashboard/src/app/(marketing)/` | Public pages: `/`, `/features`, `/pricing`, `/request-demo`, `/register`, `/privacy`, `/terms` |
+| Platform Admin Console | `apps/owner-dashboard/src/app/(admin)/` | Protected control plane: `/admin`, `/admin/onboarding` |
 | Manager Dashboard | `apps/owner-dashboard/src/app/(app)/` | Authenticated shell: `/app`, `/catalog`, `/sales`, `/inventory`, `/sync`, `/settings` |
 | Lead Outbox | `apps/owner-dashboard/src/lib/lead-storage.ts` | Resilient local outbox in `.leads-outbox/` mirroring Frappe MariaDB leads |
-| Contracts & Tenancy | `packages/shared-types/src/index.ts` + `tenancy.ts` | API zod schemas + SaaS tenant registry contracts, demo/onboarding schemas |
+| Contracts & Tenancy | `packages/shared-types/src/index.ts` + `tenancy.ts` | API zod schemas + SaaS tenant registry, onboarding schemas, provisioning schemas |
 
 ## 4. Authoritative docs (read next)
 

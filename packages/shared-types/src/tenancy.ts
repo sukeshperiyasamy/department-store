@@ -12,21 +12,64 @@ const API_V1_SCHEMA = z.literal(1);
 
 /** Lifecycle status of a tenant */
 export const TenantLifecycleStatus = {
-  Active: "ACTIVE",
+  PendingReview: "PENDING_REVIEW",
+  Approved: "APPROVED",
+  Rejected: "REJECTED",
   Provisioning: "PROVISIONING",
+  Provisioned: "PROVISIONED",
+  VerificationPending: "VERIFICATION_PENDING",
+  Active: "ACTIVE",
+  ProvisioningFailed: "PROVISIONING_FAILED",
   Suspended: "SUSPENDED",
   Archived: "ARCHIVED",
-  PendingVerification: "PENDING_VERIFICATION",
 } as const;
 
-export const TenantLifecycleStatusSchema = z.enum([
-  "ACTIVE",
+export const TenantLifecycleStatusEnum = z.enum([
+  "PENDING_REVIEW",
+  "APPROVED",
+  "REJECTED",
   "PROVISIONING",
+  "PROVISIONED",
+  "VERIFICATION_PENDING",
+  "ACTIVE",
+  "PROVISIONING_FAILED",
   "SUSPENDED",
   "ARCHIVED",
-  "PENDING_VERIFICATION",
 ]);
-export type TenantLifecycleStatus = z.infer<typeof TenantLifecycleStatusSchema>;
+
+export const TenantLifecycleStatusSchema = z.preprocess((val) => {
+  if (typeof val === "string") {
+    const s = val.trim().toUpperCase().replace(/\s+/g, "_");
+    if (s === "FAILED") return "PROVISIONING_FAILED";
+    return s;
+  }
+  return val;
+}, TenantLifecycleStatusEnum);
+
+export type TenantLifecycleStatus = z.infer<typeof TenantLifecycleStatusEnum>;
+
+/** Permitted lifecycle state transitions for SaaS onboarding and tenant operations */
+export const ALLOWED_STATE_TRANSITIONS: Record<TenantLifecycleStatus, readonly TenantLifecycleStatus[]> = {
+  PENDING_REVIEW: ["APPROVED", "REJECTED"],
+  APPROVED: ["PROVISIONING", "REJECTED"],
+  REJECTED: ["PENDING_REVIEW"],
+  PROVISIONING: ["PROVISIONED", "PROVISIONING_FAILED"],
+  PROVISIONED: ["VERIFICATION_PENDING", "PROVISIONING_FAILED"],
+  VERIFICATION_PENDING: ["ACTIVE", "PROVISIONING_FAILED"],
+  ACTIVE: ["SUSPENDED", "ARCHIVED"],
+  PROVISIONING_FAILED: ["APPROVED", "REJECTED", "ARCHIVED"],
+  SUSPENDED: ["ACTIVE", "ARCHIVED"],
+  ARCHIVED: [],
+} as const;
+
+/**
+ * Validates whether a proposed lifecycle status transition is permitted.
+ */
+export function isValidStateTransition(from: TenantLifecycleStatus, to: TenantLifecycleStatus): boolean {
+  if (from === to) return true;
+  const allowed = ALLOWED_STATE_TRANSITIONS[from];
+  return allowed ? allowed.includes(to) : false;
+}
 
 /** Verification status of a tenant's hostname */
 export const HostnameVerificationStatus = {
@@ -224,6 +267,116 @@ export const SlugAvailabilityResponseSchema = z.object({
   reason: z.string().optional(),
 });
 export type SlugAvailabilityResponse = z.infer<typeof SlugAvailabilityResponseSchema>;
+
+/** Provisioning Job Status */
+export const ProvisioningJobStatusSchema = z.enum([
+  "PENDING",
+  "RUNNING",
+  "COMPLETED",
+  "FAILED",
+  "CANCELLED",
+]);
+export type ProvisioningJobStatus = z.infer<typeof ProvisioningJobStatusSchema>;
+
+/** Steps executed by the provisioning pipeline */
+export const ProvisioningStepSchema = z.enum([
+  "INIT",
+  "VALIDATE",
+  "CREATE_SITE",
+  "INSTALL_APPS",
+  "INITIALIZE_STORE",
+  "VERIFY_HEALTH",
+  "COMPLETED",
+]);
+export type ProvisioningStep = z.infer<typeof ProvisioningStepSchema>;
+
+/** Provisioning Job Contract */
+export const ProvisioningJobSchema = z
+  .object({
+    job_id: z.string(),
+    request_id: z.string(),
+    tenant_slug: TenantSlugSchema,
+    site_name: z.string(),
+    status: ProvisioningJobStatusSchema,
+    current_step: ProvisioningStepSchema,
+    retry_count: z.number().int().min(0).default(0),
+    max_retries: z.number().int().min(1).default(3),
+    sanitized_error: z.string().nullable().optional(),
+    started_at: z.string().nullable().optional(),
+    completed_at: z.string().nullable().optional(),
+    heartbeat_at: z.string().nullable().optional(),
+    worker_id: z.string().nullable().optional(),
+  })
+  .strict();
+export type ProvisioningJob = z.infer<typeof ProvisioningJobSchema>;
+
+/** Immutable Audit Log Entry for Onboarding & Tenant State Transitions */
+export const ProvisioningAuditLogSchema = z
+  .object({
+    audit_id: z.string(),
+    request_id: z.string(),
+    tenant_id: z.string().optional(),
+    from_status: TenantLifecycleStatusSchema,
+    to_status: TenantLifecycleStatusSchema,
+    actor: z.string().min(1),
+    reason: z.string().min(1),
+    timestamp: z.string(),
+    job_id: z.string().optional(),
+    metadata: z.record(z.unknown()).optional(),
+  })
+  .strict();
+export type ProvisioningAuditLog = z.infer<typeof ProvisioningAuditLogSchema>;
+
+/** Onboarding Request Details including job and audit trail */
+export const OnboardingDetailRecordSchema = z.object({
+  name: z.string(),
+  business_name: z.string(),
+  owner_name: z.string(),
+  email: z.string(),
+  phone: z.string(),
+  state: z.string(),
+  city: z.string(),
+  preferred_slug: z.string(),
+  requested_plan: z.string(),
+  status: TenantLifecycleStatusSchema,
+  assigned_site_name: z.string().nullable().optional(),
+  job_id: z.string().nullable().optional(),
+  retry_count: z.number().int().default(0),
+  admin_notes: z.string().nullable().optional(),
+  creation: z.string(),
+  modified: z.string(),
+  latest_job: ProvisioningJobSchema.nullable().optional(),
+  audit_logs: z.array(ProvisioningAuditLogSchema).default([]),
+  tenant: TenantRecordSchema.nullable().optional(),
+});
+export type OnboardingDetailRecord = z.infer<typeof OnboardingDetailRecordSchema>;
+
+/** Admin Action Payloads */
+export const ApproveOnboardingPayloadSchema = z.object({
+  request_id: z.string().min(1),
+  notes: z.string().max(1000).optional(),
+});
+export type ApproveOnboardingPayload = z.infer<typeof ApproveOnboardingPayloadSchema>;
+
+export const RejectOnboardingPayloadSchema = z.object({
+  request_id: z.string().min(1),
+  reason: z.string().min(3).max(1000),
+});
+export type RejectOnboardingPayload = z.infer<typeof RejectOnboardingPayloadSchema>;
+
+export const RetryProvisioningPayloadSchema = z.object({
+  request_id: z.string().min(1),
+  reason: z.string().max(1000).optional(),
+});
+export type RetryProvisioningPayload = z.infer<typeof RetryProvisioningPayloadSchema>;
+
+export const SetTenantStatusPayloadSchema = z.object({
+  tenant_id: z.string().min(1),
+  new_status: TenantLifecycleStatusSchema,
+  reason: z.string().min(3).max(1000),
+});
+export type SetTenantStatusPayload = z.infer<typeof SetTenantStatusPayloadSchema>;
+
 
 /** Reserved hostnames that cannot be assigned as tenant domains or subdomains */
 export const RESERVED_HOSTNAMES = new Set([

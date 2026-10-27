@@ -70,9 +70,12 @@ Evidence pointers: docs/testing/, docs/artifacts/. Date of last verification: 20
 | Multi-Site Isolation Architecture (ADR-0008) | ✅ | Architecture decision accepted; native database separation |
 | Public Marketing Website & Lead Capture Forms (Phase 2) | ✅ | Live Next.js routes (`/`, `/features`, `/pricing`, `/request-demo`, `/register`, `/privacy`, `/terms`), validated Zod forms, Frappe MariaDB persistence (`tabSaaS Demo Request`, `tabSaaS Onboarding Request`) + resilient `.leads-outbox/`, browser-verified |
 | Customer Onboarding & Slug Check (Phase 2) | ✅ | Live slug check against reserved keywords (`checkSlugAction`), pending review status feedback, no unverified provisioning claimed |
-| Multi-Tenant Subdomain Routing in Dashboard Portal | 🚧 | Foundation resolution API complete; live subdomain routing deferred to post-review provisioning |
-| Automated Tenant Site Provisioning Pipeline | ⬜ | Roadmap Phase 3 (`bench new-site` automation & worker queue) |
-| Shared Mobile Application & Auth Flow | ⬜ | Roadmap Phase 4 (transparent roadmap disclosures published) |
+| Tenant Provisioning Pipeline & State Machine (Phase 3) | ✅ | 10-state lifecycle state machine (`PENDING_REVIEW` -> `ACTIVE`), Frappe worker queue (`claim_next_provisioning_job`), step tracking (`INIT` -> `COMPLETED`), timeout recovery, bounded retries, sanitized error logs, zero secret leakage, 9 bench tests PASS |
+| Platform Admin Review Console (Phase 3) | ✅ | Protected console at `/admin/onboarding`, KPI cards, queue filtering tabs, full search, inspect drawer, approve/reject/retry/suspend modals, browser-verified, 26 vitest tests PASS |
+| Dedicated Platform Admin Permission Boundary (ADR-0009) | ✅ | Frappe `Platform Admin` role; server-side denial of tenant System Managers, store managers, cashiers, and guests |
+| Immutable Provisioning Audit Trail (Phase 3) | ✅ | `tabSaaS Provisioning Audit Log` capturing all state transitions, actors, reasons, and sanitized metadata |
+| Automated Production Reverse-Proxy / TLS Generation | 🚧 | Domain mapping schema & verification ready; Traefik/Caddy wildcard TLS automation deferred to Phase 4 |
+| Shared Mobile Application & Auth Flow | ⬜ | Roadmap Phase 5 (transparent roadmap disclosures published) |
 | Production deployment checklist | ✅ | docs/release/PRODUCTION_DEPLOYMENT_CHECKLIST.md |
 | e-invoicing / e-waybill | ⬜ disabled pending legal determination | settings UI verified |
 | Tamil voice speech engine | ⬜ | spec only |

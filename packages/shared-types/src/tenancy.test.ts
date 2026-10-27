@@ -1,13 +1,20 @@
 import { describe, expect, it } from "vitest";
 import {
   authorizeTenantAccess,
+  ApproveOnboardingPayloadSchema,
   DemoRequestResponseSchema,
   DemoRequestSchema,
   isReservedHostname,
+  isValidStateTransition,
   normalizeHostname,
   OnboardingRequestResponseSchema,
   OnboardingRequestSchema,
+  ProvisioningAuditLogSchema,
+  ProvisioningJobSchema,
+  RejectOnboardingPayloadSchema,
   resolveTenantByHostname,
+  RetryProvisioningPayloadSchema,
+  SetTenantStatusPayloadSchema,
   SlugAvailabilityResponseSchema,
   TenantMembership,
   TenantRecord,
@@ -448,4 +455,103 @@ describe("OnboardingRequestSchema", () => {
     });
     expect(unavail.available).toBe(false);
   });
+
+  describe("Lifecycle State Machine Transitions", () => {
+    it("allows valid forward transitions through the onboarding & provisioning lifecycle", () => {
+      expect(isValidStateTransition("PENDING_REVIEW", "APPROVED")).toBe(true);
+      expect(isValidStateTransition("PENDING_REVIEW", "REJECTED")).toBe(true);
+      expect(isValidStateTransition("APPROVED", "PROVISIONING")).toBe(true);
+      expect(isValidStateTransition("PROVISIONING", "PROVISIONED")).toBe(true);
+      expect(isValidStateTransition("PROVISIONING", "PROVISIONING_FAILED")).toBe(true);
+      expect(isValidStateTransition("PROVISIONED", "VERIFICATION_PENDING")).toBe(true);
+      expect(isValidStateTransition("VERIFICATION_PENDING", "ACTIVE")).toBe(true);
+      expect(isValidStateTransition("ACTIVE", "SUSPENDED")).toBe(true);
+      expect(isValidStateTransition("SUSPENDED", "ACTIVE")).toBe(true);
+      expect(isValidStateTransition("ACTIVE", "ARCHIVED")).toBe(true);
+      expect(isValidStateTransition("SUSPENDED", "ARCHIVED")).toBe(true);
+      expect(isValidStateTransition("PROVISIONING_FAILED", "APPROVED")).toBe(true); // retry
+    });
+
+    it("rejects invalid, skipped, or illegal transitions", () => {
+      // Cannot jump straight to ACTIVE from PENDING_REVIEW or APPROVED
+      expect(isValidStateTransition("PENDING_REVIEW", "ACTIVE")).toBe(false);
+      expect(isValidStateTransition("PENDING_REVIEW", "PROVISIONED")).toBe(false);
+      expect(isValidStateTransition("APPROVED", "ACTIVE")).toBe(false);
+      // Cannot provision a rejected request
+      expect(isValidStateTransition("REJECTED", "PROVISIONING")).toBe(false);
+      // Archived is terminal
+      expect(isValidStateTransition("ARCHIVED", "ACTIVE")).toBe(false);
+      expect(isValidStateTransition("ARCHIVED", "PROVISIONING")).toBe(false);
+    });
+
+    it("treats same-state transition as valid idempotent no-op", () => {
+      expect(isValidStateTransition("ACTIVE", "ACTIVE")).toBe(true);
+      expect(isValidStateTransition("PENDING_REVIEW", "PENDING_REVIEW")).toBe(true);
+    });
+  });
+
+  describe("Provisioning Job & Audit Log Contracts", () => {
+    it("validates a complete provisioning job record", () => {
+      const job = ProvisioningJobSchema.parse({
+        job_id: "JOB-20261027-A1B2C3D4",
+        request_id: "ONBOARD-20261027-001",
+        tenant_slug: "lakshmi-market",
+        site_name: "lakshmi.localhost",
+        status: "RUNNING",
+        current_step: "CREATE_SITE",
+        retry_count: 0,
+        max_retries: 3,
+        sanitized_error: null,
+        started_at: "2026-10-27T07:00:00Z",
+      });
+      expect(job.status).toBe("RUNNING");
+      expect(job.current_step).toBe("CREATE_SITE");
+      expect(job.retry_count).toBe(0);
+    });
+
+    it("validates immutable provisioning audit log entry", () => {
+      const audit = ProvisioningAuditLogSchema.parse({
+        audit_id: "AUDIT-20261027-0001",
+        request_id: "ONBOARD-20261027-001",
+        tenant_id: "a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1",
+        from_status: "PENDING_REVIEW",
+        to_status: "APPROVED",
+        actor: "admin@platform.local",
+        reason: "Valid GSTIN and business verification passed",
+        timestamp: "2026-10-27T07:05:00Z",
+        metadata: { counter_limit: 5, plan: "growth" },
+      });
+      expect(audit.actor).toBe("admin@platform.local");
+      expect(audit.from_status).toBe("PENDING_REVIEW");
+      expect(audit.to_status).toBe("APPROVED");
+    });
+
+    it("validates admin action payloads", () => {
+      const approve = ApproveOnboardingPayloadSchema.parse({
+        request_id: "ONBOARD-123",
+        notes: "Approved after KYC phone check",
+      });
+      expect(approve.request_id).toBe("ONBOARD-123");
+
+      const reject = RejectOnboardingPayloadSchema.parse({
+        request_id: "ONBOARD-123",
+        reason: "Incomplete store contact information",
+      });
+      expect(reject.reason).toContain("Incomplete");
+
+      const retry = RetryProvisioningPayloadSchema.parse({
+        request_id: "ONBOARD-123",
+        reason: "Database connection timed out during first attempt",
+      });
+      expect(retry.request_id).toBe("ONBOARD-123");
+
+      const setStatus = SetTenantStatusPayloadSchema.parse({
+        tenant_id: "tenant-xyz",
+        new_status: "SUSPENDED",
+        reason: "Billing overdue by 60 days",
+      });
+      expect(setStatus.new_status).toBe("SUSPENDED");
+    });
+  });
 });
+
