@@ -262,6 +262,21 @@ Last updated: 2026-10-27 (fresh-stack validation pass). Full defect register: `d
 - **Repository Path & Command Reconciliations**: Audited and reconciled documentation paths across the codebase (`tests/integration/staging_preflight_check.mjs`, `deployment/backup/replicate_offsite.py`, `tests/integration/test_replicate_offsite.py`, `npm` workspaces).
 - **Controlled 10-Step Staging Acceptance Run Protocol**: Added comprehensive Section 8 in `docs/launch/STAGING_DEPLOYMENT_AND_RECOVERY_RUNBOOK.md` with explicit pass/fail gates across all 10 stages from staging VM deployment to rollback rehearsal.
 
+### Tenant-Site Isolation Proof and Final Software Release Gate — VERIFIED 2026-10-28 (Phase 18)
+- **Baseline Commit Confirmed (100% Green)**: Commit `72f535b34ac724dd7c34627db4f342e9e6209518` verified 100% green on GitHub Actions Run `40565971201` (`CI Quality Gates`, 6/6 jobs PASS: Typecheck & Contract Validation, Windows POS Test & Frontend Build, Security & Config Preflight, Owner Dashboard Test & Build, Mobile Companion Isolation Tests, Frappe App Python Quality).
+- **Two-Site Physical Tenant Isolation Verified (Exit Code 0)**:
+  * Created and executed `tests/integration/test_two_site_tenant_isolation.py` (7/7 PASS).
+  * Validated distinct MariaDB physical database schemas (`_5d32c992bf9e2cc2` vs disposable `_35883b21ac2a614c`).
+  * Proved 100% data invisibility: synthetic Item, User, and Tenant fixtures created on Site A are completely absent on Site B, and vice versa.
+  * Verified cross-tenant object ID manipulation and forged tenant headers are strictly denied with `PermissionError`.
+  * Verified unknown and suspended hostnames fail closed (`TENANT_NOT_FOUND`).
+  * Proved Redis cache isolation: cache keys are prefixed with `db_name` (`frappe.local.conf.get('db_name')|key`), ensuring Site B cannot read Site A cache entries; `frappe.destroy()` resets context cleanly.
+  * Verified failure and retry context cleanup: crashed transactions on Site A do not leak transaction handles or uncommitted locks across sites.
+  * Disposable Site B dropped cleanly with zero residual state.
+- **End-to-End Request Trace Documented**: Fully traced request path across all 7 steps (Ingress -> Normalization -> Registry Resolution -> Lifecycle/Verification -> Site/DB Selection -> Authentication/Authorization -> Leak-Free Response) with exact code files, functions, and lines in `docs/launch/TENANT_SITE_ISOLATION_PROOF_PHASE18.md`.
+- **Platform-Admin Boundaries Confirmed**: Verified `/admin` lockout on tenant subdomains in `middleware.ts`, `require_platform_admin()` server enforcement, and explicit background worker job scoping.
+- **Full Suite Reliability Confirmed**: 396 automated tests PASS (80 POS, 80 shared-types, 72 owner-dashboard, 11 mobile, 29 backup/download, 124 Frappe backend); 25 preflight checks PASS; 380 tracked files scanned with 0 secrets.
+
 
 5. **Live Payment Gateway Activation (Blocker for Live Billing)**: Production Razorpay Merchant account KYC, production webhook secret configuration.
 6. **Legal & Tax Sign-Off (Blocker for Live Billing)**: Commercial approval of pricing tiers (Starter ₹1,499 / Growth ₹2,999 / Enterprise ₹4,999); legal counsel review of Terms of Service & refund policy; CA sign-off on SAC 998315 and operator GSTIN.

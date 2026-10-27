@@ -230,3 +230,13 @@ Evidence pointers: docs/testing/, docs/artifacts/. Date of last verification: 20
 | Frappe Test ImplicitCommit Remediation | ✅ | Fixed `ImplicitCommitError` in `ensure_saas_membership_table()` by adding `table_exists` guard; all 124 Frappe backend tests pass cleanly in 72s |
 | Repository Path Inconsistency Reconciliation | ✅ | Documented and corrected stale path assumptions (`tests/integration/staging_preflight_check.mjs`, `deployment/backup/replicate_offsite.py`, `tests/integration/test_replicate_offsite.py`, `npm` workspaces) |
 | Controlled 10-Step Staging Acceptance Protocol | ✅ Spec / ⛔ Owner Action | Authored comprehensive 10-step protocol in `STAGING_DEPLOYMENT_AND_RECOVERY_RUNBOOK.md` with explicit pass/fail gates from VM deploy to rollback drill |
+
+## Tenant-Site Isolation Proof and Final Software Release Gate (Phase 18)
+
+| Feature | Status | Evidence |
+| --- | --- | --- |
+| Exact Baseline CI Verification | ✅ | Commit `72f535b34ac724dd7c34627db4f342e9e6209518` verified 100% GREEN on GitHub Actions Run `40565971201` (6/6 jobs PASS: Typecheck & Contract Validation, Windows POS Test & Frontend Build, Security & Config Preflight, Owner Dashboard Test & Build, Mobile Companion Isolation Tests, Frappe App Python Quality) |
+| Two-Site Physical Integration Isolation Proof | ✅ | `tests/integration/test_two_site_tenant_isolation.py` (7/7 checks PASS): validates distinct MariaDB database schemas (`_5d32c992bf9e2cc2` vs disposable `_35883b21ac2a614c`), zero data leakage across sites, user credential isolation, cross-tenant object ID & manipulated parameter denial, fail-closed unknown hostname routing, Redis cache isolation via `db_name` key prefixes and `frappe.destroy()` context reset, and clean failure/retry cleanup |
+| End-to-End Tenant Request Traceability | ✅ | Formally documented 7-step request path from Traefik ingress down to MariaDB schema isolation with exact code files, functions, and lines in `docs/launch/TENANT_SITE_ISOLATION_PROOF_PHASE18.md` |
+| Platform-Admin Boundary Verification | ✅ | Verified independent authorization (`require_platform_admin()`), `/admin` lockout on tenant subdomains in `middleware.ts`, strictly scoped billing/provisioning APIs, and explicit tenant identification in background worker jobs |
+| Full Automated Workspace Regression Suite | ✅ | 396 total automated tests PASS across all workspaces (80 POS, 80 shared-types, 72 owner-dashboard, 11 mobile, 29 backup/download, 124 Frappe backend); 25 preflight checks PASS; 380 tracked files scanned with zero credential leaks |

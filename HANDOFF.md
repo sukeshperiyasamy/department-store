@@ -143,6 +143,12 @@ A departmental-store ERP for a single store with 2–3 Windows POS counters:
     - Background Subscription Reconciliation: Registered daily cron `0 3 * * *` in `hooks.py` invoking `scheduled_subscription_reconciliation()` under `Administrator` context.
     - Invariant Verification: Formally verified all 9 payment and subscription invariants; documented in `docs/launch/PAYMENT_RECONCILIATION_AND_WEBHOOK_AUDIT.md`.
     - Full-Suite Test Execution: 350 tests executed across 8 backend suites and 4 frontend/app packages (all 350 PASS, 0 FAIL, 0 SKIPPED).
+  * Phase 18: Tenant-Site Isolation Proof and Final Software Release Gate:
+    - Baseline Verification: Commit `72f535b34ac724dd7c34627db4f342e9e6209518` verified 100% green on GitHub Actions Run `40565971201` (6/6 jobs PASS).
+    - Two-Site Physical Integration Isolation Proof: Created and executed `tests/integration/test_two_site_tenant_isolation.py` (7/7 checks PASS), proving physical schema separation (`_5d32c992bf9e2cc2` vs disposable `_35883b21ac2a614c`), zero data leakage, Redis db_name key scoping, fail-closed unknown hostnames, and clean context reset.
+    - End-to-End Tenant Request Traceability: Fully traced 7-step path from edge ingress to MariaDB schema isolation with exact code attribution in `docs/launch/TENANT_SITE_ISOLATION_PROOF_PHASE18.md`.
+    - Platform-Admin Security Boundaries: Verified independent authorization (`require_platform_admin()`), `/admin` lockout on tenant subdomains in `middleware.ts`, and explicit tenant scoping in background jobs.
+    - Automated Regression Suite: 396 total automated tests PASS across all workspaces (80 POS, 80 shared-types, 72 owner-dashboard, 11 mobile, 29 backup/download, 124 Frappe backend); 25 preflight checks PASS; 380 tracked files scanned with zero credential leaks.
 - Pushed to `https://github.com/sukeshperiyasamy/department-store` (origin/main). **Never force-push.**
 
 ## 3. Module map (where things live)
