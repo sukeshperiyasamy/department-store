@@ -149,6 +149,13 @@ A departmental-store ERP for a single store with 2–3 Windows POS counters:
     - End-to-End Tenant Request Traceability: Fully traced 7-step path from edge ingress to MariaDB schema isolation with exact code attribution in `docs/launch/TENANT_SITE_ISOLATION_PROOF_PHASE18.md`.
     - Platform-Admin Security Boundaries: Verified independent authorization (`require_platform_admin()`), `/admin` lockout on tenant subdomains in `middleware.ts`, and explicit tenant scoping in background jobs.
     - Automated Regression Suite: 396 total automated tests PASS across all workspaces (80 POS, 80 shared-types, 72 owner-dashboard, 11 mobile, 29 backup/download, 124 Frappe backend); 25 preflight checks PASS; 380 tracked files scanned with zero credential leaks.
+  * Phase 19: End-to-End Tenant Host Routing Verification & Staging Gate:
+    - Baseline Verification: Commit `a4f0b18c777ed7b904fb1a2be37b5ff9c66068da` verified 100% green on GitHub Actions Run `40574563439` (6/6 jobs PASS).
+    - Multi-Site Nginx Reverse Proxy Correction: Fixed hardcoded `FRAPPE_SITE_NAME_HEADER: frontend` in `deployment/erpnext/pwd.yml` (line 135) to `$$host`; enabled dynamic site selection from client Host header via `proxy_set_header X-Frappe-Site-Name $host;`.
+    - Real HTTP Two-Tenant Routing Proof: Authored and executed `tests/integration/test_e2e_tenant_http_routing.py` (10/10 checks PASS) on port 8080 across two disposable restored tenant sites (`_92f4a44dc913424c` vs `_904a93906bbe0fb1`), proving dynamic multi-site selection, marker isolation, fail-closed unknown hosts (404), unverified/suspended tenant denial, forged header rejection, cross-tenant credential denial (401), unauthenticated access protection (403), cache isolation across host switching (`Vary: Host, Cookie`), and error isolation without context leak.
+    - Provisioning-to-Routing Consistency: Verified registry metadata agrees with disk site directories and database schemas; mismatched mappings fail closed (HTTP 404).
+    - Guarded Teardown & Intact Primary Site: Test harness drops disposable test sites cleanly (`bench drop-site --force`); primary `frontend` site remains 100% intact and healthy.
+    - Full Regression Suite: 396 total automated tests PASS; 25 preflight checks PASS; 382 tracked files scanned with 0 secrets. Full evidence in `docs/launch/TENANT_HTTP_ROUTING_PROOF_PHASE19.md`.
 - Pushed to `https://github.com/sukeshperiyasamy/department-store` (origin/main). **Never force-push.**
 
 ## 3. Module map (where things live)

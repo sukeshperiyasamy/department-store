@@ -277,6 +277,31 @@ Last updated: 2026-10-27 (fresh-stack validation pass). Full defect register: `d
 - **Platform-Admin Boundaries Confirmed**: Verified `/admin` lockout on tenant subdomains in `middleware.ts`, `require_platform_admin()` server enforcement, and explicit background worker job scoping.
 - **Full Suite Reliability Confirmed**: 396 automated tests PASS (80 POS, 80 shared-types, 72 owner-dashboard, 11 mobile, 29 backup/download, 124 Frappe backend); 25 preflight checks PASS; 380 tracked files scanned with 0 secrets.
 
+### End-to-End Tenant Host Routing Verification & Staging Gate — VERIFIED 2026-10-28 (Phase 19)
+- **Baseline Commit Confirmed (100% Green)**: Commit `a4f0b18c777ed7b904fb1a2be37b5ff9c66068da` verified 100% green on GitHub Actions Run `40574563439` (`CI Quality Gates`, 6/6 jobs PASS: Frappe App Python Quality, Security & Config Preflight, Typecheck & Contract Validation, Mobile Companion Isolation Tests, Owner Dashboard Test & Build, Windows POS Test & Frontend Build).
+- **Demonstrated Defect in Nginx Multi-Site Routing Fixed**:
+  * Demonstrated that `deployment/erpnext/pwd.yml` line 135 had hardcoded `FRAPPE_SITE_NAME_HEADER: frontend`, causing Nginx to set `proxy_set_header X-Frappe-Site-Name frontend;` and directing all incoming traffic to `frontend` regardless of requested Host.
+  * Corrected `FRAPPE_SITE_NAME_HEADER: frontend` to `$$host`, dynamically passing the client's Host header as `X-Frappe-Site-Name` to Gunicorn backend.
+  * Verified that unknown hostnames immediately fail closed with HTTP 404 (`<host> does not exist`), and spoofed client `X-Frappe-Site-Name` headers are overwritten by Nginx with the verified Host.
+- **Automated End-to-End Two-Tenant HTTP Test Suite (Exit Code 0)**:
+  * Created and executed `tests/integration/test_e2e_tenant_http_routing.py` (10/10 checks PASS).
+  * Provisioned two disposable tenant sites (`e2e-tenant-a.local` on `_92f4a44dc913424c` and `e2e-tenant-b.local` on `_904a93906bbe0fb1`).
+  * Real HTTP requests to port 8080 proved:
+    1. Tenant A hostname returns A's expected marker and never B's.
+    2. Tenant B hostname returns B's expected marker and never A's.
+    3. Unknown hostname fails closed (HTTP 404).
+    4. Unverified hostname denied (`HOSTNAME_UNVERIFIED`).
+    5. Suspended tenant denied (`TENANT_SUSPENDED`).
+    6. Forged `Host` / `X-Forwarded-Host` / `X-Frappe-Site-Name` cannot hijack routing.
+    7. User authenticated for A cannot access B's API or records (HTTP 401).
+    8. Requests without valid authentication denied protected data (HTTP 403).
+    9. Switching hosts cannot reuse cached responses (`Vary: Host, Cookie`, `Cache-Control: no-store`).
+    10. Exceptions and failed requests do not contaminate the next request's site or database context.
+- **Provisioning-to-Routing Consistency Verified**: Registry metadata agrees with disk site directories and database schemas; mismatched mappings fail closed with HTTP 404.
+- **Guarded Teardown**: Disposable test sites dropped cleanly (`bench drop-site --force`); primary `frontend` site remained intact and healthy.
+- **Full Suite Reliability Confirmed**: 396 automated tests PASS; 25 preflight checks PASS; 382 tracked files scanned with 0 secrets.
+
+
 
 5. **Live Payment Gateway Activation (Blocker for Live Billing)**: Production Razorpay Merchant account KYC, production webhook secret configuration.
 6. **Legal & Tax Sign-Off (Blocker for Live Billing)**: Commercial approval of pricing tiers (Starter ₹1,499 / Growth ₹2,999 / Enterprise ₹4,999); legal counsel review of Terms of Service & refund policy; CA sign-off on SAC 998315 and operator GSTIN.
