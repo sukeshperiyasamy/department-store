@@ -433,10 +433,65 @@ export const SettingsFlagsSchema = z.object({
 });
 export type SettingsFlags = z.infer<typeof SettingsFlagsSchema>;
 
+export const StoreProfileSchema = z.object({
+  store_name: z.string().min(1).max(140),
+  store_phone: z.string().max(50),
+  store_address: z.string().max(500),
+  receipt_header: z.string().max(500),
+  receipt_footer: z.string().max(500),
+  business_hours: z.string().max(100),
+  tax_number: z.string().max(50),
+  currency_symbol: z.string().default("₹"),
+  date_format: z.string().default("DD-MM-YYYY"),
+});
+export type StoreProfile = z.infer<typeof StoreProfileSchema>;
+
+export const UpdateStoreProfilePayloadSchema = StoreProfileSchema.partial();
+export type UpdateStoreProfilePayload = z.infer<typeof UpdateStoreProfilePayloadSchema>;
+
+export const SupportTicketCategory = z.enum([
+  "BILLING",
+  "POS_SYNC",
+  "HARDWARE_PRINTER",
+  "INVENTORY",
+  "ACCOUNT",
+  "OTHER",
+]);
+export type SupportTicketCategory = z.infer<typeof SupportTicketCategory>;
+
+export const SupportTicketPriority = z.enum([
+  "LOW",
+  "NORMAL",
+  "HIGH",
+  "URGENT",
+]);
+export type SupportTicketPriority = z.infer<typeof SupportTicketPriority>;
+
+export const SupportRequestPayloadSchema = z.object({
+  category: SupportTicketCategory.default("OTHER"),
+  subject: z.string().min(3).max(140),
+  description: z.string().min(10).max(2000),
+  priority: SupportTicketPriority.default("NORMAL"),
+  diagnostics: z.record(z.unknown()).optional(),
+});
+export type SupportRequestPayload = z.infer<typeof SupportRequestPayloadSchema>;
+
+export const SupportRequestResultSchema = z.object({
+  api_version: API_VERSION_SCHEMA,
+  ticket_id: z.string(),
+  status: z.literal("RECEIVED"),
+  category: z.string(),
+  priority: z.string(),
+  created_at: z.string(),
+  estimated_response_hours: z.number(),
+});
+export type SupportRequestResult = z.infer<typeof SupportRequestResultSchema>;
+
 export const StoreSettingsSchema = z.object({
   api_version: API_VERSION_SCHEMA,
   flags: SettingsFlagsSchema,
   expiry_warning_days: z.string().default("7,30,60"),
+  profile: StoreProfileSchema.optional(),
 });
 export type StoreSettings = z.infer<typeof StoreSettingsSchema>;
 

@@ -129,3 +129,20 @@ Evidence pointers: docs/testing/, docs/artifacts/. Date of last verification: 20
 | e-invoicing / e-waybill | ⬜ disabled pending legal determination | settings UI verified |
 | Tamil voice speech engine | ⬜ | spec only |
 | MCP adapter (typed tool boundary only) | 🚧 | boundary typed |
+
+## Product Maturity & Customer-Driven Roadmap (Phase 12)
+
+| Feature | Status | Evidence |
+| --- | --- | --- |
+| Product Gap Analysis & Baseline Audit (Phase 0) | ✅ | Prioritized gap report classifying 5 tiers of findings in `docs/product/PRODUCT_GAP_ANALYSIS.md` |
+| Customer Feedback & Product Discovery Framework (Phase 1) | ✅ | 8-dimension structured intake schema, Sev 1-4 triage matrix, zero-PII/credential guardrails in `docs/product/CUSTOMER_FEEDBACK_AND_DISCOVERY_FRAMEWORK.md` |
+| Tenant Store Profile & Receipt Customization (Phase 2 & 3) | ✅ | Extended `Departmental Store Settings` with 10 profile fields, `get_store_profile` / `update_store_profile` APIs, editable UI in `/settings`, 13 Frappe backend tests PASS, 7 dashboard tests PASS |
+| Actionable Low-Stock Reorder CSV Export (Phase 2 & 5) | ✅ | `ReorderExportButton` in `/inventory` toolbar; one-click CSV export of out-of-stock and low-stock items with suggested order quantities; 2 vitest tests PASS |
+| In-App Customer Support Request Workflow (Phase 7) | ✅ | `submit_support_request` API in Frappe, category/priority selection, structured intake, automatic SLA response estimation; 2 Frappe tests PASS, 7 dashboard tests PASS |
+| Redacted System Diagnostics Export (Phase 7) | ✅ | One-click JSON diagnostic bundle copy in Settings Section 10; zero customer PII, zero tokens/passwords, verified test assertions in `SettingsClient.test.tsx` |
+| Product Analytics Specification & Privacy Policy (Phase 4) | ✅ | Operational metrics MET-001 through MET-008, platform vs tenant access boundary, strict non-surveillance policy, retention rules in `docs/product/PRODUCT_ANALYTICS_SPECIFICATION.md` |
+| Commercial Feature Prioritization Matrix (Phase 5) | ✅ | Transparent RICE + Risk scoring model evaluating 11 candidate features; justification for high-value priorities in `docs/product/COMMERCIAL_FEATURE_EVALUATION.md` |
+| Product Quality & Accessibility Audit (Phase 6) | ✅ | WCAG 2.1 AA contrast verification (7.42:1), keyboard-only billing walkthrough, semantic ARIA labels, responsive layouts in `docs/product/ACCESSIBILITY_AND_QUALITY_AUDIT.md` |
+| Customer Support & Self-Service Diagnostics (Phase 7) | ✅ | Store owner troubleshooting runbooks, escalation SLAs, incident response workflows in `docs/product/CUSTOMER_SUPPORT_AND_SELF_SERVICE.md` |
+| Repeatable Product Feedback Loop SOP (Phase 8) | ✅ | 9-stage standard operating procedure (intake, triage, criteria, targeted change, regression, verification, release, measurement, verdict) in `docs/product/PRODUCT_FEEDBACK_LOOP_SOP.md` |
+| Product Roadmap & Architecture Decision Record (Phase 9) | ✅ | Near-term roadmap (Releases 0.2.0 to 0.4.0), deferred items, ADR-012 through ADR-014, and risk register in `docs/product/PRODUCT_ROADMAP_AND_DECISION_RECORD.md` |

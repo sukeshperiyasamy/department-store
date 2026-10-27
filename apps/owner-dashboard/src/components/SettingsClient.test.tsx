@@ -110,6 +110,13 @@ describe("SettingsClient component", () => {
     expect(html).toContain("11.8.9-MariaDB-ubu2404");
     expect(html).toContain("Innodb_deadlocks = 0 (Live query)");
     expect(html).toContain("2 Verified Local Snapshots");
+
+    // Section 10: Customer Support & Diagnostics
+    expect(html).toContain("10. Customer Support &amp; Diagnostics");
+    expect(html).toContain("Submit Support Incident");
+    expect(html).toContain("Copy Diagnostic Bundle");
+    expect(html).toContain("Edit Store &amp; Receipt Profile");
+    expect(html).toContain("Save Store Profile");
   });
 
   it("renders honest labels for unavailable and pending hardware features", () => {

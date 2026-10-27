@@ -118,3 +118,62 @@ class TestSettingsApi(FrappeTestCase):
 
         # Clean up
         settings.set_flag("camera_product_capture_enabled", 0)
+
+    def test_get_store_profile_structure(self):
+        frappe.set_user("Administrator")
+        res = settings.get_store_profile()
+        self.assertEqual(res.get("api_version"), 1)
+        self.assertIn("profile", res)
+        p = res["profile"]
+        self.assertIn("store_name", p)
+        self.assertIn("store_phone", p)
+        self.assertIn("store_address", p)
+        self.assertIn("receipt_header", p)
+        self.assertIn("receipt_footer", p)
+        self.assertIn("business_hours", p)
+        self.assertIn("tax_number", p)
+        self.assertIn("currency_symbol", p)
+
+    def test_update_store_profile_authorized(self):
+        frappe.set_user("Administrator")
+        payload = {
+            "store_name": "Test Modern Supermarket",
+            "store_phone": "+91 99999 88888",
+            "receipt_header": "Welcome to Test Modern!",
+        }
+        res = settings.update_store_profile(payload)
+        self.assertEqual(res["profile"]["store_name"], "Test Modern Supermarket")
+        self.assertEqual(res["profile"]["store_phone"], "+91 99999 88888")
+        self.assertEqual(res["profile"]["receipt_header"], "Welcome to Test Modern!")
+
+        # Reset back to default
+        settings.update_store_profile({"store_name": "Demo Departmental Store"})
+
+    def test_update_store_profile_unauthorized(self):
+        cashier_email = "test_cashier_settings@demo.store"
+        frappe.set_user(cashier_email)
+        with self.assertRaises(frappe.PermissionError):
+            settings.update_store_profile({"store_name": "Hacked Store"})
+
+    def test_submit_support_request_success(self):
+        frappe.set_user("Administrator")
+        res = settings.submit_support_request(
+            category="POS_SYNC",
+            subject="Counter 2 offline sync issue",
+            description="Offline bills taking over 2 minutes to drain during peak rush",
+            priority="HIGH",
+            diagnostics={"counter_count": 3, "secret_key": "sensitive_123"},
+        )
+        self.assertEqual(res["api_version"], 1)
+        self.assertEqual(res["status"], "RECEIVED")
+        self.assertTrue(res["ticket_id"].startswith("TKT-"))
+        self.assertEqual(res["category"], "POS_SYNC")
+        self.assertEqual(res["priority"], "HIGH")
+        self.assertEqual(res["estimated_response_hours"], 4)
+
+    def test_submit_support_request_validation(self):
+        frappe.set_user("Administrator")
+        with self.assertRaises(frappe.ValidationError):
+            settings.submit_support_request(subject="", description="Valid description")
+        with self.assertRaises(frappe.ValidationError):
+            settings.submit_support_request(subject="Valid Subject", description="")

@@ -1,4 +1,5 @@
 import { fetchStockAlerts } from "@/lib/frappe-server";
+import { ReorderExportButton } from "@/components/ReorderExportButton";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,11 @@ export default async function InventoryPage({
     error = e instanceof Error ? e.message : String(e);
   }
 
+  const reorderItems = [
+    ...(alerts?.out_of_stock ?? []),
+    ...(alerts?.low_stock ?? []),
+  ];
+
   return (
     <>
       <div className="page-head">
@@ -29,12 +35,15 @@ export default async function InventoryPage({
             {alerts ? new Date(alerts.generated_at).toLocaleString() : "—"}
           </div>
         </div>
-        <form className="toolbar" method="get">
-          <label htmlFor="days">Expiry window (days)</label>
-          <input id="days" type="number" name="days" min={1} max={365}
-                 defaultValue={daysToExpiry} style={{ width: 110 }} />
-          <button className="btn primary" type="submit">Apply</button>
-        </form>
+        <div className="toolbar" style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          {alerts && <ReorderExportButton items={reorderItems} />}
+          <form className="toolbar" method="get" style={{ margin: 0, padding: 0 }}>
+            <label htmlFor="days">Expiry window (days)</label>
+            <input id="days" type="number" name="days" min={1} max={365}
+                   defaultValue={daysToExpiry} style={{ width: 110 }} />
+            <button className="btn primary" type="submit">Apply</button>
+          </form>
+        </div>
       </div>
 
       {error && <div className="error-banner">ERP unavailable: {error}</div>}

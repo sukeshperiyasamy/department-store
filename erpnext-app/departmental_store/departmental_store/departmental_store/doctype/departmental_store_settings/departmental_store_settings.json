@@ -21,7 +21,17 @@
   "regional_catalog_enabled",
   "receipt_printing_enabled",
   "barcode_label_printing_enabled",
-  "expiry_warning_days"
+  "expiry_warning_days",
+  "section_store_profile",
+  "store_name",
+  "store_phone",
+  "store_address",
+  "receipt_header",
+  "receipt_footer",
+  "business_hours",
+  "tax_number",
+  "currency_symbol",
+  "date_format"
  ],
  "fields": [
   {
@@ -104,6 +114,65 @@
    "fieldtype": "Data",
    "label": "Expiry warning windows (days, comma separated)",
    "default": "7,30,60"
+  },
+  {
+   "fieldname": "section_store_profile",
+   "fieldtype": "Section Break",
+   "label": "Store Profile & Receipts"
+  },
+  {
+   "fieldname": "store_name",
+   "fieldtype": "Data",
+   "label": "Store Name",
+   "default": "Demo Departmental Store"
+  },
+  {
+   "fieldname": "store_phone",
+   "fieldtype": "Data",
+   "label": "Store Phone",
+   "default": "+91 98765 43210"
+  },
+  {
+   "fieldname": "store_address",
+   "fieldtype": "Small Text",
+   "label": "Store Address",
+   "default": "Main Bazaar, Madurai, Tamil Nadu 625001"
+  },
+  {
+   "fieldname": "receipt_header",
+   "fieldtype": "Small Text",
+   "label": "Receipt Header",
+   "default": "Welcome to Demo Departmental Store!"
+  },
+  {
+   "fieldname": "receipt_footer",
+   "fieldtype": "Small Text",
+   "label": "Receipt Footer",
+   "default": "Thank you for shopping with us! Please visit again."
+  },
+  {
+   "fieldname": "business_hours",
+   "fieldtype": "Data",
+   "label": "Business Hours",
+   "default": "08:00 AM - 10:00 PM (Mon-Sun)"
+  },
+  {
+   "fieldname": "tax_number",
+   "fieldtype": "Data",
+   "label": "GSTIN / Tax Number",
+   "default": "33AAAAA0000A1Z5"
+  },
+  {
+   "fieldname": "currency_symbol",
+   "fieldtype": "Data",
+   "label": "Currency Symbol",
+   "default": "\u20b9"
+  },
+  {
+   "fieldname": "date_format",
+   "fieldtype": "Data",
+   "label": "Date Format",
+   "default": "DD-MM-YYYY"
   }
  ],
  "permissions": [
@@ -115,7 +184,8 @@
   },
   {
    "read": 1,
-   "role": "Store Manager"
+   "role": "Store Manager",
+   "write": 1
   }
  ],
  "sort_field": "modified",

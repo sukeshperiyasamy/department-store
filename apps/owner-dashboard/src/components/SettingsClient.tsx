@@ -4,9 +4,17 @@ import React, { useState, useTransition } from "react";
 import {
   type FeatureFlagName,
   type ServerStatus,
+  type StoreProfile,
   type StoreSettings,
+  type SupportRequestResult,
+  type SupportTicketCategory,
+  type SupportTicketPriority,
 } from "@departmental/shared-types";
-import { toggleFlagAction } from "@/app/(app)/settings/actions";
+import {
+  toggleFlagAction,
+  updateStoreProfileAction,
+  submitSupportRequestAction,
+} from "@/app/(app)/settings/actions";
 
 interface SettingsClientProps {
   initialSettings: StoreSettings | null;
@@ -24,7 +32,8 @@ type SectionKey =
   | "printers"
   | "inventory"
   | "voice_ai"
-  | "health";
+  | "health"
+  | "support";
 
 interface FlagMeta {
   key: FeatureFlagName;
@@ -187,6 +196,101 @@ export function SettingsClient({
     });
   };
 
+  // Store Profile State
+  const [profile, setProfile] = useState<StoreProfile>(
+    initialSettings?.profile ?? {
+      store_name: "Departmental Store",
+      store_phone: "",
+      store_address: "Southern Tamil Nadu, India",
+      receipt_header: "Welcome to our store!",
+      receipt_footer: "Thank you for shopping with us! Visit again.",
+      business_hours: "08:00 AM - 10:00 PM",
+      tax_number: "33AAAAA0000A1Z5",
+      currency_symbol: "₹",
+      date_format: "DD-MM-YYYY",
+    },
+  );
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileSaved, setProfileSaved] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+
+  const handleProfileSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setProfileSaving(true);
+    setProfileError(null);
+    const res = await updateStoreProfileAction(profile);
+    setProfileSaving(false);
+    if (res.success && res.profile) {
+      setProfile(res.profile);
+      setProfileSaved(true);
+      setTimeout(() => setProfileSaved(false), 3000);
+    } else {
+      setProfileError(res.error || "Failed to update store profile");
+    }
+  };
+
+  // Support & Diagnostics State
+  const [supportCategory, setSupportCategory] = useState<SupportTicketCategory>("POS_SYNC");
+  const [supportPriority, setSupportPriority] = useState<SupportTicketPriority>("NORMAL");
+  const [supportSubject, setSupportSubject] = useState("");
+  const [supportDescription, setSupportDescription] = useState("");
+  const [supportSubmitting, setSupportSubmitting] = useState(false);
+  const [supportSuccess, setSupportSuccess] = useState<SupportRequestResult | null>(null);
+  const [supportError, setSupportError] = useState<string | null>(null);
+  const [copiedDiagnostics, setCopiedDiagnostics] = useState(false);
+
+  const handleSupportSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSupportSubmitting(true);
+    setSupportError(null);
+    setSupportSuccess(null);
+    const diagnostics = {
+      client_timestamp: new Date().toISOString(),
+      store_name: profile.store_name,
+      counters_count: serverStatus?.devices.length ?? 0,
+      db_engine: serverStatus?.database?.engine ?? "MariaDB",
+      db_version: serverStatus?.database?.version ?? "unknown",
+      deadlocks: serverStatus?.database?.innodb_deadlocks ?? 0,
+      review_queue_length: serverStatus?.review_queue?.length ?? 0,
+      processing_count: serverStatus?.processing_transactions?.length ?? 0,
+    };
+    const res = await submitSupportRequestAction({
+      category: supportCategory,
+      subject: supportSubject,
+      description: supportDescription,
+      priority: supportPriority,
+      diagnostics,
+    });
+    setSupportSubmitting(false);
+    if (res.success && res.result) {
+      setSupportSuccess(res.result);
+      setSupportSubject("");
+      setSupportDescription("");
+    } else {
+      setSupportError(res.error || "Failed to submit support request");
+    }
+  };
+
+  const handleCopyDiagnostics = () => {
+    const diagData = {
+      timestamp: new Date().toISOString(),
+      store_name: profile.store_name,
+      gstin: profile.tax_number,
+      timezone: "Asia/Kolkata",
+      counters: serverStatus?.devices.map((d) => ({
+        id: d.device_id,
+        name: d.counter_name,
+        last_sync: d.last_sync_at,
+      })),
+      database: serverStatus?.database,
+      frappe_version: serverStatus?.frappe_version,
+      active_flags: flags,
+    };
+    navigator.clipboard.writeText(JSON.stringify(diagData, null, 2));
+    setCopiedDiagnostics(true);
+    setTimeout(() => setCopiedDiagnostics(false), 2500);
+  };
+
   const isVisible = (sec: SectionKey) =>
     activeSection === "all" || activeSection === sec;
 
@@ -292,6 +396,13 @@ export function SettingsClient({
         >
           🛡️ System Health
         </button>
+        <button
+          type="button"
+          className={`settings-nav-btn ${activeSection === "support" ? "active" : ""}`}
+          onClick={() => setActiveSection("support")}
+        >
+          🎧 Support &amp; Diagnostics
+        </button>
       </nav>
 
       {/* 1. Store Profile */}
@@ -308,7 +419,7 @@ export function SettingsClient({
           <div className="detail-grid">
             <div className="detail-card">
               <div className="label">Store Name</div>
-              <div className="val">Departmental Store</div>
+              <div className="val">{profile.store_name || "Departmental Store"}</div>
               <div className="sub">Configured in ERP Company master</div>
             </div>
             <div className="detail-card">
@@ -336,6 +447,123 @@ export function SettingsClient({
               <div className="val">Central Docker ERPNext v16</div>
               <div className="sub">MariaDB 11.8 authoritative ledger</div>
             </div>
+          </div>
+
+          {/* Editable Store Profile Settings Form */}
+          <div style={{ marginTop: 24, paddingTop: 18, borderTop: "1px solid var(--border)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <h3 style={{ fontSize: "var(--fs-md)", fontWeight: 700, margin: 0 }}>
+                Edit Store &amp; Receipt Profile
+              </h3>
+              {profileSaved && (
+                <span className="feedback-tag saved" style={{ fontSize: 12, padding: "3px 8px" }}>
+                  ✓ Profile Saved Cleanly
+                </span>
+              )}
+            </div>
+
+            {profileError && (
+              <div className="feedback-tag err" style={{ display: "block", marginBottom: 12, padding: "8px 12px" }}>
+                {profileError}
+              </div>
+            )}
+
+            <form onSubmit={handleProfileSave}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 14 }}>
+                <div className="form-group">
+                  <label htmlFor="store-name-input">Store Name</label>
+                  <input
+                    id="store-name-input"
+                    type="text"
+                    value={profile.store_name}
+                    onChange={(e) => setProfile((p) => ({ ...p, store_name: e.target.value }))}
+                    placeholder="e.g. Sri Murugan Departmental Store"
+                    required
+                  />
+                  <span className="form-hint">Displayed on POS billing and receipts.</span>
+                </div>
+                <div className="form-group">
+                  <label htmlFor="store-phone-input">Store Phone Number</label>
+                  <input
+                    id="store-phone-input"
+                    type="text"
+                    value={profile.store_phone}
+                    onChange={(e) => setProfile((p) => ({ ...p, store_phone: e.target.value }))}
+                    placeholder="e.g. 9876543210"
+                  />
+                  <span className="form-hint">Printed on customer receipts for inquiries.</span>
+                </div>
+                <div className="form-group">
+                  <label htmlFor="business-hours-input">Business Hours</label>
+                  <input
+                    id="business-hours-input"
+                    type="text"
+                    value={profile.business_hours}
+                    onChange={(e) => setProfile((p) => ({ ...p, business_hours: e.target.value }))}
+                    placeholder="e.g. 08:00 AM - 10:00 PM"
+                  />
+                  <span className="form-hint">Daily operating schedule for customer reference.</span>
+                </div>
+                <div className="form-group">
+                  <label htmlFor="tax-number-input">GSTIN / Tax Number</label>
+                  <input
+                    id="tax-number-input"
+                    type="text"
+                    value={profile.tax_number}
+                    onChange={(e) => setProfile((p) => ({ ...p, tax_number: e.target.value }))}
+                    placeholder="e.g. 33AAAAA0000A1Z5"
+                  />
+                  <span className="form-hint">Printed on tax invoices for GST compliance.</span>
+                </div>
+                <div className="form-group" style={{ gridColumn: "1 / -1" }}>
+                  <label htmlFor="store-address-input">Store Address</label>
+                  <input
+                    id="store-address-input"
+                    type="text"
+                    value={profile.store_address}
+                    onChange={(e) => setProfile((p) => ({ ...p, store_address: e.target.value }))}
+                    placeholder="e.g. 12 Gandhi Road, Erode, Tamil Nadu 638001"
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="receipt-header-input">Thermal Receipt Header</label>
+                  <input
+                    id="receipt-header-input"
+                    type="text"
+                    value={profile.receipt_header}
+                    onChange={(e) => setProfile((p) => ({ ...p, receipt_header: e.target.value }))}
+                    placeholder="e.g. Welcome! Fresh Farm Produce & Groceries"
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="receipt-footer-input">Thermal Receipt Footer</label>
+                  <input
+                    id="receipt-footer-input"
+                    type="text"
+                    value={profile.receipt_footer}
+                    onChange={(e) => setProfile((p) => ({ ...p, receipt_footer: e.target.value }))}
+                    placeholder="e.g. Thank you for shopping with us! Visit again."
+                  />
+                </div>
+              </div>
+              <div style={{ marginTop: 14 }}>
+                <button
+                  type="submit"
+                  disabled={profileSaving}
+                  style={{
+                    background: "var(--accent)",
+                    color: "#ffffff",
+                    border: "none",
+                    borderRadius: "var(--radius-sm)",
+                    padding: "9px 20px",
+                    fontWeight: 600,
+                    cursor: profileSaving ? "wait" : "pointer",
+                  }}
+                >
+                  {profileSaving ? "Saving Store Profile…" : "Save Store Profile"}
+                </button>
+              </div>
+            </form>
           </div>
         </section>
       )}
@@ -727,6 +955,182 @@ export function SettingsClient({
               <div className="label">Active Claims Processing</div>
               <div className="val">{serverStatus?.processing_transactions.length ?? 0} In Flight</div>
               <div className="sub">Claim-based idempotency active</div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* 10. Customer Support & Diagnostics */}
+      {isVisible("support") && (
+        <section className="panel" aria-labelledby="heading-support">
+          <div className="panel-head">
+            <h2 id="heading-support">10. Customer Support &amp; Diagnostics</h2>
+            <span className="badge ok">In-App Helpdesk</span>
+          </div>
+          <p className="muted" style={{ margin: "0 0 14px", fontSize: "var(--fs-sm)" }}>
+            Submit technical tickets, report counter sync anomalies, and safely export sanitized system telemetry.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 20 }}>
+            {/* Ticket Submission Form */}
+            <div style={{ background: "var(--surface)", padding: 18, borderRadius: "var(--radius)" }}>
+              <h3 style={{ fontSize: "var(--fs-md)", fontWeight: 700, margin: "0 0 10px" }}>
+                Submit Support Incident
+              </h3>
+
+              {supportSuccess && (
+                <div
+                  className="badge ok"
+                  style={{ display: "block", marginBottom: 14, padding: "10px 14px", lineHeight: 1.4 }}
+                >
+                  <strong>Ticket #{supportSuccess.ticket_id} Logged:</strong> Status{" "}
+                  {supportSuccess.status}. Estimated response: within{" "}
+                  {supportSuccess.estimated_response_hours} hours.
+                </div>
+              )}
+
+              {supportError && (
+                <div
+                  className="feedback-tag err"
+                  style={{ display: "block", marginBottom: 14, padding: "8px 12px" }}
+                >
+                  {supportError}
+                </div>
+              )}
+
+              <form onSubmit={handleSupportSubmit}>
+                <div className="form-group">
+                  <label htmlFor="support-category">Issue Category</label>
+                  <select
+                    id="support-category"
+                    value={supportCategory}
+                    onChange={(e) => setSupportCategory(e.target.value as SupportTicketCategory)}
+                  >
+                    <option value="POS_SYNC">POS Counter &amp; Offline Sync</option>
+                    <option value="HARDWARE_PRINTER">Thermal Printer &amp; Barcode Scanner</option>
+                    <option value="INVENTORY">Inventory &amp; Stock Ledger</option>
+                    <option value="BILLING">Billing &amp; GST Invoicing</option>
+                    <option value="ACCOUNT">Owner Account &amp; Access</option>
+                    <option value="OTHER">Other Technical Question</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="support-priority">Priority</label>
+                  <select
+                    id="support-priority"
+                    value={supportPriority}
+                    onChange={(e) => setSupportPriority(e.target.value as SupportTicketPriority)}
+                  >
+                    <option value="LOW">Low (Cosmetic / Inquiry)</option>
+                    <option value="NORMAL">Normal (Standard operational request)</option>
+                    <option value="HIGH">High (Counter billing impaired)</option>
+                    <option value="URGENT">Urgent (All billing counters stopped)</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="support-subject">Subject</label>
+                  <input
+                    id="support-subject"
+                    type="text"
+                    value={supportSubject}
+                    onChange={(e) => setSupportSubject(e.target.value)}
+                    placeholder="Brief summary of the issue"
+                    required
+                    minLength={3}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="support-description">Description &amp; Observed Behavior</label>
+                  <textarea
+                    id="support-description"
+                    rows={4}
+                    value={supportDescription}
+                    onChange={(e) => setSupportDescription(e.target.value)}
+                    placeholder="Describe what occurred, any error messages displayed, and steps to reproduce."
+                    required
+                    minLength={10}
+                  />
+                  <span className="form-hint">
+                    Safe transmission: telemetry automatically attached; auth credentials and card details never collected.
+                  </span>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={supportSubmitting}
+                  style={{
+                    background: "var(--accent)",
+                    color: "#ffffff",
+                    border: "none",
+                    borderRadius: "var(--radius-sm)",
+                    padding: "9px 20px",
+                    fontWeight: 600,
+                    cursor: supportSubmitting ? "wait" : "pointer",
+                    marginTop: 6,
+                  }}
+                >
+                  {supportSubmitting ? "Submitting Incident…" : "Submit Support Ticket"}
+                </button>
+              </form>
+            </div>
+
+            {/* Diagnostics Export Box */}
+            <div style={{ background: "var(--surface)", padding: 18, borderRadius: "var(--radius)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <h3 style={{ fontSize: "var(--fs-md)", fontWeight: 700, margin: 0 }}>
+                  System Diagnostics &amp; Telemetry
+                </h3>
+                <button
+                  type="button"
+                  onClick={handleCopyDiagnostics}
+                  style={{
+                    background: copiedDiagnostics ? "var(--success)" : "var(--card)",
+                    color: copiedDiagnostics ? "#fff" : "var(--text)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "var(--radius-sm)",
+                    padding: "5px 12px",
+                    fontSize: "var(--fs-xs)",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  {copiedDiagnostics ? "✓ Copied Redacted JSON" : "Copy Diagnostic Bundle"}
+                </button>
+              </div>
+
+              <p className="muted" style={{ fontSize: "var(--fs-xs)", margin: "0 0 12px" }}>
+                Zero-PII diagnostic snapshot for troubleshooting counter sync, MariaDB deadlocks, and release versions.
+              </p>
+
+              <div className="detail-grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
+                <div className="detail-card">
+                  <div className="label">Registered Terminals</div>
+                  <div className="val">{serverStatus?.devices.length ?? 0} Counters</div>
+                  <div className="sub">All configured devices</div>
+                </div>
+                <div className="detail-card">
+                  <div className="label">Sync In Flight</div>
+                  <div className="val">{serverStatus?.processing_transactions.length ?? 0} Bills</div>
+                  <div className="sub">Active claims</div>
+                </div>
+                <div className="detail-card">
+                  <div className="label">Review Queue</div>
+                  <div className="val">{serverStatus?.review_queue.length ?? 0} Bills</div>
+                  <div className="sub">Unresolved stock/price errors</div>
+                </div>
+                <div className="detail-card">
+                  <div className="label">DB Deadlocks</div>
+                  <div className="val">{serverStatus?.database?.innodb_deadlocks ?? 0}</div>
+                  <div className="sub">Authoritative MariaDB ledger</div>
+                </div>
+              </div>
+
+              <div style={{ marginTop: 14, fontSize: "var(--fs-xs)", color: "var(--muted)", lineHeight: 1.5 }}>
+                🔒 <strong>Privacy Guarantee:</strong> Diagnostic bundles never contain customer phone numbers, GST sales data, employee PINs, or ERP authentication secrets.
+              </div>
             </div>
           </div>
         </section>

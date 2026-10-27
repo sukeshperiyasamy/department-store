@@ -4,9 +4,15 @@ import {
   SalePayloadSchema,
   SaleResponseSchema,
   SetFlagResultSchema,
+  StoreProfileSchema,
   StoreSettingsSchema,
+  SupportRequestPayloadSchema,
+  SupportRequestResultSchema,
+  SupportTicketCategory,
+  SupportTicketPriority,
   SyncRecordSchema,
   TransactionState,
+  UpdateStoreProfilePayloadSchema,
 } from "./index";
 
 const validPayload = {
@@ -214,3 +220,74 @@ describe("SetFlagResultSchema", () => {
   });
 });
 
+describe("StoreProfileSchema", () => {
+  it("accepts a valid store profile with defaults", () => {
+    const raw = {
+      store_name: "Sri Murugan Departmental Store",
+      store_phone: "9876543210",
+      store_address: "12 Gandhi Bazaar, Erode, TN 638001",
+      receipt_header: "Welcome to Sri Murugan Store!",
+      receipt_footer: "Thank you for shopping with us! Visit again.",
+      business_hours: "08:00 AM - 10:00 PM",
+      tax_number: "33AAAAA0000A1Z5",
+    };
+    const parsed = StoreProfileSchema.parse(raw);
+    expect(parsed.store_name).toBe("Sri Murugan Departmental Store");
+    expect(parsed.currency_symbol).toBe("₹");
+    expect(parsed.date_format).toBe("DD-MM-YYYY");
+  });
+
+  it("accepts partial updates via UpdateStoreProfilePayloadSchema", () => {
+    const raw = {
+      receipt_header: "Grand Diwali Sale!",
+    };
+    const parsed = UpdateStoreProfilePayloadSchema.parse(raw);
+    expect(parsed.receipt_header).toBe("Grand Diwali Sale!");
+    expect(parsed.store_name).toBeUndefined();
+  });
+});
+
+describe("SupportRequestPayloadSchema and SupportRequestResultSchema", () => {
+  it("accepts a valid support request with diagnostics", () => {
+    const raw = {
+      category: SupportTicketCategory.Values.POS_SYNC,
+      subject: "Counter 2 offline sync delayed",
+      description: "Counter 2 has 3 pending offline sales that have not synced for 10 minutes.",
+      priority: SupportTicketPriority.Values.HIGH,
+      diagnostics: {
+        counter_id: "counter-2",
+        pending_outbox_count: 3,
+        network_status: "online",
+      },
+    };
+    const parsed = SupportRequestPayloadSchema.parse(raw);
+    expect(parsed.category).toBe("POS_SYNC");
+    expect(parsed.priority).toBe("HIGH");
+    expect(parsed.diagnostics?.counter_id).toBe("counter-2");
+  });
+
+  it("rejects support request with too short description", () => {
+    const raw = {
+      category: SupportTicketCategory.Values.BILLING,
+      subject: "Help",
+      description: "Too short",
+    };
+    expect(() => SupportRequestPayloadSchema.parse(raw)).toThrow();
+  });
+
+  it("validates a support ticket creation result", () => {
+    const raw = {
+      api_version: 1,
+      ticket_id: "TKT-20261027-001",
+      status: "RECEIVED" as const,
+      category: "POS_SYNC",
+      priority: "HIGH",
+      created_at: "2026-10-27T08:00:00Z",
+      estimated_response_hours: 4,
+    };
+    const parsed = SupportRequestResultSchema.parse(raw);
+    expect(parsed.ticket_id).toBe("TKT-20261027-001");
+    expect(parsed.status).toBe("RECEIVED");
+    expect(parsed.estimated_response_hours).toBe(4);
+  });
+});

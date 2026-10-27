@@ -22,7 +22,9 @@ import {
   SetFlagResultSchema,
   SlugAvailabilityResponseSchema,
   StockAlertsSchema,
+  StoreProfileSchema,
   StoreSettingsSchema,
+  SupportRequestResultSchema,
   TenantInfoResponseSchema,
   CustomerOnboardingStatusResponseSchema,
   type CustomerOnboardingStatusResponse,
@@ -40,8 +42,12 @@ import {
   type SetFlagResult,
   type SlugAvailabilityResponse,
   type StockAlerts,
+  type StoreProfile,
   type StoreSettings,
+  type SupportRequestPayload,
+  type SupportRequestResult,
   type TenantRecord,
+  type UpdateStoreProfilePayload,
 } from "@departmental/shared-types";
 import { saveDemoRequestLocal, saveOnboardingRequestLocal } from "./lead-storage";
 import { z, type ZodType, type ZodTypeDef } from "zod";
@@ -248,6 +254,41 @@ export async function setFeatureFlag(flag: FeatureFlagName, value: boolean): Pro
     SetFlagResultSchema,
   );
 }
+
+export async function fetchStoreProfile(): Promise<StoreProfile> {
+  return callFrappe(
+    "departmental_store.api.settings.get_store_profile",
+    {},
+    StoreProfileSchema,
+  );
+}
+
+export async function updateStoreProfile(
+  profile: UpdateStoreProfilePayload,
+): Promise<StoreProfile> {
+  return callFrappe(
+    "departmental_store.api.settings.update_store_profile",
+    { profile },
+    StoreProfileSchema,
+  );
+}
+
+export async function submitSupportRequest(
+  payload: SupportRequestPayload,
+): Promise<SupportRequestResult> {
+  return callFrappe(
+    "departmental_store.api.settings.submit_support_request",
+    {
+      category: payload.category,
+      subject: payload.subject,
+      description: payload.description,
+      priority: payload.priority,
+      diagnostics: payload.diagnostics ?? {},
+    },
+    SupportRequestResultSchema,
+  );
+}
+
 
 export async function resolveTenantFromHost(hostname: string): Promise<ResolveTenantResponse> {
   const response = await fetch(
