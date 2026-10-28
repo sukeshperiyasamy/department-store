@@ -5,7 +5,7 @@
 **Audit Baseline Commit:** `d09db02` (`origin/main`)  
 **Auditor Roles:** Principal Software Architect, Senior QA Engineer, Security Engineer, ERPNext/Frappe Specialist, Full-Stack Engineer, and Release Auditor  
 **Date of Audit:** 2026-10-28  
-**Total Tracked Features:** 76 Granular Features  
+**Total Tracked Features:** 84 Granular Features  
 
 ---
 
