@@ -32,6 +32,8 @@ tok.env
 
 # local-only credentials document (never commit)
 docs/local-demo-credentials.md
+LOCAL_TEST_LOGIN_HANDOFF.md
+docs/LOCAL_TEST_LOGIN_HANDOFF.md
 
 # graphify generated knowledge graph (local artifact)
 graphify-out/
