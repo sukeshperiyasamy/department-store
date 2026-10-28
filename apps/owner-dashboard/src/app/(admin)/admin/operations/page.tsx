@@ -1,4 +1,5 @@
 import React from "react";
+import { Lock } from "lucide-react";
 import { getPlatformOperationsOverview, listPlatformOnboardingRequests } from "@/lib/frappe-server";
 import { OperationsDashboardClient } from "@/components/OperationsDashboardClient";
 import type { PlatformOperationsOverview, OnboardingDetailRecord } from "@departmental/shared-types";
@@ -42,7 +43,9 @@ export default async function OperationsDashboardPage() {
   if (authError) {
     return (
       <div className="card" style={{ padding: 40, textAlign: "center", maxWidth: 600, margin: "40px auto" }}>
-        <div style={{ fontSize: 36, marginBottom: 16 }}>🔒</div>
+        <div style={{ display: "inline-flex", padding: 14, background: "var(--surface)", borderRadius: "50%", marginBottom: 16 }}>
+          <Lock size={32} color="var(--muted)" aria-hidden="true" />
+        </div>
         <h2 style={{ fontSize: 22, margin: "0 0 10px", color: "var(--text)" }}>Platform Admin Access Required</h2>
         <p style={{ color: "var(--muted)", fontSize: 14, lineHeight: 1.6, margin: "0 0 20px" }}>
           {authError}

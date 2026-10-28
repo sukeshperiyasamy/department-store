@@ -2,6 +2,7 @@
 
 import React, { useState, useTransition } from "react";
 import Link from "next/link";
+import { Compass } from "lucide-react";
 import type { CustomerOnboardingJourney } from "@departmental/shared-types";
 import {
   verifyContactAction,
@@ -337,7 +338,7 @@ export function OnboardingJourneyTracker({
             gap: 14,
           }}
         >
-          <div style={{ fontSize: 24 }}>🧭</div>
+          <Compass size={24} color="var(--accent)" aria-hidden="true" style={{ flexShrink: 0 }} />
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: "var(--fs-xs)", textTransform: "uppercase", fontWeight: 700, color: "var(--muted)" }}>
               Current Next Action

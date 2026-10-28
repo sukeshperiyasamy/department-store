@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useTransition } from "react";
+import { Check } from "lucide-react";
 import type { PlatformOperationsOverview, OnboardingDetailRecord } from "@departmental/shared-types";
 import {
   approveRequestAction,
@@ -196,7 +197,7 @@ export function OperationsDashboardClient({ initialOverview, initialRequests }: 
               fontWeight: 800,
             }}
           >
-            ✓
+            <Check size={18} aria-hidden="true" />
           </div>
           <div>
             <div style={{ fontWeight: 700, fontSize: "var(--fs-sm)", color: "var(--text)" }}>

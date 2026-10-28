@@ -2,6 +2,7 @@ import React from "react";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { ExternalLink, ShieldCheck } from "lucide-react";
 
 export const metadata = {
   title: "SaaS Platform Control Plane — Department Store ERP",
@@ -37,7 +38,7 @@ export default async function PlatformAdminLayout({
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <span style={{ fontSize: 24 }}>🛡️</span>
+          <ShieldCheck size={26} color="#2dd4bf" aria-hidden="true" />
           <div>
             <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: "#2dd4bf", fontWeight: 700 }}>
               SaaS Platform Control Plane
@@ -95,9 +96,13 @@ export default async function PlatformAdminLayout({
               fontSize: 14,
               fontWeight: 500,
               textDecoration: "none",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
             }}
           >
-            Store Manager Console ↗
+            <span>Store Manager Console</span>
+            <ExternalLink size={13} aria-hidden="true" />
           </Link>
           <Link
             href="/"
@@ -106,9 +111,13 @@ export default async function PlatformAdminLayout({
               fontSize: 14,
               fontWeight: 500,
               textDecoration: "none",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
             }}
           >
-            Marketing Portal ↗
+            <span>Marketing Portal</span>
+            <ExternalLink size={13} aria-hidden="true" />
           </Link>
         </nav>
       </header>

@@ -1,5 +1,6 @@
 import React from "react";
 import Link from "next/link";
+import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { getBillingOverview } from "@/lib/frappe-server";
 import { CancelSubscriptionForm } from "./CancelSubscriptionForm";
 
@@ -26,8 +27,9 @@ export default async function CancelBillingPage() {
   return (
     <div style={{ padding: "24px 0", maxWidth: 760, margin: "0 auto" }}>
       <div style={{ marginBottom: 24 }}>
-        <Link href="/billing" style={{ fontSize: 13, color: "var(--teal-700)", textDecoration: "none", fontWeight: 600 }}>
-          ← Back to Billing Overview
+        <Link href="/billing" style={{ fontSize: 13, color: "var(--teal-700)", textDecoration: "none", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <ArrowLeft size={14} aria-hidden="true" />
+          <span>Back to Billing Overview</span>
         </Link>
         <h1 style={{ fontSize: 26, fontWeight: 800, margin: "12px 0 6px 0", color: "#991b1b" }}>
           Cancel Store Subscription
@@ -40,7 +42,8 @@ export default async function CancelBillingPage() {
       {/* Retention Guarantee Box */}
       <div style={{ background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: 12, padding: 20, marginBottom: 24 }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text)", marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
-          <span>🛡️</span> 90-Day Safe Data Retention Guarantee
+          <ShieldCheck size={18} color="var(--accent)" aria-hidden="true" />
+          <span>90-Day Safe Data Retention Guarantee</span>
         </div>
         <p style={{ margin: "0 0 10px 0", fontSize: 13, color: "#475569", lineHeight: 1.6 }}>
           <strong>Your store records will NOT be deleted.</strong> When you cancel your subscription:

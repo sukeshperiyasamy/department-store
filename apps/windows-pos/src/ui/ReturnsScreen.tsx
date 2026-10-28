@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { CheckCircle2 } from "lucide-react";
 import { useServices } from "./store";
 import type { OriginalInvoice } from "../transport/frappe";
 import { formatMoney } from "../domain/money";
@@ -98,7 +99,10 @@ export function ReturnsScreen({ onBack }: { onBack: () => void }) {
           <div className="modal receipt-modal" role="dialog" aria-label="Return result">
             {result.committed ? (
               <>
-                <h2 className="ok">✓ Return committed</h2>
+                <h2 className="ok" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                  <CheckCircle2 size={22} aria-hidden="true" />
+                  <span>Return committed</span>
+                </h2>
                 <p>Credit note <strong>{result.creditNoteName}</strong></p>
                 <p className="hint">Stock and accounting were updated by the ERP.</p>
               </>

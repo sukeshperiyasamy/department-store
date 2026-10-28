@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useActionState } from "react";
+import { Check, X } from "lucide-react";
 import { adminRetryWebhookAction, type BillingActionState } from "@/app/actions/billing";
 
 interface Props {
@@ -34,8 +35,18 @@ export function AdminWebhookRetryButton({ eventId, status }: Props) {
       </button>
 
       {state.message && (
-        <span style={{ fontSize: 11, marginLeft: 6, color: state.success ? "#065f46" : "#991b1b" }}>
-          {state.success ? "✓ Retried" : "✕ Failed"}
+        <span style={{ fontSize: 11, marginLeft: 6, color: state.success ? "#065f46" : "#991b1b", display: "inline-flex", alignItems: "center", gap: 3 }}>
+          {state.success ? (
+            <>
+              <Check size={12} aria-hidden="true" />
+              <span>Retried</span>
+            </>
+          ) : (
+            <>
+              <X size={12} aria-hidden="true" />
+              <span>Failed</span>
+            </>
+          )}
         </span>
       )}
     </form>

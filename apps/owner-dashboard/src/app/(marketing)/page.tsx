@@ -1,4 +1,16 @@
 import Link from "next/link";
+import {
+  Check,
+  Cloud,
+  Database,
+  Monitor,
+  Package,
+  Printer,
+  Receipt,
+  ShieldCheck,
+  Smartphone,
+  Zap,
+} from "lucide-react";
 import { SAAS_PLANS } from "@/lib/pricing";
 
 export const metadata = {
@@ -14,7 +26,10 @@ export default function MarketingHomePage() {
       <section className="mkt-hero">
         <div className="mkt-container">
           <div className="mkt-hero-badge">
-            <span>⚡ Indian Retail Infrastructure</span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+              <Zap size={14} aria-hidden="true" />
+              <span>Indian Retail Infrastructure</span>
+            </span>
             <span>•</span>
             <span>ERPNext + Windows POS + Local SQLite Queue</span>
           </div>
@@ -39,8 +54,21 @@ export default function MarketingHomePage() {
             </Link>
           </div>
 
-          <div style={{ marginTop: 24, fontSize: "var(--fs-xs)", color: "var(--muted)" }}>
-            ✓ Tamil Nadu & All-India GST Compliant &nbsp;|&nbsp; ✓ ESC/POS Thermal Printing &nbsp;|&nbsp; ✓ Durable Local Outbox Queues
+          <div style={{ marginTop: 24, fontSize: "var(--fs-xs)", color: "var(--muted)", display: "flex", flexWrap: "wrap", justifyContent: "center", alignItems: "center", gap: 16 }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+              <Check size={13} color="var(--accent)" aria-hidden="true" />
+              <span>Tamil Nadu &amp; All-India GST Compliant</span>
+            </span>
+            <span>•</span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+              <Check size={13} color="var(--accent)" aria-hidden="true" />
+              <span>ESC/POS Thermal Printing</span>
+            </span>
+            <span>•</span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+              <Check size={13} color="var(--accent)" aria-hidden="true" />
+              <span>Durable Local Outbox Queues</span>
+            </span>
           </div>
         </div>
       </section>
@@ -90,8 +118,9 @@ export default function MarketingHomePage() {
                     <div style={{ fontSize: 16, fontWeight: 700, color: "var(--accent)" }}>0 Pending</div>
                   </div>
                 </div>
-                <div style={{ color: "var(--muted)", fontSize: 11 }}>
-                  ✓ Batch Expiry Alerts: 3 items expiring &lt; 30d &nbsp;•&nbsp; GSTIN 33AAACG0000A1Z5 verified
+                <div style={{ color: "var(--muted)", fontSize: 11, display: "flex", alignItems: "center", gap: 6 }}>
+                  <Check size={12} color="var(--accent)" aria-hidden="true" style={{ flexShrink: 0 }} />
+                  <span>Batch Expiry Alerts: 3 items expiring &lt; 30d &nbsp;•&nbsp; GSTIN 33AAACG0000A1Z5 verified</span>
                 </div>
               </div>
 
@@ -157,7 +186,9 @@ export default function MarketingHomePage() {
 
           <div className="mkt-grid-3">
             <div className="mkt-card">
-              <div className="mkt-card-icon">⚡</div>
+              <div className="mkt-card-icon" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                <Zap size={24} color="var(--accent)" aria-hidden="true" />
+              </div>
               <h3>Sub-Second Barcode POS</h3>
               <p>
                 Optimized keyboard-first and barcode scanner workflows. Cashiers can ring up 30+ items a minute with automatic item search, batch selection, and discount calculation.
@@ -165,7 +196,9 @@ export default function MarketingHomePage() {
             </div>
 
             <div className="mkt-card">
-              <div className="mkt-card-icon">💾</div>
+              <div className="mkt-card-icon" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                <Database size={24} color="var(--accent)" aria-hidden="true" />
+              </div>
               <h3>Offline-First Transaction Queue</h3>
               <p>
                 Never lose a sale during internet outages. Local SQLite persists transactions and outbox events atomically. Retries happen automatically with server-side idempotency.
@@ -173,7 +206,9 @@ export default function MarketingHomePage() {
             </div>
 
             <div className="mkt-card">
-              <div className="mkt-card-icon">📦</div>
+              <div className="mkt-card-icon" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                <Package size={24} color="var(--accent)" aria-hidden="true" />
+              </div>
               <h3>Batch & Expiry Management</h3>
               <p>
                 Strict FEFO (First-Expired, First-Out) tracking. Prevent expired groceries and FMCG goods from reaching billing counters with automatic near-expiry alerts.
@@ -181,7 +216,9 @@ export default function MarketingHomePage() {
             </div>
 
             <div className="mkt-card">
-              <div className="mkt-card-icon">🧾</div>
+              <div className="mkt-card-icon" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                <Receipt size={24} color="var(--accent)" aria-hidden="true" />
+              </div>
               <h3>GST Compliant Invoicing</h3>
               <p>
                 Pre-configured for Tamil Nadu (State Code 33) and inter-state trade. Correct CGST, SGST, IGST calculations, HSN validation, and compliant tax invoice generation.
@@ -189,7 +226,9 @@ export default function MarketingHomePage() {
             </div>
 
             <div className="mkt-card">
-              <div className="mkt-card-icon">🖨️</div>
+              <div className="mkt-card-icon" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                <Printer size={24} color="var(--accent)" aria-hidden="true" />
+              </div>
               <h3>Hardware & Printer Support</h3>
               <p>
                 Direct USB/Network ESC/POS thermal receipt printing (80mm & 58mm), cash drawer kick signals, digital weighing scale inputs, and barcode label generation.
@@ -197,7 +236,9 @@ export default function MarketingHomePage() {
             </div>
 
             <div className="mkt-card">
-              <div className="mkt-card-icon">🔒</div>
+              <div className="mkt-card-icon" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                <ShieldCheck size={24} color="var(--accent)" aria-hidden="true" />
+              </div>
               <h3>Multi-Counter Role Security</h3>
               <p>
                 Role-based access control separating Cashier, Store Manager, and System Administrator privileges. Every manual discount, price override, and stock adjustment is logged.
@@ -220,20 +261,20 @@ export default function MarketingHomePage() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 32 }}>
             <div style={{ background: "var(--card)", padding: 32, borderRadius: "var(--radius-lg)", border: "1px solid var(--border)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-                <span style={{ fontSize: 24 }}>🖥️</span>
+                <Monitor size={24} color="var(--accent)" aria-hidden="true" />
                 <h3 style={{ margin: 0 }}>Windows POS Counters</h3>
               </div>
               <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 14, fontSize: "var(--fs-sm)", color: "var(--text)" }}>
                 <li style={{ display: "flex", gap: 10 }}>
-                  <span style={{ color: "var(--accent)", fontWeight: 700 }}>✓</span>
+                  <Check size={16} color="var(--accent)" aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
                   <span><strong>Native Windows Client:</strong> Built with Rust (Tauri) and React for minimal memory footprint and zero browser latency.</span>
                 </li>
                 <li style={{ display: "flex", gap: 10 }}>
-                  <span style={{ color: "var(--accent)", fontWeight: 700 }}>✓</span>
+                  <Check size={16} color="var(--accent)" aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
                   <span><strong>Counter SQLite Cache:</strong> Caches price lists, active barcodes, and customers locally for instant response.</span>
                 </li>
                 <li style={{ display: "flex", gap: 10 }}>
-                  <span style={{ color: "var(--accent)", fontWeight: 700 }}>✓</span>
+                  <Check size={16} color="var(--accent)" aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
                   <span><strong>Atomic Outbox:</strong> Bills are signed with UUIDs and held in local durable storage until acknowledged by the cloud.</span>
                 </li>
               </ul>
@@ -241,20 +282,20 @@ export default function MarketingHomePage() {
 
             <div style={{ background: "var(--card)", padding: 32, borderRadius: "var(--radius-lg)", border: "1px solid var(--border)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-                <span style={{ fontSize: 24 }}>☁️</span>
+                <Cloud size={24} color="var(--accent)" aria-hidden="true" />
                 <h3 style={{ margin: 0 }}>Authoritative ERPNext Cloud</h3>
               </div>
               <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 14, fontSize: "var(--fs-sm)", color: "var(--text)" }}>
                 <li style={{ display: "flex", gap: 10 }}>
-                  <span style={{ color: "var(--accent)", fontWeight: 700 }}>✓</span>
+                  <Check size={16} color="var(--accent)" aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
                   <span><strong>Single Source of Truth:</strong> Stock valuation, accounting ledgers, purchase orders, and official invoices live in Frappe/ERPNext.</span>
                 </li>
                 <li style={{ display: "flex", gap: 10 }}>
-                  <span style={{ color: "var(--accent)", fontWeight: 700 }}>✓</span>
+                  <Check size={16} color="var(--accent)" aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
                   <span><strong>Server-Side Idempotency:</strong> Duplicate sync requests from flaky networks are safely de-duplicated without double-charging stock.</span>
                 </li>
                 <li style={{ display: "flex", gap: 10 }}>
-                  <span style={{ color: "var(--accent)", fontWeight: 700 }}>✓</span>
+                  <Check size={16} color="var(--accent)" aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
                   <span><strong>Web Manager Console:</strong> Accessible anywhere on mobile or desktop browser for owner analytics and catalog updates.</span>
                 </li>
               </ul>
@@ -268,7 +309,9 @@ export default function MarketingHomePage() {
         <div className="mkt-container">
           <div style={{ background: "var(--accent-soft)", borderRadius: "var(--radius-lg)", padding: "36px 32px", border: "1px solid #99f6e4" }}>
             <div style={{ display: "flex", alignItems: "flex-start", gap: 18 }}>
-              <div style={{ fontSize: 32 }}>📱</div>
+              <div style={{ display: "inline-flex", padding: 10, background: "#ffffff", borderRadius: "var(--radius-md)", color: "var(--accent)" }}>
+                <Smartphone size={28} aria-hidden="true" />
+              </div>
               <div>
                 <div style={{ fontSize: "var(--fs-xs)", fontWeight: 700, color: "var(--accent)", textTransform: "uppercase", marginBottom: 4 }}>
                   Platform Roadmap Transparency
@@ -364,7 +407,9 @@ export default function MarketingHomePage() {
                     <ul className="plan-features">
                       {plan.features.map((feat, idx) => (
                         <li key={idx} className="plan-feature-item">
-                          <span className="plan-feature-check">✓</span>
+                          <span className="plan-feature-check">
+                            <Check size={12} aria-hidden="true" />
+                          </span>
                           <span>{feat}</span>
                         </li>
                       ))}

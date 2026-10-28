@@ -17,6 +17,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { Feather } from "@expo/vector-icons";
 import { Header } from "./src/components/Header";
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
 import { SignInScreen } from "./src/screens/Auth/SignInScreen";
@@ -59,11 +60,11 @@ function MainNavigator() {
     }
   };
 
-  const tabs: Array<{ id: TabId; label: string; icon: string }> = [
-    { id: "overview", label: "Overview", icon: "📊" },
-    { id: "catalog", label: "Catalog", icon: "📦" },
-    { id: "sales", label: "Sales", icon: "🧾" },
-    { id: "settings", label: "Settings", icon: "⚙️" },
+  const tabs: Array<{ id: TabId; label: string; icon: keyof typeof Feather.glyphMap }> = [
+    { id: "overview", label: "Overview", icon: "bar-chart-2" },
+    { id: "catalog", label: "Catalog", icon: "package" },
+    { id: "sales", label: "Sales", icon: "file-text" },
+    { id: "settings", label: "Settings", icon: "settings" },
   ];
 
   return (
@@ -86,7 +87,12 @@ function MainNavigator() {
               accessibilityLabel={`${tab.label} tab`}
               activeOpacity={0.7}
             >
-              <Text style={styles.tabIcon}>{tab.icon}</Text>
+              <Feather
+                name={tab.icon}
+                size={20}
+                color={isActive ? colors.primaryDark : colors.textMuted}
+                style={{ marginBottom: 2 }}
+              />
               <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>
                 {tab.label}
               </Text>

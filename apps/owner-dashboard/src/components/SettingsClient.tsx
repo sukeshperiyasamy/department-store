@@ -2,6 +2,22 @@
 
 import React, { useState, useTransition } from "react";
 import {
+  AlertTriangle,
+  Check,
+  FileCheck,
+  Flag,
+  Headphones,
+  Info,
+  Lock,
+  MapPin,
+  Mic,
+  Monitor,
+  Package,
+  Printer,
+  ShieldCheck,
+  Store,
+} from "lucide-react";
+import {
   type FeatureFlagName,
   type ServerStatus,
   type StoreProfile,
@@ -338,70 +354,80 @@ export function SettingsClient({
           className={`settings-nav-btn ${activeSection === "profile" ? "active" : ""}`}
           onClick={() => setActiveSection("profile")}
         >
-          🏪 Store Profile
+          <Store size={14} aria-hidden="true" />
+          <span>Store Profile</span>
         </button>
         <button
           type="button"
           className={`settings-nav-btn ${activeSection === "regional" ? "active" : ""}`}
           onClick={() => setActiveSection("regional")}
         >
-          🌾 Regional (Tamil Nadu)
+          <MapPin size={14} aria-hidden="true" />
+          <span>Regional (Tamil Nadu)</span>
         </button>
         <button
           type="button"
           className={`settings-nav-btn ${activeSection === "gst" ? "active" : ""}`}
           onClick={() => setActiveSection("gst")}
         >
-          📜 GST &amp; Tax
+          <FileCheck size={14} aria-hidden="true" />
+          <span>GST &amp; Tax</span>
         </button>
         <button
           type="button"
           className={`settings-nav-btn ${activeSection === "devices" ? "active" : ""}`}
           onClick={() => setActiveSection("devices")}
         >
-          💻 POS Counters ({serverStatus?.devices.length ?? 0})
+          <Monitor size={14} aria-hidden="true" />
+          <span>POS Counters ({serverStatus?.devices.length ?? 0})</span>
         </button>
         <button
           type="button"
           className={`settings-nav-btn ${activeSection === "flags" ? "active" : ""}`}
           onClick={() => setActiveSection("flags")}
         >
-          🚩 Feature Flags
+          <Flag size={14} aria-hidden="true" />
+          <span>Feature Flags</span>
         </button>
         <button
           type="button"
           className={`settings-nav-btn ${activeSection === "printers" ? "active" : ""}`}
           onClick={() => setActiveSection("printers")}
         >
-          🖨️ Printers
+          <Printer size={14} aria-hidden="true" />
+          <span>Printers</span>
         </button>
         <button
           type="button"
           className={`settings-nav-btn ${activeSection === "inventory" ? "active" : ""}`}
           onClick={() => setActiveSection("inventory")}
         >
-          📦 Inventory &amp; Expiry
+          <Package size={14} aria-hidden="true" />
+          <span>Inventory &amp; Expiry</span>
         </button>
         <button
           type="button"
           className={`settings-nav-btn ${activeSection === "voice_ai" ? "active" : ""}`}
           onClick={() => setActiveSection("voice_ai")}
         >
-          🎙️ Voice &amp; AI
+          <Mic size={14} aria-hidden="true" />
+          <span>Voice &amp; AI</span>
         </button>
         <button
           type="button"
           className={`settings-nav-btn ${activeSection === "health" ? "active" : ""}`}
           onClick={() => setActiveSection("health")}
         >
-          🛡️ System Health
+          <ShieldCheck size={14} aria-hidden="true" />
+          <span>System Health</span>
         </button>
         <button
           type="button"
           className={`settings-nav-btn ${activeSection === "support" ? "active" : ""}`}
           onClick={() => setActiveSection("support")}
         >
-          🎧 Support &amp; Diagnostics
+          <Headphones size={14} aria-hidden="true" />
+          <span>Support &amp; Diagnostics</span>
         </button>
       </nav>
 
@@ -456,8 +482,9 @@ export function SettingsClient({
                 Edit Store &amp; Receipt Profile
               </h3>
               {profileSaved && (
-                <span className="feedback-tag saved" style={{ fontSize: 12, padding: "3px 8px" }}>
-                  ✓ Profile Saved Cleanly
+                <span className="feedback-tag saved" style={{ fontSize: 12, padding: "3px 8px", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  <Check size={12} aria-hidden="true" />
+                  <span>Profile Saved Cleanly</span>
                 </span>
               )}
             </div>
@@ -629,7 +656,10 @@ export function SettingsClient({
           </p>
 
           <div className="info-card warn" style={{ borderLeft: "4px solid #d97706" }}>
-            <strong>⚠️ SYNTHETIC / DEMO GST PROFILE (NOT APPROVED FOR LEGAL TAX FILING):</strong>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+              <AlertTriangle size={16} color="#d97706" aria-hidden="true" />
+              <strong>SYNTHETIC / DEMO GST PROFILE (NOT APPROVED FOR LEGAL TAX FILING):</strong>
+            </div>
             <div style={{ marginTop: 6 }}>
               The GSTIN <code>33AAAAA0000A1Z5</code> displayed below is a synthetic placeholder used for Tamil Nadu offline POS integration tests. It is <strong>NOT</strong> the store&apos;s real tax registration.
             </div>
@@ -724,7 +754,7 @@ export function SettingsClient({
                   <tr>
                     <td colSpan={5}>
                       <div className="empty">
-                        <div className="glyph">💻</div>
+                        <div className="glyph"><Monitor size={36} color="var(--muted)" aria-hidden="true" /></div>
                         No devices registered yet. Counters auto-register during initial manager sign-in.
                       </div>
                     </td>
@@ -1097,7 +1127,14 @@ export function SettingsClient({
                     cursor: "pointer",
                   }}
                 >
-                  {copiedDiagnostics ? "✓ Copied Redacted JSON" : "Copy Diagnostic Bundle"}
+                  {copiedDiagnostics ? (
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      <Check size={12} aria-hidden="true" />
+                      <span>Copied Redacted JSON</span>
+                    </span>
+                  ) : (
+                    "Copy Diagnostic Bundle"
+                  )}
                 </button>
               </div>
 
@@ -1128,8 +1165,9 @@ export function SettingsClient({
                 </div>
               </div>
 
-              <div style={{ marginTop: 14, fontSize: "var(--fs-xs)", color: "var(--muted)", lineHeight: 1.5 }}>
-                🔒 <strong>Privacy Guarantee:</strong> Diagnostic bundles never contain customer phone numbers, GST sales data, employee PINs, or ERP authentication secrets.
+              <div style={{ marginTop: 14, fontSize: "var(--fs-xs)", color: "var(--muted)", lineHeight: 1.5, display: "flex", alignItems: "center", gap: 6 }}>
+                <Lock size={13} aria-hidden="true" />
+                <span><strong>Privacy Guarantee:</strong> Diagnostic bundles never contain customer phone numbers, GST sales data, employee PINs, or ERP authentication secrets.</span>
               </div>
             </div>
           </div>
@@ -1173,8 +1211,9 @@ function SettingRow({
         </div>
         <div className="setting-desc">{meta.description}</div>
         {meta.statusNote && (
-          <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-            ℹ️ {meta.statusNote}
+          <div className="muted" style={{ fontSize: 12, marginTop: 4, display: "flex", alignItems: "center", gap: 6 }}>
+            <Info size={13} aria-hidden="true" />
+            <span>{meta.statusNote}</span>
           </div>
         )}
       </div>
@@ -1197,7 +1236,12 @@ function SettingRow({
           </span>
         </label>
         {isSaving && <span className="feedback-tag saving">Saving…</span>}
-        {isSaved && <span className="feedback-tag saved">✓ Saved</span>}
+        {isSaved && (
+          <span className="feedback-tag saved" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <Check size={11} aria-hidden="true" />
+            <span>Saved</span>
+          </span>
+        )}
       </div>
     </div>
   );

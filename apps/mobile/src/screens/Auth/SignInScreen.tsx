@@ -15,6 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { Feather } from "@expo/vector-icons";
 import { api } from "../../api/client";
 import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
@@ -122,9 +123,16 @@ export function SignInScreen() {
             onPress={() => setShowConfig(!showConfig)}
             accessibilityRole="button"
           >
-            <Text style={styles.configToggleText}>
-              {showConfig ? "▲ Hide Server Settings" : "⚙ Advanced: Server Endpoint"}
-            </Text>
+            <View style={styles.configToggleRow}>
+              <Feather
+                name={showConfig ? "chevron-up" : "sliders"}
+                size={14}
+                color={colors.primaryDark}
+              />
+              <Text style={styles.configToggleText}>
+                {showConfig ? "Hide Server Settings" : "Advanced: Server Endpoint"}
+              </Text>
+            </View>
           </TouchableOpacity>
 
           {showConfig && (
@@ -223,6 +231,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: spacing.md,
     marginTop: spacing.sm,
+  },
+  configToggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
   },
   configToggleText: {
     ...typography.tiny,

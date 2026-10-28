@@ -1,3 +1,4 @@
+import { PackageSearch } from "lucide-react";
 import { fetchCatalogSnapshot } from "@/lib/frappe-server";
 import { formatINR } from "@/lib/format";
 
@@ -112,7 +113,7 @@ export default async function CatalogPage({
                 <tr>
                   <td colSpan={5}>
                     <div className="empty">
-                      <div className="glyph">❑</div>
+                      <div className="glyph"><PackageSearch size={36} color="var(--muted)" aria-hidden="true" /></div>
                       {query ? `No products match “${q}”.` : "No products in the catalog yet."}
                     </div>
                   </td>

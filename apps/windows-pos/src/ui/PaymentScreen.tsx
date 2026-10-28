@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { CheckCircle2, X } from "lucide-react";
 import { usePos, useServices } from "./store";
 import { formatMoney, fromMajorUnits, serverAmountToMoney } from "../domain/money";
 import { displayTotals } from "../domain/cart";
@@ -114,7 +115,10 @@ export function PaymentScreen({ onClose }: { onClose: () => void }) {
         <div className="modal receipt-modal" role="dialog" aria-label="Sale result">
           {result.committed ? (
             <>
-              <h2 className="ok">✓ Sale committed</h2>
+              <h2 className="ok" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                <CheckCircle2 size={22} aria-hidden="true" />
+                <span>Sale committed</span>
+              </h2>
               <p>
                 Invoice <strong>{result.invoiceName}</strong>
                 {result.changeAmount > 0 && (
@@ -189,8 +193,13 @@ export function PaymentScreen({ onClose }: { onClose: () => void }) {
               </button>
             )}
             {rows.length > 1 && (
-              <button type="button" onClick={() => setRows(rows.filter((_, j) => j !== i))}>
-                ✕
+              <button
+                type="button"
+                onClick={() => setRows(rows.filter((_, j) => j !== i))}
+                aria-label="Remove payment method"
+                style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+              >
+                <X size={14} aria-hidden="true" />
               </button>
             )}
           </div>

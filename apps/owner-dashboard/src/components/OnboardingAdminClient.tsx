@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useTransition } from "react";
+import { X } from "lucide-react";
 import type { OnboardingDetailRecord } from "@departmental/shared-types";
 import {
   approveRequestAction,
@@ -365,10 +366,11 @@ export function OnboardingAdminClient({
               <button
                 type="button"
                 className="btn btn-outline"
-                style={{ padding: "4px 10px", fontSize: 12 }}
+                style={{ padding: "4px 10px", fontSize: 12, display: "inline-flex", alignItems: "center", gap: 5 }}
                 onClick={() => setSelectedRequest(null)}
               >
-                Close ✕
+                <span>Close</span>
+                <X size={13} aria-hidden="true" />
               </button>
             </div>
 

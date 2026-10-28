@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Check } from "lucide-react";
 import { SAAS_PLANS, PRICING_DISCLAIMERS } from "@/lib/pricing";
 
 export const metadata = {
@@ -64,7 +65,9 @@ export default function PricingPage() {
                     <ul className="plan-features">
                       {plan.features.map((feat, idx) => (
                         <li key={idx} className="plan-feature-item">
-                          <span className="plan-feature-check">✓</span>
+                          <span className="plan-feature-check">
+                            <Check size={12} aria-hidden="true" />
+                          </span>
                           <span>{feat}</span>
                         </li>
                       ))}

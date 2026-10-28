@@ -1,5 +1,6 @@
 import React from "react";
 import Link from "next/link";
+import { ClipboardList } from "lucide-react";
 import { adminListSubscriptions, adminListWebhookEvents } from "@/lib/frappe-server";
 import { AdminBillingCorrectionModal } from "./AdminBillingCorrectionModal";
 import { AdminWebhookRetryButton } from "./AdminWebhookRetryButton";
@@ -59,9 +60,10 @@ export default async function AdminBillingConsolePage({
           <Link
             href="/admin/onboarding"
             className="btn btn-secondary"
-            style={{ textDecoration: "none", fontSize: 13, padding: "8px 14px" }}
+            style={{ textDecoration: "none", fontSize: 13, padding: "8px 14px", display: "inline-flex", alignItems: "center", gap: 6 }}
           >
-            📋 Onboarding Requests
+            <ClipboardList size={14} aria-hidden="true" />
+            <span>Onboarding Requests</span>
           </Link>
         </div>
       </div>

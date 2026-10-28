@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@departmental/shared-types": "*",
+    "@expo/vector-icons": "^14.0.4",
     "expo": "~52.0.28",
     "expo-secure-store": "~14.0.1",
     "expo-status-bar": "~2.0.1",

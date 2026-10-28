@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { AlertTriangle, CheckCircle2, RefreshCw } from "lucide-react";
 import { usePos, useServices } from "./store";
 import { formatMoney } from "../domain/money";
 import type { SyncRecord } from "@departmental/shared-types";
@@ -144,7 +145,22 @@ export function SyncBadge() {
       onClick={() => dispatch({ type: "SHOW_SCREEN", screen: "sync" })}
       title="View sync status"
     >
-      {review > 0 ? `⚠ ${review} need review` : pending > 0 ? `⇅ ${pending} pending` : "✓ synced"}
+      {review > 0 ? (
+        <>
+          <AlertTriangle size={13} aria-hidden="true" />
+          <span>{review} need review</span>
+        </>
+      ) : pending > 0 ? (
+        <>
+          <RefreshCw size={13} aria-hidden="true" />
+          <span>{pending} pending</span>
+        </>
+      ) : (
+        <>
+          <CheckCircle2 size={13} aria-hidden="true" />
+          <span>synced</span>
+        </>
+      )}
       {state.syncError && <span className="error-dot" aria-label="sync error" />}
     </button>
   );

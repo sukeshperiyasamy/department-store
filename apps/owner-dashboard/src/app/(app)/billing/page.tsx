@@ -1,5 +1,6 @@
 import React from "react";
 import Link from "next/link";
+import { AlertTriangle, BarChart3, Check, Download, FileText, Scale, Zap } from "lucide-react";
 import { getBillingOverview } from "@/lib/frappe-server";
 
 export const metadata = {
@@ -59,21 +60,24 @@ export default async function BillingOverviewPage() {
             className="btn btn-primary"
             style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 16px" }}
           >
-            <span>⚡</span> Switch Plan
+            <Zap size={14} aria-hidden="true" />
+            <span>Switch Plan</span>
           </Link>
           <Link
             href="/billing/invoices"
             className="btn btn-secondary"
             style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 16px" }}
           >
-            <span>📄</span> Invoices
+            <FileText size={14} aria-hidden="true" />
+            <span>Invoices</span>
           </Link>
           <Link
             href="/billing/usage"
             className="btn btn-secondary"
             style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 16px" }}
           >
-            <span>📊</span> Usage
+            <BarChart3 size={14} aria-hidden="true" />
+            <span>Usage</span>
           </Link>
         </div>
       </div>
@@ -135,8 +139,9 @@ export default async function BillingOverviewPage() {
           </div>
 
           {sub?.cancel_at_period_end && (
-            <div style={{ marginTop: 16, padding: "10px 14px", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, fontSize: 13, color: "#92400e" }}>
-              ⚠️ Scheduled to cancel at the end of the billing period. All store records remain safely archived.
+            <div style={{ marginTop: 16, padding: "10px 14px", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, fontSize: 13, color: "#92400e", display: "flex", alignItems: "center", gap: 8 }}>
+              <AlertTriangle size={15} color="#92400e" aria-hidden="true" style={{ flexShrink: 0 }} />
+              <span>Scheduled to cancel at the end of the billing period. All store records remain safely archived.</span>
             </div>
           )}
 
@@ -196,17 +201,30 @@ export default async function BillingOverviewPage() {
 
             <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #f1f5f9", paddingBottom: 8, fontSize: 13 }}>
               <span style={{ color: "var(--muted)" }}>Shared Mobile App Access</span>
-              <span style={{ color: "#065f46", fontWeight: 700 }}>✓ Included</span>
+              <span style={{ color: "#065f46", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                <Check size={13} aria-hidden="true" />
+                <span>Included</span>
+              </span>
             </div>
 
             <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid #f1f5f9", paddingBottom: 8, fontSize: 13 }}>
               <span style={{ color: "var(--muted)" }}>Batch & Expiry Alert Engine</span>
-              <span>{entitlements?.batch_expiry_tracking ? <strong style={{ color: "#065f46" }}>✓ Enabled</strong> : <span style={{ color: "var(--muted)" }}>Growth Tier</span>}</span>
+              <span>{entitlements?.batch_expiry_tracking ? (
+                <strong style={{ color: "#065f46", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  <Check size={13} aria-hidden="true" />
+                  <span>Enabled</span>
+                </strong>
+              ) : (
+                <span style={{ color: "var(--muted)" }}>Growth Tier</span>
+              )}</span>
             </div>
 
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
               <span style={{ color: "var(--muted)" }}>Automatic Local Backup Runner</span>
-              <span style={{ color: "#065f46", fontWeight: 700 }}>✓ Enabled</span>
+              <span style={{ color: "#065f46", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                <Check size={13} aria-hidden="true" />
+                <span>Enabled</span>
+              </span>
             </div>
           </div>
         </div>
@@ -272,9 +290,10 @@ export default async function BillingOverviewPage() {
                         href={inv.pdf_url ?? "#"}
                         target="_blank"
                         rel="noreferrer"
-                        style={{ color: "var(--teal-700)", textDecoration: "none", fontWeight: 600, fontSize: 12 }}
+                        style={{ color: "var(--teal-700)", textDecoration: "none", fontWeight: 600, fontSize: 12, display: "inline-flex", alignItems: "center", gap: 4 }}
                       >
-                        Download PDF ↗
+                        <span>Download PDF</span>
+                        <Download size={12} aria-hidden="true" />
                       </a>
                     </td>
                   </tr>
@@ -287,8 +306,9 @@ export default async function BillingOverviewPage() {
 
       {/* Accounting & Legal Boundary Disclaimers */}
       <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 12, padding: 20 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "#334155", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-          <span>⚖️</span> Accounting & Legal Separation Boundary
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#334155", marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
+          <Scale size={16} aria-hidden="true" />
+          <span>Accounting & Legal Separation Boundary</span>
         </div>
         <ul style={{ margin: 0, paddingLeft: 20, fontSize: 12, color: "#64748b", lineHeight: 1.6 }}>
           <li>

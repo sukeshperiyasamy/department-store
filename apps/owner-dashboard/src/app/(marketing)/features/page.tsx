@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Building2, Check, Printer, Scale } from "lucide-react";
 
 export const metadata = {
   title: "Product Features — Department Store ERP",
@@ -41,25 +42,25 @@ export default function FeaturesPage() {
 
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <div style={{ display: "flex", gap: 10 }}>
-                  <span style={{ color: "var(--accent)", fontWeight: 700 }}>✓</span>
+                  <Check size={16} color="var(--accent)" aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
                   <div>
                     <strong>Keyboard-First Navigation:</strong> Dedicated function keys (F1-F12) for item search, discount application, quantity changes, and payment completion.
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 10 }}>
-                  <span style={{ color: "var(--accent)", fontWeight: 700 }}>✓</span>
+                  <Check size={16} color="var(--accent)" aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
                   <div>
                     <strong>Instant Barcode Lookup:</strong> EAN-13, UPC, Code 128, and internal product code recognition in under 10 milliseconds.
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 10 }}>
-                  <span style={{ color: "var(--accent)", fontWeight: 700 }}>✓</span>
+                  <Check size={16} color="var(--accent)" aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
                   <div>
                     <strong>Flexible Split Tender:</strong> Combine Cash, UPI (QR code display), and Card payments on a single invoice.
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 10 }}>
-                  <span style={{ color: "var(--accent)", fontWeight: 700 }}>✓</span>
+                  <Check size={16} color="var(--accent)" aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
                   <div>
                     <strong>Customer Profiles & Credit:</strong> Quick customer lookup by mobile phone number with optional khata / store credit balance tracking.
                   </div>
@@ -132,19 +133,19 @@ export default function FeaturesPage() {
 
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <div style={{ display: "flex", gap: 10 }}>
-                  <span style={{ color: "var(--accent)", fontWeight: 700 }}>✓</span>
+                  <Check size={16} color="var(--accent)" aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
                   <div>
                     <strong>Centralized Item Master:</strong> Manage 10,000+ SKUs with variants, brands, categories, and multiple units of measure (Piece, Kg, Gram, Pack).
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 10 }}>
-                  <span style={{ color: "var(--accent)", fontWeight: 700 }}>✓</span>
+                  <Check size={16} color="var(--accent)" aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
                   <div>
                     <strong>MRP & Selling Price Controls:</strong> Support dual pricing (MRP vs Store Discounted Selling Price) with automatic price change sync.
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 10 }}>
-                  <span style={{ color: "var(--accent)", fontWeight: 700 }}>✓</span>
+                  <Check size={16} color="var(--accent)" aria-hidden="true" style={{ flexShrink: 0, marginTop: 2 }} />
                   <div>
                     <strong>Reorder Level Alerts:</strong> Automatic replenishment suggestions when items breach safety stock thresholds.
                   </div>
@@ -165,7 +166,9 @@ export default function FeaturesPage() {
 
           <div className="mkt-grid-3">
             <div className="mkt-card">
-              <div className="mkt-card-icon">🏛️</div>
+              <div className="mkt-card-icon" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                <Building2 size={24} color="var(--accent)" aria-hidden="true" />
+              </div>
               <h3>Tamil Nadu & Indian GST</h3>
               <p>
                 Native support for intra-state (CGST + SGST) and inter-state (IGST) split. 0%, 5%, 12%, 18%, 28% GST brackets with HSN/SAC code mapping and GSTR-1 preparation.
@@ -173,7 +176,9 @@ export default function FeaturesPage() {
             </div>
 
             <div className="mkt-card">
-              <div className="mkt-card-icon">🖨️</div>
+              <div className="mkt-card-icon" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                <Printer size={24} color="var(--accent)" aria-hidden="true" />
+              </div>
               <h3>Thermal Printers</h3>
               <p>
                 Direct ESC/POS driver-level printing for standard 3-inch (80mm) and 2-inch (58mm) thermal receipt printers (TVS, Epson, Citizen, Posiflex) with custom store headers.
@@ -181,7 +186,9 @@ export default function FeaturesPage() {
             </div>
 
             <div className="mkt-card">
-              <div className="mkt-card-icon">⚖️</div>
+              <div className="mkt-card-icon" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                <Scale size={24} color="var(--accent)" aria-hidden="true" />
+              </div>
               <h3>Electronic Weighing Scales</h3>
               <p>
                 Integration with RS-232 serial and USB weighing scales for vegetable and grocery counters. Instant tare, gross weight, and computed line item pricing.

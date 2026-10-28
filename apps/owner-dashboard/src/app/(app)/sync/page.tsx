@@ -1,3 +1,4 @@
+import { CheckCircle2 } from "lucide-react";
 import { fetchServerStatus } from "@/lib/frappe-server";
 
 export const dynamic = "force-dynamic";
@@ -107,7 +108,7 @@ export default async function SyncPage() {
                   {status.review_queue.length === 0 && (
                     <tr><td colSpan={3}>
                       <div className="empty">
-                        <div className="glyph">✓</div>
+                        <div className="glyph"><CheckCircle2 size={36} color="var(--accent)" aria-hidden="true" /></div>
                         Nothing needs review — all synced bills posted cleanly.
                       </div>
                     </td></tr>

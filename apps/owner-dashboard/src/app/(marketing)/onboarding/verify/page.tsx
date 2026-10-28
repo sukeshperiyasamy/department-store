@@ -1,5 +1,6 @@
 import { Metadata } from "next";
 import Link from "next/link";
+import { AlertTriangle, Check } from "lucide-react";
 import { verifyContactToken } from "@/lib/frappe-server";
 
 export const metadata: Metadata = {
@@ -52,7 +53,7 @@ export default async function OnboardingVerifyPage({
               marginBottom: 20,
             }}
           >
-            {success ? "✓" : "!"}
+            {success ? <Check size={32} aria-hidden="true" /> : <AlertTriangle size={32} aria-hidden="true" />}
           </div>
 
           <h1 style={{ fontSize: 26, margin: "0 0 12px", color: "var(--text)" }}>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { X } from "lucide-react";
 import { usePos, useServices } from "./store";
 import type { CatalogItem } from "@departmental/shared-types";
 import { addItem, displayTotals, removeLine, setQty } from "../domain/cart";
@@ -192,8 +193,9 @@ export function BillingScreen({ onCheckout }: { onCheckout: () => void }) {
                     type="button"
                     onClick={() => dispatch({ type: "SET_CART", cart: removeLine(state.cart, line.lineId) })}
                     aria-label={`Remove ${line.itemName}`}
+                    style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}
                   >
-                    ✕
+                    <X size={14} aria-hidden="true" />
                   </button>
                 </td>
               </tr>

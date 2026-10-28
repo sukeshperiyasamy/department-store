@@ -12,6 +12,7 @@
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "npm run typecheck",
+    "check:emojis": "node scripts/ci/check_no_emojis.js",
     "scan:secrets": "python scripts/ci/secret_scan.py",
     "validate:configs": "python scripts/ci/validate_deployment_configs.py",
     "test:pos": "npm run test --workspace @departmental/windows-pos",

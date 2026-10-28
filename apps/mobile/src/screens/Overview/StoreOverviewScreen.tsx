@@ -17,6 +17,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { Feather } from "@expo/vector-icons";
 import type { OwnerSummary } from "@departmental/shared-types";
 import { api } from "../../api/client";
 import { Card } from "../../components/Card";
@@ -84,8 +85,9 @@ export function StoreOverviewScreen() {
       >
         {isStale && (
           <View style={styles.staleNotice}>
+            <Feather name="alert-triangle" size={14} color={colors.warning} style={styles.noticeIcon} />
             <Text style={styles.staleText}>
-              ⚠️ Viewing cached offline data{cachedAt ? ` from ${new Date(cachedAt).toLocaleTimeString()}` : ""}.
+              Viewing cached offline data{cachedAt ? ` from ${new Date(cachedAt).toLocaleTimeString()}` : ""}.
               Pull down to refresh when network is restored.
             </Text>
           </View>
@@ -227,14 +229,21 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   staleNotice: {
+    flexDirection: "row",
+    alignItems: "flex-start",
     backgroundColor: colors.warningLight,
     borderWidth: 1,
     borderColor: colors.warningBorder,
     borderRadius: radius.md,
     padding: spacing.md,
     marginBottom: spacing.md,
+    gap: spacing.xs,
+  },
+  noticeIcon: {
+    marginTop: 2,
   },
   staleText: {
+    flex: 1,
     ...typography.caption,
     color: colors.warning,
     fontWeight: "500",

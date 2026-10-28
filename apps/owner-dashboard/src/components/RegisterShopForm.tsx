@@ -2,6 +2,7 @@
 
 import React, { useState, useTransition, useEffect } from "react";
 import Link from "next/link";
+import { AlertCircle, Check, Lock } from "lucide-react";
 import { checkSlugAction, type ActionState } from "@/app/actions/marketing";
 import { registerCustomerAction } from "@/app/actions/onboarding";
 
@@ -82,7 +83,7 @@ export function RegisterShopForm({ initialPlan = "starter" }: { initialPlan?: st
             marginBottom: 20,
           }}
         >
-          ✓
+          <Check size={28} color="var(--accent)" aria-hidden="true" />
         </div>
 
         <h2 style={{ fontSize: 26, margin: "0 0 12px", color: "var(--text)" }}>
@@ -292,13 +293,15 @@ export function RegisterShopForm({ initialPlan = "starter" }: { initialPlan?: st
           </span>
         )}
         {!slugCheck.checking && slug.length >= 3 && slugCheck.available === true && (
-          <span style={{ fontSize: "var(--fs-xs)", color: "var(--accent)", fontWeight: 600 }}>
-            ✓ '{slug}.departmentstore.in' is available for reservation request.
+          <span style={{ fontSize: "var(--fs-xs)", color: "var(--accent)", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <Check size={12} aria-hidden="true" />
+            <span>'{slug}.departmentstore.in' is available for reservation request.</span>
           </span>
         )}
         {!slugCheck.checking && slugCheck.available === false && (
-          <span className="field-error">
-            ✗ {slugCheck.reason || "This subdomain is reserved or unavailable."}
+          <span className="field-error" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <AlertCircle size={12} aria-hidden="true" />
+            <span>{slugCheck.reason || "This subdomain is reserved or unavailable."}</span>
           </span>
         )}
         {state?.fieldErrors?.preferred_slug && (
@@ -354,8 +357,9 @@ export function RegisterShopForm({ initialPlan = "starter" }: { initialPlan?: st
         </button>
       </div>
 
-      <div style={{ textAlign: "center", marginTop: 16, fontSize: "var(--fs-xs)", color: "var(--muted)" }}>
-        🔒 Safe Onboarding Guarantee: No sensitive passwords or credit card data collected. Requests require manual administrative verification.
+      <div style={{ textAlign: "center", marginTop: 16, fontSize: "var(--fs-xs)", color: "var(--muted)", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+        <Lock size={12} aria-hidden="true" />
+        <span>Safe Onboarding Guarantee: No sensitive passwords or credit card data collected. Requests require manual administrative verification.</span>
       </div>
     </form>
   );

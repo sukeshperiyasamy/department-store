@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useActionState } from "react";
+import { X } from "lucide-react";
 import { adminManualCorrectionAction, type BillingActionState } from "@/app/actions/billing";
 
 interface Props {
@@ -61,9 +62,10 @@ export function AdminBillingCorrectionModal({ subscriptionId, currentStatus, bus
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                style={{ background: "none", border: "none", fontSize: 18, cursor: "pointer", color: "var(--muted)" }}
+                aria-label="Close modal"
+                style={{ background: "none", border: "none", display: "inline-flex", alignItems: "center", cursor: "pointer", color: "var(--muted)", padding: 4 }}
               >
-                ✕
+                <X size={18} aria-hidden="true" />
               </button>
             </div>
 

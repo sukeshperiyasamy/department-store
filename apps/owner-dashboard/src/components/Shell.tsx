@@ -2,12 +2,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { LogOut, Menu } from "lucide-react";
 import { logoutAction } from "@/app/actions";
 
 export interface NavItem {
   href: string;
   label: string;
-  icon: string;
+  icon: React.ReactNode;
   badge?: number;
 }
 
@@ -65,7 +66,7 @@ export function Shell({
             aria-expanded={open}
             onClick={() => setOpen((v) => !v)}
           >
-            ☰
+            <Menu size={18} aria-hidden="true" />
           </button>
           <span className="topbar-title">{activeLabel}</span>
           <span className="topbar-right">
@@ -81,7 +82,10 @@ export function Shell({
 function LogoutButton() {
   return (
     <form action={logoutAction}>
-      <button className="btn" type="submit">Sign out</button>
+      <button className="btn" type="submit" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+        <LogOut size={14} aria-hidden="true" />
+        <span>Sign out</span>
+      </button>
     </form>
   );
 }

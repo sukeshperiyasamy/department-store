@@ -19,6 +19,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { Feather } from "@expo/vector-icons";
 import type { CatalogItem } from "@departmental/shared-types";
 import { api } from "../../api/client";
 import { Badge } from "../../components/Badge";
@@ -137,8 +138,9 @@ export function CatalogScreen() {
             )}
 
             <View style={styles.permissionNotice}>
+              <Feather name="info" size={14} color={colors.primaryDark} style={styles.noticeIcon} />
               <Text style={styles.permissionText}>
-                ℹ️ Stock adjustments must be submitted through an authorized ERP Stock Entry workflow.
+                Stock adjustments must be submitted through an authorized ERP Stock Entry workflow.
                 Cashiers and mobile users operate in verified read-only inspection mode.
               </Text>
             </View>
@@ -164,15 +166,16 @@ export function CatalogScreen() {
           accessibilityLabel="Search catalog products"
         />
         {Boolean(query) && (
-          <TouchableOpacity onPress={() => setQuery("")} style={styles.clearBtn}>
-            <Text style={styles.clearBtnText}>✕</Text>
+          <TouchableOpacity onPress={() => setQuery("")} style={styles.clearBtn} accessibilityLabel="Clear search">
+            <Feather name="x" size={15} color={colors.textMuted} />
           </TouchableOpacity>
         )}
       </View>
 
       {isStale && (
         <View style={styles.staleBanner}>
-          <Text style={styles.staleText}>⚠️ Viewing offline cached catalog checkpoint.</Text>
+          <Feather name="alert-triangle" size={14} color={colors.warning} style={styles.bannerIcon} />
+          <Text style={styles.staleText}>Viewing offline cached catalog checkpoint.</Text>
         </View>
       )}
 
@@ -250,11 +253,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   staleBanner: {
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: colors.warningLight,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.xs,
     borderBottomWidth: 1,
     borderBottomColor: colors.warningBorder,
+    gap: spacing.xs,
+  },
+  bannerIcon: {
+    marginRight: 2,
   },
   staleText: {
     ...typography.tiny,
@@ -347,12 +356,19 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   permissionNotice: {
+    flexDirection: "row",
+    alignItems: "flex-start",
     backgroundColor: colors.surfaceSubtle,
     borderRadius: radius.sm,
     padding: spacing.sm,
     marginTop: spacing.sm,
+    gap: spacing.xs,
+  },
+  noticeIcon: {
+    marginTop: 1,
   },
   permissionText: {
+    flex: 1,
     ...typography.tiny,
     color: colors.textMuted,
     lineHeight: 16,

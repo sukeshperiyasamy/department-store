@@ -87,7 +87,7 @@ a:hover { text-decoration: underline; }
 }
 .nav-item:hover { background: var(--surface); text-decoration: none; }
 .nav-item.active { background: var(--accent-soft); color: var(--accent-hover); font-weight: 600; }
-.nav-item .nav-icon { width: 20px; text-align: center; font-size: 15px; }
+.nav-item .nav-icon { width: 20px; display: inline-flex; align-items: center; justify-content: center; }
 .nav-badge { margin-left: auto; background: var(--warning-soft); color: var(--warning);
   border-radius: 999px; font-size: 11px; font-weight: 700; padding: 1px 8px; }
 .sidebar-foot { margin-top: auto; padding: 10px; color: var(--muted); font-size: var(--fs-xs); }
@@ -388,7 +388,7 @@ label { color: var(--muted); font-size: var(--fs-sm); font-weight: 600; }
   display: flex; align-items: flex-start; gap: 10px; font-size: var(--fs-sm); color: var(--text);
 }
 .plan-feature-check {
-  color: var(--accent); font-weight: 800; line-height: 1.2;
+  color: var(--accent); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px;
 }
 
 /* Forms */

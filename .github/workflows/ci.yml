@@ -49,6 +49,9 @@ jobs:
       - name: TypeScript Typecheck (All Workspaces)
         run: npm run typecheck
 
+      - name: Verify No Emojis in UI (Vector Icons Only)
+        run: npm run check:emojis
+
       - name: Validate Shared API Contracts (Zod Schemas)
         run: npm test --workspace @departmental/shared-types
 

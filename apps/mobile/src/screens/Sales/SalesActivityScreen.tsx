@@ -19,6 +19,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { Feather } from "@expo/vector-icons";
 import { api, type RecentInvoiceRow } from "../../api/client";
 import { Badge } from "../../components/Badge";
 import { Card } from "../../components/Card";
@@ -131,7 +132,8 @@ export function SalesActivityScreen() {
 
       {isStale && (
         <View style={styles.staleBanner}>
-          <Text style={styles.staleText}>⚠️ Viewing cached sales snapshot.</Text>
+          <Feather name="alert-triangle" size={14} color={colors.warning} style={styles.bannerIcon} />
+          <Text style={styles.staleText}>Viewing cached sales snapshot.</Text>
         </View>
       )}
 
@@ -198,11 +200,17 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   staleBanner: {
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: colors.warningLight,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.xs,
     borderBottomWidth: 1,
     borderBottomColor: colors.warningBorder,
+    gap: spacing.xs,
+  },
+  bannerIcon: {
+    marginRight: 2,
   },
   staleText: {
     ...typography.tiny,

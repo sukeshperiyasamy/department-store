@@ -18,6 +18,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { Feather } from "@expo/vector-icons";
 import type { UserTenantSummary } from "@departmental/shared-types";
 import { Badge } from "../../components/Badge";
 import { Button } from "../../components/Button";
@@ -95,10 +96,18 @@ export function TenantSelectScreen() {
 
           {isLoading ? (
             <ActivityIndicator size="small" color={colors.primary} />
+          ) : isSuspended ? (
+            <View style={styles.actionRow}>
+              <Feather name="lock" size={13} color={colors.danger} />
+              <Text style={[styles.selectAction, styles.selectActionSuspended]}>
+                Suspended
+              </Text>
+            </View>
           ) : (
-            <Text style={[styles.selectAction, isSuspended && styles.selectActionSuspended]}>
-              {isSuspended ? "Suspended 🔒" : "Open Shop →"}
-            </Text>
+            <View style={styles.actionRow}>
+              <Text style={styles.selectAction}>Open Shop</Text>
+              <Feather name="arrow-right" size={13} color={colors.primaryDark} />
+            </View>
           )}
         </View>
       </TouchableOpacity>
@@ -252,6 +261,11 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.textSecondary,
     fontWeight: "600",
+  },
+  actionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   selectAction: {
     ...typography.bodyBold,

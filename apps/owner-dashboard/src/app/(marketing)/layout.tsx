@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
+import { Store } from "lucide-react";
 
 export default async function MarketingLayout({
   children,
@@ -27,11 +28,9 @@ export default async function MarketingLayout({
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontWeight: 800,
-                fontSize: 18,
               }}
             >
-              🏪
+              <Store size={19} color="#ffffff" aria-hidden="true" />
             </span>
             <span>Department Store ERP</span>
           </Link>
@@ -87,7 +86,7 @@ export default async function MarketingLayout({
           <div className="mkt-footer-grid">
             <div className="mkt-footer-col">
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                <span style={{ fontSize: 22 }}>🏪</span>
+                <Store size={22} color="var(--accent)" aria-hidden="true" />
                 <span style={{ fontWeight: 800, fontSize: "var(--fs-lg)", color: "var(--text)" }}>
                   Department Store ERP
                 </span>

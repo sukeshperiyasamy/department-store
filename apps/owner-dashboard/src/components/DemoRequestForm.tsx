@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useTransition } from "react";
+import { Check, Lock } from "lucide-react";
 import { submitDemoAction, type ActionState } from "@/app/actions/marketing";
 import type { DemoRequestResponse } from "@departmental/shared-types";
 
@@ -34,7 +35,7 @@ export function DemoRequestForm() {
             marginBottom: 20,
           }}
         >
-          ✓
+          <Check size={28} color="var(--accent)" aria-hidden="true" />
         </div>
         <h2 style={{ fontSize: 24, margin: "0 0 12px", color: "var(--text)" }}>
           Demo Request Confirmed
@@ -225,8 +226,9 @@ export function DemoRequestForm() {
         </button>
       </div>
 
-      <div style={{ textAlign: "center", marginTop: 16, fontSize: "var(--fs-xs)", color: "var(--muted)" }}>
-        🔒 Your contact information is never shared or sold. Recorded securely for direct engineering follow-up.
+      <div style={{ textAlign: "center", marginTop: 16, fontSize: "var(--fs-xs)", color: "var(--muted)", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+        <Lock size={12} aria-hidden="true" />
+        <span>Your contact information is never shared or sold. Recorded securely for direct engineering follow-up.</span>
       </div>
     </form>
   );

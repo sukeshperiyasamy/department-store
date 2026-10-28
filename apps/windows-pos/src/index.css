@@ -47,7 +47,7 @@ input:focus, select:focus { outline: none; box-shadow: var(--focus); border-colo
 .topbar .brand { font-weight: 800; color: var(--accent); margin-right: auto; font-size: 16px; }
 .topbar > span:not(.brand):not(.sync-badge) { color: var(--muted); }
 
-.sync-badge { border-radius: 999px; font-weight: 700; font-size: 13px; padding: 6px 14px; }
+.sync-badge { border-radius: 999px; font-weight: 700; font-size: 13px; padding: 6px 14px; display: inline-flex; align-items: center; gap: 6px; }
 .sync-badge.ok { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-hover); }
 .sync-badge.warn { background: var(--warning-soft); border-color: var(--warning); color: var(--warning); }
 .sync-badge.bad { background: var(--error-soft); border-color: var(--error); color: var(--error); }

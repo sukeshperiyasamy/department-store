@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { Download } from "lucide-react";
 
 export interface ReorderItem {
   item_code: string;
@@ -93,7 +94,7 @@ export function ReorderExportButton({
         opacity: items.length === 0 ? 0.6 : 1,
       }}
     >
-      <span>📥</span>
+      <Download size={14} aria-hidden="true" />
       <span>{downloading ? "Exporting…" : `Export Reorder List (${items.length})`}</span>
     </button>
   );

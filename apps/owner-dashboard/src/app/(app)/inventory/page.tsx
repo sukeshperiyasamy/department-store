@@ -1,3 +1,4 @@
+import { CheckCircle2 } from "lucide-react";
 import { fetchStockAlerts } from "@/lib/frappe-server";
 import { ReorderExportButton } from "@/components/ReorderExportButton";
 
@@ -87,7 +88,7 @@ export default async function InventoryPage({
                     {alerts.out_of_stock.length + alerts.low_stock.length === 0 && (
                       <tr><td colSpan={5}>
                         <div className="empty">
-                          <div className="glyph">✓</div>
+                          <div className="glyph"><CheckCircle2 size={36} color="var(--accent)" aria-hidden="true" /></div>
                           Nothing is out of stock or below its reorder level.
                         </div>
                       </td></tr>
@@ -118,7 +119,7 @@ export default async function InventoryPage({
                     {alerts.expiring.length === 0 && (
                       <tr><td colSpan={4}>
                         <div className="empty">
-                          <div className="glyph">✓</div>
+                          <div className="glyph"><CheckCircle2 size={36} color="var(--accent)" aria-hidden="true" /></div>
                           No batches expire within {alerts.days_to_expiry} days.
                         </div>
                       </td></tr>

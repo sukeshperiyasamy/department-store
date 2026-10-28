@@ -1,5 +1,6 @@
 import React from "react";
 import Link from "next/link";
+import { ArrowLeft, Download, Receipt } from "lucide-react";
 import { getBillingOverview } from "@/lib/frappe-server";
 
 export const metadata = {
@@ -23,8 +24,9 @@ export default async function BillingInvoicesPage() {
   return (
     <div style={{ padding: "24px 0", maxWidth: 1000, margin: "0 auto" }}>
       <div style={{ marginBottom: 24 }}>
-        <Link href="/billing" style={{ fontSize: 13, color: "var(--teal-700)", textDecoration: "none", fontWeight: 600 }}>
-          ← Back to Billing Overview
+        <Link href="/billing" style={{ fontSize: 13, color: "var(--teal-700)", textDecoration: "none", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <ArrowLeft size={14} aria-hidden="true" />
+          <span>Back to Billing Overview</span>
         </Link>
         <h1 style={{ fontSize: 26, fontWeight: 800, margin: "12px 0 6px 0", color: "var(--text)" }}>
           Platform Billing Invoices
@@ -37,7 +39,9 @@ export default async function BillingInvoicesPage() {
       <div style={{ background: "#ffffff", border: "1px solid var(--border)", borderRadius: 12, padding: 24, boxShadow: "0 1px 3px rgba(0,0,0,0.05)", marginBottom: 24 }}>
         {invoices.length === 0 ? (
           <div style={{ textAlign: "center", padding: "48px 16px", color: "var(--muted)" }}>
-            <div style={{ fontSize: 36, marginBottom: 12 }}>🧾</div>
+            <div style={{ display: "inline-flex", padding: 14, background: "var(--surface)", borderRadius: "50%", marginBottom: 12 }}>
+              <Receipt size={32} color="var(--muted)" aria-hidden="true" />
+            </div>
             <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 4 }}>No platform invoices found</div>
             <div style={{ fontSize: 13 }}>
               When a subscription renewal or plan change is paid, your B2B tax invoice will appear here automatically.
@@ -86,9 +90,10 @@ export default async function BillingInvoicesPage() {
                         href={inv.pdf_url ?? "#"}
                         target="_blank"
                         rel="noreferrer"
-                        style={{ color: "var(--teal-700)", textDecoration: "none", fontWeight: 600, fontSize: 12 }}
+                        style={{ color: "var(--teal-700)", textDecoration: "none", fontWeight: 600, fontSize: 12, display: "inline-flex", alignItems: "center", gap: 4 }}
                       >
-                        Download PDF ↗
+                        <span>Download PDF</span>
+                        <Download size={12} aria-hidden="true" />
                       </a>
                     </td>
                   </tr>
