@@ -80,9 +80,12 @@ export default async function BillingOverviewPage() {
 
       {loadError && (
         <div style={{ background: "#fef2f2", border: "1px solid #fecaca", color: "#991b1b", padding: 16, borderRadius: 8, marginBottom: 24 }}>
-          <strong>Backend Connection Notice:</strong> {loadError}
-          <div style={{ fontSize: 12, marginTop: 4, color: "#b91c1c" }}>
-            Operating with sandbox defaults. Ensure Frappe backend container is running.
+          <strong>ERP Connection Issue:</strong> {loadError}
+          <div style={{ fontSize: 13, marginTop: 6, display: "flex", gap: 12, alignItems: "center" }}>
+            <span>Real billing data could not be retrieved from Frappe/ERPNext backend.</span>
+            <Link href="/billing" style={{ color: "#991b1b", fontWeight: 600, textDecoration: "underline" }}>
+              Retry Connection
+            </Link>
           </div>
         </div>
       )}
