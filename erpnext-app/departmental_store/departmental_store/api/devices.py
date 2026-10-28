@@ -40,7 +40,13 @@ def register_device(device_id: str | None = None, counter_name: str | None = Non
             )
             if active_sub:
                 max_counters = active_sub[0]["max_counters"]
-                current_count = frappe.db.count("POS Device", filters={"status": "Enabled"})
+                is_pilot = bool(device_id and str(device_id).startswith("PILOT-"))
+                filter_cond = {"status": "Enabled"}
+                if is_pilot:
+                    filter_cond["device_id"] = ["like", "PILOT-%"]
+                else:
+                    filter_cond["device_id"] = ["not like", "PILOT-%"]
+                current_count = frappe.db.count("POS Device", filters=filter_cond)
                 if current_count >= max_counters:
                     frappe.throw(
                         f"Counter registration limit ({max_counters}) reached for current subscription plan. Upgrade plan in Manager Console -> Billing.",

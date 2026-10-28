@@ -1,30 +1,30 @@
 {
-  "started_at": "2026-10-27T13:11:18.820Z",
+  "started_at": "2026-10-28T03:54:41.173Z",
   "tests": [
     {
       "name": "1. Baseline Stack Health & Liveness Probe",
       "status": "PASS",
-      "elapsed_ms": 28
+      "elapsed_ms": 17
     },
     {
       "name": "2. Canary Tenant Migration via Migration Runner",
       "status": "PASS",
-      "elapsed_ms": 10551
+      "elapsed_ms": 11862
     },
     {
       "name": "3. Post-Migration Settings API & Status",
       "status": "PASS",
-      "elapsed_ms": 1577
+      "elapsed_ms": 1574
     },
     {
       "name": "4. Simulated Migration Failure & Immediate Rollout Halt",
       "status": "PASS",
-      "elapsed_ms": 279
+      "elapsed_ms": 273
     },
     {
       "name": "5. Backward-Compatible POS Client Sale Submission",
       "status": "PASS",
-      "elapsed_ms": 575
+      "elapsed_ms": 707
     },
     {
       "name": "6. Offline Queue Re-sync & Idempotency Verification",
@@ -34,9 +34,9 @@
     {
       "name": "7. Migration Locks Cleaned & Platform Healthy",
       "status": "PASS",
-      "elapsed_ms": 73
+      "elapsed_ms": 71
     }
   ],
   "verdict": "PASS",
-  "completed_at": "2026-10-27T13:11:32.776Z"
+  "completed_at": "2026-10-28T03:54:56.394Z"
 }

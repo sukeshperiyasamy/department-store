@@ -332,12 +332,15 @@ def enforce_tenant_lifecycle_and_membership():
 
 
 @frappe.whitelist(allow_guest=True)
-def resolve_tenant_by_host(hostname: str = None) -> dict:
+def resolve_tenant_by_host(hostname: str = None, host: str = None) -> dict:
     """Resolve a tenant workspace from an incoming hostname.
 
     Guest-callable because resolution occurs prior to authentication.
     Never trusts client query overrides or default fallbacks without host match.
     """
+    if not hostname and host:
+        hostname = host
+
     if not hostname:
         # Fall back to request HTTP Host header if available
         if hasattr(frappe.local, "request") and frappe.local.request:
