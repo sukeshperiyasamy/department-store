@@ -30,6 +30,11 @@ second invoice. The counter keeps a durable local queue (SQLite) and works offli
 
 ## Documentation
 
+The approved greenfield replacement plan is documented in the
+[new product development handoff](docs/product/NEW_PRODUCT_DOCUMENTATION_INDEX.md).
+It supersedes ERPNext as the target end-user architecture while the current
+system remains preserved for migration and rollback.
+
 | Topic | Doc |
 | --- | --- |
 | **Agent/dev handoff** | [HANDOFF.md](HANDOFF.md) |
